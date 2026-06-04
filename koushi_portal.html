@@ -559,10 +559,14 @@ const state = {
   searchCurr: '',
 };
 
+// 起動時に localStorage 値も空白除去（過去の壊れた値を自動修復）
 let CFG = {
-  webAppUrl: localStorage.getItem('koushi_webapp_url') || '',
-  token:     localStorage.getItem('koushi_token')      || '',
+  webAppUrl: (localStorage.getItem('koushi_webapp_url') || '').replace(/\s+/g, ''),
+  token:     (localStorage.getItem('koushi_token')      || '').replace(/\s+/g, ''),
 };
+// クリーニングした値を再保存
+if (CFG.webAppUrl) try { localStorage.setItem('koushi_webapp_url', CFG.webAppUrl); } catch(e){}
+if (CFG.token)    try { localStorage.setItem('koushi_token', CFG.token); } catch(e){}
 let CURRENT_TEACHER = localStorage.getItem('koushi_teacher') || '';
 
 let allRows = [];
@@ -759,19 +763,16 @@ async function loadData() {
   try {
     const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}`;
     console.log('[loadData] fetching:', url.slice(0, 80) + '...');
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 60000);
+    console.log('[loadData] origin:', location.origin, 'protocol:', location.protocol);
     let resp;
     try {
-      resp = await fetch(url, { signal: ac.signal });
+      const t0 = Date.now();
+      resp = await fetch(url);
+      console.log('[loadData] response in ' + (Date.now()-t0) + 'ms / HTTP ' + resp.status);
     } catch (e) {
-      console.error('[loadData] fetch error:', e);
-      const msg = e.name === 'AbortError'
-        ? '窓口の応答がありません（60秒）'
-        : `窓口に接続できません: ${e.message}\n\n考えられる原因:\n・file:// で開いている（http://localhost:8765 で開いてください）\n・ブラウザ拡張やネットワークがブロック\n・GAS Web App のデプロイが古い／公開設定誤り\n\n詳細は DevTools (F12) → Console に出力されています`;
+      console.error('[loadData] fetch error:', e.name, e.message, e);
+      const msg = `窓口に接続できません: ${e.message}\n詳細は DevTools (F12) → Console / Network タブを確認してください`;
       throw new Error(msg);
-    } finally {
-      clearTimeout(timer);
     }
     if (!resp.ok) throw new Error(`窓口アクセス失敗 (HTTP ${resp.status})`);
     console.log('[loadData] response received, parsing JSON...');
@@ -1139,10 +1140,12 @@ function openSettings(){
   openModal('settingsModal');
 }
 function saveSettings(){
-  const url = $('#webAppUrlInput').value.trim();
-  const tk  = $('#tokenInput').value.trim();
+  // 全空白（半角・全角・改行）を除去 — コピペ時の混入対策
+  const url = $('#webAppUrlInput').value.replace(/\s+/g, '');
+  const tk  = $('#tokenInput').value.replace(/\s+/g, '');
   if (!url) { alert('受付窓口のURLを入力してください'); return; }
   if (!tk)  { alert('合言葉を入力してください'); return; }
+  if (!/^https?:\/\//.test(url)) { alert('URLが正しくありません（https:// から始まる必要があります）'); return; }
   CFG.webAppUrl = url; CFG.token = tk;
   try {
     localStorage.setItem('koushi_webapp_url', url);
