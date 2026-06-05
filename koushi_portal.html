@@ -1952,7 +1952,52 @@ function renderHelp(){
         <div id="validateStatus" style="display:none;font-size:12.5px;color:var(--muted);margin-bottom:10px"></div>
         <button class="btn btn-primary" onclick="runValidation()"><svg class="ic"><use href="#i-refresh"/></svg> データ整合性チェック実行</button>
       </div>
+      <div class="card card-pad">
+        <div class="card-title"><svg class="ic"><use href="#i-users"/></svg> 講師DB「担当生徒詳細」を生徒情報シートで上書き</div>
+        <p style="font-size:13.5px;line-height:1.7;color:var(--ink2);margin:10px 0 14px">
+          生徒情報シート（正データ）の <b style="color:var(--ink)">講師ID</b> を元に、<b style="color:var(--ink)">講師DBの「担当生徒詳細」タブ</b>の<br>
+          ・講師ID列<br>
+          ・講師名列（講師ID→講師マスタで自動解決）<br>
+          を一括上書きします。<br>
+          <b style="color:var(--brand)">⚠ 実行前に自動バックアップ</b>（タブ名: 担当生徒詳細_bk_yyyyMMdd_HHmm）が作成されるので、元に戻せます。
+        </p>
+        <div id="syncTantoStatus" style="display:none;font-size:12.5px;color:var(--muted);margin-bottom:10px"></div>
+        <button class="btn btn-dark" onclick="runSyncTanto()"><svg class="ic"><use href="#i-refresh"/></svg> 担当生徒詳細を同期</button>
+      </div>
     </div>`;
+}
+async function runSyncTanto(){
+  if (!confirm('担当生徒詳細を生徒情報シートで上書きします。実行前にバックアップタブが自動生成されますが、本当に実行しますか？')) return;
+  const btn = event.target.closest('button');
+  const status = $('#syncTantoStatus');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="ic"><use href="#i-refresh"/></svg> 同期中…（30秒〜1分）';
+  status.style.display = 'block';
+  status.textContent = 'GAS に同期処理を依頼中…';
+  try {
+    const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=sync_tanto`);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.error || data.message || 'sync failed');
+    const c = data.changes;
+    const lines = [
+      `<b>同期完了</b> (${data.syncedAt}) ／ 全${c.total}行`,
+      `・講師ID更新: <b>${c.tid}</b> 件`,
+      `・講師名更新: <b>${c.tname}</b> 件`,
+      `・変更なし: ${c.unchanged} 件`,
+      `・生徒情報に該当なし: ${c.notFound} 件`,
+      `<a href="${data.sheetUrl}" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700;text-decoration:underline">「担当生徒詳細」を開く →</a>`,
+      `<a href="${data.backupUrl}" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:underline">バックアップ「${data.backupTab}」を開く</a>`,
+    ];
+    status.innerHTML = lines.join('<br>');
+    status.style.color = 'var(--ink)';
+  } catch (e) {
+    status.textContent = 'エラー: ' + e.message;
+    status.style.color = 'var(--danger)';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
 }
 async function runValidation(){
   const btn = event.target.closest('button');
