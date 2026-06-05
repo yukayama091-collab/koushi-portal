@@ -1130,7 +1130,7 @@ async function loadData() {
       if (gradSkippedCount > 0) console.log('[loadData] skipped ' + gradSkippedCount + ' graduates (teacher not in 講師DB)');
     }
 
-    // attach meta
+    // attach meta — 生徒名・クラス名・講師ID は 生徒情報シート を最優先
     allRows.forEach((r, i) => {
       r._idx = i;
       const meta = metaOf(r);
@@ -1138,15 +1138,13 @@ async function loadData() {
       if (meta.className) r.className = meta.className;
       r.grad = gradMap.get(normName(r.name)) || null;
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
-      // 卒業生マスタとマージ：登録ID(=管理ID) または 表示名 で一致
+      // 卒業生マスタは「卒業判定」「卒業期」だけ使う（teacherId/className は上書きしない）
+      // 仕様: 生徒名と講師情報は 生徒情報シートを正とする
       const gm = gradOfficialById.get(r.id) || gradOfficialByName.get(normName(r.name));
       if (gm) {
         r.isOfficialGraduate = true;
         r.officialCohort = gm.cohort;
         r.officialCohortN = gm.cohortN;
-        // 卒業時の所属講師でteacherId/className を上書き（最新の正データ）
-        if (gm.teacherId) r.teacherId = gm.teacherId;
-        if (gm.className) r.className = gm.className;
       }
     });
 
