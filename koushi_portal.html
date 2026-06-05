@@ -643,11 +643,12 @@ function teacherStem(cls) {
   s = s.replace(/[-_‐‑–—−\s]+$/, '').replace(/先生\s*$/, '').replace(/講師\s*$/, '');
   return s.trim();
 }
-// 「◯月スタート」「◯月予定」など、未開始クラスを示すキーワードを含むかどうか
+// 「◯月スタート」「◯月予定」「10月中旬スタート」「12月下旬予定」など、未開始クラスを示すキーワードを含むかどうか
+// 「月」の後にどんな文字が挟まっても「スタート」or「予定」があればプレースホルダ判定
 function isPlaceholderClass(cls) {
   if (!cls) return false;
-  return /(\d+|[０-９一二三四五六七八九十]+)月\s*(スタート|予定)/.test(cls)
-      || /月スタート|月予定/.test(cls);
+  return /月[\s\S]{0,8}?(スタート|予定)/.test(cls)
+      || /(スタート|予定)$/.test(cls);
 }
 
 /* ── Step columns ── */
@@ -966,39 +967,42 @@ async function loadData() {
     // 卒業済み（および「今日>卒業予定日」）は「超過」バケットから外して卒業扱い
     applyGraduationOverrides();
 
-    // 講師ID 確定（クラス名から所属講師を優先）
-    const classKeyToTid = new Map();
-    const stemToTid = new Map();
+    // 講師ID 確定（仕様3に従い「クラス名の stem（"組"とアルファベットを除いた残り）」を最優先）
+    //   1. 各 stem ごとに、その stem を持つクラスに紐付く teacherId の出現回数を集計
+    //   2. 最頻出 teacherId をその stem の「正しい teacherId」として確定
+    //   3. 各生徒の teacherId を、所属クラスの stem に対応する正しい teacherId へ上書き
+    //   - 大小文字・全角半角を統一して比較（"kelly" と "Kelly" を同一視）
+    const normalizeStem = s => String(s||'')
+      .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+      .toLowerCase().trim();
+    const stemTidCount = new Map();   // 正規化 stem → {tid:count}
     allRows.forEach(r => {
       if (!r.teacherId || !r.className) return;
-      const ck = classKey(r.className);
-      const cEntry = classKeyToTid.get(ck) || {};
-      cEntry[r.teacherId] = (cEntry[r.teacherId]||0)+1;
-      classKeyToTid.set(ck, cEntry);
-      const stem = teacherNameFromClass(r.className);
-      if (stem) {
-        const sEntry = stemToTid.get(stem) || {};
-        sEntry[r.teacherId] = (sEntry[r.teacherId]||0)+1;
-        stemToTid.set(stem, sEntry);
-      }
+      const stem = teacherStem(r.className);
+      const k = normalizeStem(stem);
+      if (!k) return;
+      const entry = stemTidCount.get(k) || {};
+      entry[r.teacherId] = (entry[r.teacherId]||0) + 1;
+      stemTidCount.set(k, entry);
     });
     const topOf = obj => {
       const sorted = Object.entries(obj).sort((a,b) => b[1]-a[1]);
       return sorted.length ? { tid:sorted[0][0], count:sorted[0][1], total:sorted.reduce((s,[,c]) => s+c, 0) } : null;
     };
+    // stem → 確定 teacherId
+    const stemToTeacher = new Map();
+    stemTidCount.forEach((counts, stem) => {
+      const top = topOf(counts);
+      // 1件しか無い stem も採用（仕様: クラス名 stem が真の所属講師）
+      if (top) stemToTeacher.set(stem, top.tid);
+    });
+    // 各生徒の teacherId を上書き（クラス名 stem 起点）
     allRows.forEach(r => {
       if (!r.className) return;
-      const ck = classKey(r.className);
-      const cTop = classKeyToTid.has(ck) ? topOf(classKeyToTid.get(ck)) : null;
-      let tid = null;
-      if (cTop && cTop.total>=2 && cTop.count/cTop.total>0.5) tid = cTop.tid;
-      if (!tid) {
-        const stem = teacherNameFromClass(r.className);
-        if (stem && stemToTid.has(stem)) {
-          const sTop = topOf(stemToTid.get(stem));
-          if (sTop && sTop.total>=2 && sTop.count/sTop.total>0.5) tid = sTop.tid;
-        }
-      }
+      const stem = teacherStem(r.className);
+      const k = normalizeStem(stem);
+      if (!k) return;
+      const tid = stemToTeacher.get(k);
       if (tid) r.teacherId = tid;
     });
 
