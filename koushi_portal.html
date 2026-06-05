@@ -45,9 +45,12 @@ a{ color:inherit; text-decoration:none; }
 .app{ display:grid; grid-template-columns:var(--sb-w) 1fr; grid-template-rows:var(--top-h) 1fr; min-height:100vh; }
 .brandbox{ grid-column:1; grid-row:1; background:#fff; border-right:1px solid var(--line); border-bottom:1px solid var(--line);
   display:flex; align-items:center; gap:10px; padding:0 18px; position:sticky; top:0; z-index:40; }
-.brand-mark{ width:30px; height:30px; flex:none; display:flex; align-items:center; justify-content:center; }
+.brand-mark{ width:32px; height:32px; flex:none; display:flex; align-items:center; justify-content:center; }
 .brand-name{ font-size:16px; font-weight:700; letter-spacing:.01em; color:var(--ink); white-space:nowrap; }
-.brand-name b{ color:var(--brand); font-weight:700; }
+.brand-name b{ color:var(--ink); font-weight:700; }
+.brand-logo-img{ height:34px; width:auto; display:block; }
+#teacherFilterClear{ transition:background .12s, color .12s; }
+#teacherFilterClear:hover{ background:var(--soft); color:var(--ink); }
 
 .topbar{ grid-column:2; grid-row:1; background:#fff; border-bottom:1px solid var(--line);
   display:flex; align-items:center; gap:16px; padding:0 28px; position:sticky; top:0; z-index:40; }
@@ -366,6 +369,129 @@ table.tbl{ width:100%; border-collapse:collapse; }
   .dm-info,.dm-stats{ grid-template-columns:1fr 1fr; }
   .page-title{ font-size:22px; }
 }
+
+/* ════════════════════════════════════════════════════════════
+   講師マスタ (teacherMaster) — design_handoff_koushi_master
+   ════════════════════════════════════════════════════════════ */
+:root{
+  --tier-master:#17181c; --tier-diamond:#2563eb; --tier-platinum:#0d9488;
+  --tier-gold:#d98309; --tier-silver:#9aa1ad; --tier-special:#7c3aed;
+}
+#page-teacherMaster .tm-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:22px; }
+#page-teacherMaster .tm-title{ font-size:26px; font-weight:700; line-height:1.25; }
+#page-teacherMaster .tm-sub{ font-size:13.5px; color:var(--muted); margin-top:5px; }
+#page-teacherMaster .tm-actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+#page-teacherMaster .stack{ display:flex; flex-direction:column; gap:16px; }
+#page-teacherMaster .card-pad{ padding:22px 24px; }
+#page-teacherMaster .card-head{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px; flex-wrap:wrap; }
+#page-teacherMaster .card-title{ font-size:15px; font-weight:700; }
+#page-teacherMaster .faint{ color:var(--faint); }
+#page-teacherMaster .seg{ display:inline-flex; background:var(--soft); border:1px solid var(--line); border-radius:var(--r-btn); padding:3px; gap:3px; }
+#page-teacherMaster .seg button{ font:inherit; font-size:12.5px; font-weight:600; color:var(--muted); border:none; background:none; cursor:pointer; height:32px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; border-radius:6px; }
+#page-teacherMaster .seg button.on{ background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(17,18,28,.08); }
+#page-teacherMaster .chips{ display:flex; gap:8px; flex-wrap:wrap; }
+#page-teacherMaster .chip{ height:32px; padding:0 14px; border-radius:var(--r-pill); border:1px solid var(--line); background:#fff; color:var(--ink2); font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
+#page-teacherMaster .chip .c{ color:var(--faint); font-weight:500; }
+#page-teacherMaster .chip:hover{ border-color:#d9dadd; }
+#page-teacherMaster .chip.active{ background:var(--pill); color:#fff; border-color:var(--pill); }
+#page-teacherMaster .chip.active .c{ color:rgba(255,255,255,.7); }
+#page-teacherMaster .tbl-wrap{ overflow-x:auto; }
+#page-teacherMaster .tbl{ width:100%; border-collapse:collapse; font-size:13.5px; }
+#page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
+#page-teacherMaster .tbl td{ padding:13px 16px; color:var(--ink2); border-bottom:1px solid var(--line2); vertical-align:middle; }
+#page-teacherMaster .tbl tr.clickable{ cursor:pointer; transition:background .1s; }
+#page-teacherMaster .tbl tr.clickable:hover{ background:var(--tint); }
+#page-teacherMaster .tbl tr.flag{ background:var(--brand-tint); }
+#page-teacherMaster .tbl tr.flag:hover{ background:var(--brand-soft); }
+#page-teacherMaster .num{ font-variant-numeric:tabular-nums; }
+#page-teacherMaster .tbl-foot{ display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-top:1px solid var(--line2); font-size:12.5px; color:var(--muted); flex-wrap:wrap; gap:10px; }
+#page-teacherMaster .pager{ display:flex; gap:4px; }
+#page-teacherMaster .pager button{ width:32px; height:32px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink2); font-size:12.5px; cursor:pointer; }
+#page-teacherMaster .pager button.on{ background:var(--pill); color:#fff; border-color:var(--pill); }
+#page-teacherMaster .name-cell{ display:flex; align-items:center; gap:11px; min-width:0; }
+#page-teacherMaster .tm-av{ width:36px; height:36px; border-radius:10px; background:var(--soft); color:var(--ink2); font-weight:700; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+#page-teacherMaster .tm-av.lg{ width:52px; height:52px; border-radius:13px; font-size:17px; }
+#page-teacherMaster .nm{ font-weight:600; color:var(--ink); }
+#page-teacherMaster .sub{ font-size:11.5px; color:var(--faint); max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#page-teacherMaster .rank{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border:1px solid var(--line); border-radius:var(--r-pill); background:#fff; font-size:12px; font-weight:600; color:var(--ink2); white-space:nowrap; }
+#page-teacherMaster .rank.master{ background:#f4f4f5; }
+#page-teacherMaster .rank .dot{ width:7px; height:7px; border-radius:50%; background:var(--tier-silver); }
+#page-teacherMaster .rank.master .dot{ background:var(--tier-master); }
+#page-teacherMaster .rank.diamond .dot{ background:var(--tier-diamond); }
+#page-teacherMaster .rank.platinum .dot{ background:var(--tier-platinum); }
+#page-teacherMaster .rank.gold .dot{ background:var(--tier-gold); }
+#page-teacherMaster .rank.silver .dot{ background:var(--tier-silver); }
+#page-teacherMaster .rank.special .dot{ background:var(--tier-special); }
+#page-teacherMaster .tag{ display:inline-flex; align-items:center; height:22px; padding:0 9px; border:1px solid var(--line2); background:var(--soft); border-radius:7px; font-size:11.5px; color:var(--ink2); }
+#page-teacherMaster .tmbadge{ display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 9px; border-radius:var(--r-pill); font-size:11.5px; font-weight:600; }
+#page-teacherMaster .tmbadge-red{ background:var(--brand); color:#fff; }
+#page-teacherMaster .tmbadge-line{ background:#fff; color:var(--ink2); border:1px solid var(--line); }
+#page-teacherMaster .tmbadge-ok{ background:var(--ok-soft); color:var(--ok); }
+#page-teacherMaster .tmbadge .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+#page-teacherMaster .tmbadge-line .dot{ background:var(--faint); }
+#page-teacherMaster .cls{ display:inline-flex; gap:3px; flex-wrap:nowrap; align-items:center; }
+#page-teacherMaster .cls span{ width:20px; height:20px; border-radius:6px; font-size:11px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+#page-teacherMaster .cls .grad{ background:#eef0f2; color:var(--ink2); }
+#page-teacherMaster .cls .on{ background:var(--brand-soft); color:var(--brand); }
+#page-teacherMaster .cls .none{ color:var(--faint); font-weight:500; width:auto; background:none; }
+#page-teacherMaster .grid-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(248px,1fr)); gap:16px; }
+#page-teacherMaster .grid-cards .tm-card{ background:#fff; border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow-card); padding:18px; cursor:pointer; transition:.12s; display:flex; flex-direction:column; gap:11px; }
+#page-teacherMaster .grid-cards .tm-card:hover{ border-color:#d9dadd; box-shadow:0 6px 20px rgba(17,18,28,.07); transform:translateY(-2px); }
+#page-teacherMaster .grid-cards .tm-card .top{ display:flex; align-items:center; gap:11px; }
+#page-teacherMaster .grid-cards .tm-card h3{ font-size:15px; font-weight:700; line-height:1.2; }
+#page-teacherMaster .grid-cards .tm-card .hd{ font-size:11.5px; color:var(--faint); margin-top:2px; }
+#page-teacherMaster .grid-cards .tm-card .acct{ font-size:12px; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+#page-teacherMaster .grid-cards .tm-card .meta{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+#page-teacherMaster .grid-cards .tm-card .foot{ display:flex; justify-content:space-between; padding-top:11px; border-top:1px solid var(--line2); font-size:11.5px; color:var(--muted); }
+#page-teacherMaster .grid-cards .tm-card .foot .stat b{ color:var(--ink); font-weight:700; }
+
+/* ドロワー (グローバル) */
+.scrim{ position:fixed; inset:0; background:rgba(17,18,28,.34); z-index:90; opacity:0; pointer-events:none; transition:opacity .2s; }
+.scrim.open{ opacity:1; pointer-events:auto; }
+.drawer{ position:fixed; top:0; right:0; height:100vh; width:560px; max-width:94vw; background:#fff; box-shadow:var(--shadow-pop); z-index:100; transform:translateX(100%); transition:transform .26s cubic-bezier(.5,.05,.2,1); display:flex; flex-direction:column; }
+.drawer.open{ transform:none; }
+.drawer .dr-head{ display:flex; align-items:flex-start; gap:14px; padding:22px 24px 18px; border-bottom:1px solid var(--line); }
+.drawer .dr-head h2{ font-size:18px; font-weight:700; line-height:1.3; }
+.drawer .dr-head .hd{ font-size:12px; color:var(--faint); font-weight:500; margin-left:6px; }
+.drawer .dr-meta{ display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+.drawer .dr-av{ width:52px; height:52px; border-radius:13px; background:var(--soft); color:var(--ink2); font-weight:700; font-size:17px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+.drawer .dr-x{ margin-left:auto; width:36px; height:36px; border:1px solid var(--line); background:#fff; border-radius:9px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+.drawer .dr-x:hover{ background:var(--soft); }
+.drawer .dr-tabs{ display:flex; gap:0; border-bottom:1px solid var(--line); padding:0 24px; overflow-x:auto; }
+.drawer .dr-tab{ font:inherit; font-size:13px; font-weight:600; color:var(--muted); border:none; background:none; cursor:pointer; padding:14px 14px 12px; border-bottom:2px solid transparent; white-space:nowrap; display:inline-flex; align-items:center; gap:6px; }
+.drawer .dr-tab.on{ color:var(--ink); border-bottom-color:var(--brand); }
+.drawer .dr-tab .cnt{ background:var(--soft); color:var(--ink2); font-size:11px; padding:1px 7px; border-radius:var(--r-pill); }
+.drawer .dr-body{ flex:1; overflow:auto; background:var(--tint); padding:22px 24px; }
+.drawer .dr-foot{ display:flex; align-items:center; gap:10px; padding:14px 24px; border-top:1px solid var(--line); }
+.drawer .dr-foot .hist{ margin-left:auto; font-size:11.5px; color:var(--faint); }
+.drawer .field{ margin-bottom:12px; }
+.drawer .field label{ display:block; font-size:13px; font-weight:600; color:var(--ink2); margin-bottom:5px; }
+.drawer .field input, .drawer .field select, .drawer .field textarea{ width:100%; font:inherit; font-size:13px; padding:10px 13px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; color:var(--ink); }
+.drawer .field input:focus, .drawer .field select:focus, .drawer .field textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+.drawer .field input[readonly]{ background:var(--soft); }
+.drawer .field textarea{ resize:vertical; min-height:62px; }
+.drawer .field .req{ font-size:10.5px; color:var(--brand); font-weight:700; margin-left:6px; }
+.drawer .field-row{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:0; }
+.drawer .field-row.three{ grid-template-columns:repeat(3,1fr); }
+.drawer .linkfield{ padding:10px 13px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; font-size:13px; }
+.drawer .linkfield a{ color:var(--brand); text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+.drawer .linkfield.empty{ color:var(--faint); }
+.drawer .sec-label{ font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; margin:16px 0 8px; }
+.drawer .substu{ background:#fff; border:1px solid var(--line); border-radius:var(--r-card); overflow:hidden; }
+.drawer .substu table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.drawer .substu th{ font-size:11px; font-weight:600; color:var(--muted); text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--soft); }
+.drawer .substu td{ padding:10px 12px; color:var(--ink2); border-bottom:1px solid var(--line2); }
+.drawer .substu .add{ padding:11px 14px; color:var(--brand); font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.drawer .substu .add:hover{ background:var(--soft); }
+
+/* サイドバー「今後」ナビ */
+.nav.soon{ color:#6c6f78; cursor:default; }
+.nav.soon:hover{ background:none; color:#6c6f78; }
+.nav .soon-tag{ margin-left:auto; font-size:9.5px; font-weight:700; letter-spacing:.04em; color:#6c6f78; border:1px solid #2a2c32; border-radius:var(--r-pill); padding:1px 7px; }
+
+@media (max-width:860px){
+  .drawer{ width:100%; }
+}
 </style>
 </head>
 <body>
@@ -397,19 +523,21 @@ table.tbl{ width:100%; border-collapse:collapse; }
 <symbol id="i-menu" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></g></symbol>
 <symbol id="i-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></g></symbol>
 <symbol id="i-settings" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></g></symbol>
+<symbol id="i-teacher" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></g></symbol>
+<symbol id="i-student" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6"/><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></g></symbol>
+<symbol id="i-staff" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 21v-1a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v1"/></g></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></g></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></g></symbol>
+<symbol id="i-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></g></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></g></symbol>
+<symbol id="i-csv" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></g></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></g></symbol>
 </defs>
 </svg>
 
 <div class="app">
   <div class="brandbox">
-    <span class="brand-mark" aria-hidden="true">
-      <svg viewBox="0 0 40 32" width="32" height="26">
-        <path d="M7 4 L7 24 L21 24" fill="none" stroke="#111418" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M18 18 L33 6" fill="none" stroke="#e51e2a" stroke-width="5.4" stroke-linecap="round"/>
-        <path d="M33 6 L33 13 M33 6 L26 6" fill="none" stroke="#e51e2a" stroke-width="5.4" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </span>
-    <span class="brand-name">株式会社 <b>LeVela</b></span>
+    <img alt="株式会社Levela" src="/levela-logo-horizontal.jpg" style="height:auto;width:100%;max-width:180px;object-fit:contain;display:block" />
   </div>
 
   <header class="topbar">
@@ -419,7 +547,10 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <input id="globalSearch" placeholder="生徒名・クラスで検索…" autocomplete="off">
     </div>
     <div class="topbar-right">
-      <input class="top-filter" id="teacherFilter" list="teacherList" onchange="onTeacherChange()" placeholder="全校（全講師）" autocomplete="off" title="講師名を入力 or 選択（空欄で全校）" />
+      <div class="teacher-filter-wrap" style="position:relative;display:inline-flex;align-items:center">
+        <input class="top-filter" id="teacherFilter" list="teacherList" onchange="onTeacherChange()" oninput="updateTeacherClearBtn()" placeholder="全校（全講師）" autocomplete="off" title="講師名を入力 or 選択（空欄で全校）" style="padding-right:34px" />
+        <button type="button" id="teacherFilterClear" onclick="clearTeacherSelection()" title="講師選択を解除" aria-label="クリア" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:16px;line-height:1">×</button>
+      </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
@@ -433,6 +564,11 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="search" onclick="go('search')" title="生徒名・クラス・状態で検索"><svg class="ic"><use href="#i-search"/></svg> 生徒検索</button>
     <button class="nav" data-page="classes" onclick="go('classes')" title="開始月別のクラス集計"><svg class="ic"><use href="#i-book"/></svg> クラス一覧</button>
     <button class="nav" data-page="progress" onclick="go('progress')" title="状況別の生徒詳細"><svg class="ic"><use href="#i-trending"/></svg> 進捗キャッチアップ</button>
+    <div class="side-section">マスタ管理</div>
+    <button class="nav" data-page="teacherMaster" onclick="go('teacherMaster')" title="講師情報の登録・編集"><svg class="ic"><use href="#i-teacher"/></svg> 講師マスタ</button>
+    <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-student"/></svg> 生徒マスタ<span class="soon-tag">今後</span></button>
+    <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-staff"/></svg> 従業員・MG<span class="soon-tag">今後</span></button>
+    <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-layers"/></svg> クラス<span class="soon-tag">今後</span></button>
     <div class="side-section">サポート</div>
     <button class="nav" data-page="help" onclick="go('help')" title="マーク・色・使い方の説明"><svg class="ic"><use href="#i-help"/></svg> ヘルプ・凡例</button>
     <div class="side-foot">講師ポータル v3.0 ・ LeVela</div>
@@ -445,6 +581,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-search" class="page"></div>
       <div id="page-classes" class="page"></div>
       <div id="page-progress" class="page"></div>
+      <div id="page-teacherMaster" class="page"></div>
       <div id="page-help" class="page"></div>
     </div>
   </div>
@@ -660,6 +797,8 @@ const NEW_STEPS = Array.from({length:19}, (_,i) => `STEP${i+1}完了日`);
 
 /* ── isGraduated / gradDateOf ── */
 function isGraduated(r) {
+  // 公式の卒業生マスタ（卒業生情報タブ）に登録されている → 確定で卒業
+  if (r.isOfficialGraduate) return true;
   if (r.completed) return r.completed <= TODAY;
   if (r.grad && r.grad.status === '卒業生') {
     const d = parseDate(r.grad.gradDate);
@@ -954,6 +1093,32 @@ async function loadData() {
       });
     }
 
+    // 卒業生マスタ（卒業生情報タブ）の取り込み — この一覧にいる生徒は全員「卒業生」
+    const gradOfficialById = new Map();
+    const gradOfficialByName = new Map();
+    const GR = data.graduates;
+    if (GR && GR.header) {
+      const gri = c => GR.header.indexOf(c);
+      const grId = gri('登録ID'), grNm = gri('表示名'),
+            grCohort = gri('卒業期・組'), grN = gri('該当期数'),
+            grCls = gri('講師クラス名'), grTNm = gri('講師名'), grTId = gri('講師ID');
+      GR.rows.forEach(r => {
+        const id = grId>=0 ? String(r[grId]||'').trim() : '';
+        const name = grNm>=0 ? String(r[grNm]||'').trim() : '';
+        const tIdRaw = grTId>=0 ? String(r[grTId]||'').trim() : '';
+        const meta = {
+          cohort:    grCohort>=0 ? String(r[grCohort]||'').trim() : '',
+          cohortN:   grN>=0 ? (parseInt(String(r[grN]||'1').trim(), 10) || 1) : 1,
+          className: grCls>=0 ? String(r[grCls]||'').trim() : '',
+          teacherName: grTNm>=0 ? String(r[grTNm]||'').trim() : '',
+          teacherId: (tIdRaw && tIdRaw !== 'DB未登録') ? tIdRaw : '',
+        };
+        if (id) gradOfficialById.set(id, meta);
+        const nk = normName(name);
+        if (nk && !gradOfficialByName.has(nk)) gradOfficialByName.set(nk, meta);
+      });
+    }
+
     // attach meta
     allRows.forEach((r, i) => {
       r._idx = i;
@@ -962,7 +1127,43 @@ async function loadData() {
       if (meta.className) r.className = meta.className;
       r.grad = gradMap.get(normName(r.name)) || null;
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
+      // 卒業生マスタとマージ：登録ID(=管理ID) または 表示名 で一致
+      const gm = gradOfficialById.get(r.id) || gradOfficialByName.get(normName(r.name));
+      if (gm) {
+        r.isOfficialGraduate = true;
+        r.officialCohort = gm.cohort;
+        r.officialCohortN = gm.cohortN;
+        // 卒業時の所属講師でteacherId/className を上書き（最新の正データ）
+        if (gm.teacherId) r.teacherId = gm.teacherId;
+        if (gm.className) r.className = gm.className;
+      }
     });
+
+    // 卒業生マスタにいるが allRows に居ない生徒も名簿として追加（卒業生として表示するため）
+    if (GR && GR.header) {
+      const exId2 = new Set(), exNm2 = new Set();
+      allRows.forEach(r => { if (r.id) exId2.add(r.id); if (r.name) exNm2.add(normName(r.name)); });
+      const gri = c => GR.header.indexOf(c);
+      const grId = gri('登録ID'), grNm = gri('表示名'),
+            grCohort = gri('卒業期・組'), grCls = gri('講師クラス名'), grTId = gri('講師ID');
+      GR.rows.forEach(r => {
+        const id = grId>=0 ? String(r[grId]||'').trim() : '';
+        const name = grNm>=0 ? String(r[grNm]||'').trim() : '';
+        if (!name && !id) return;
+        const nk = normName(name);
+        if (id && exId2.has(id)) return;
+        if (nk && exNm2.has(nk)) return;
+        const row = rosterRow(id, name);
+        row.className = grCls>=0 ? String(r[grCls]||'').trim() : '';
+        const tIdRaw = grTId>=0 ? String(r[grTId]||'').trim() : '';
+        row.teacherId = (tIdRaw && tIdRaw !== 'DB未登録') ? tIdRaw : '';
+        row.isOfficialGraduate = true;
+        row.officialCohort = grCohort>=0 ? String(r[grCohort]||'').trim() : '';
+        row.officialCohortN = 1;
+        row._idx = allRows.length;
+        allRows.push(row);
+      });
+    }
 
     // 卒業済み（および「今日>卒業予定日」）は「超過」バケットから外して卒業扱い
     applyGraduationOverrides();
@@ -1067,6 +1268,7 @@ function populateTeacherFilter() {
   dl.innerHTML = [...teacherIdToLabel.values()].map(label => `<option value="${label}"></option>`).join('');
   const input = $('#teacherFilter');
   if (input) input.value = CURRENT_TEACHER ? (teacherIdToLabel.get(CURRENT_TEACHER) || '') : '';
+  if (typeof updateTeacherClearBtn === 'function') updateTeacherClearBtn();
 }
 function resolveTeacher(v) {
   if (!v) return '';
@@ -1095,9 +1297,27 @@ function selectTeacher(tid) {
   try { localStorage.setItem('koushi_teacher', tid); } catch(e){}
   const input = $('#teacherFilter');
   if (input) input.value = teacherIdToLabel.get(tid) || '';
+  updateTeacherClearBtn();
   refreshCounts();
   if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
   go('dashboard');
+}
+
+function updateTeacherClearBtn(){
+  const input = document.getElementById('teacherFilter');
+  const btn = document.getElementById('teacherFilterClear');
+  if (!input || !btn) return;
+  btn.style.display = (input.value && input.value.trim()) ? 'inline-flex' : 'none';
+}
+
+function clearTeacherSelection(){
+  const input = document.getElementById('teacherFilter');
+  if (input) input.value = '';
+  try { localStorage.removeItem('koushi_teacher'); } catch(e){}
+  if (typeof selectTeacher === 'function') {
+    try { selectTeacher(''); } catch(e) { console.error(e); }
+  }
+  updateTeacherClearBtn();
 }
 
 /* ── viewStudents adapter ── */
@@ -1192,7 +1412,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, help:renderHelp };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, teacherMaster:renderTeacherMaster, help:renderHelp };
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -1740,6 +1960,10 @@ function openStudent(id){
       <div><div class="k">卒業日</div><div class="v">${gradActual}</div></div>
       <div><div class="k">卒業予定日</div><div class="v">${expStr}</div></div>
       <div><div class="k">初回HR日</div><div class="v">${r.grad?.firstHR || '—'}</div></div>
+      ${r.isOfficialGraduate ? `<div style="grid-column:1 / -1;border-top:1px solid var(--line2);padding-top:12px;margin-top:4px">
+        <div class="k">🎓 卒業期・組</div>
+        <div class="v">${r.officialCohort || '—'} ${r.officialCohortN > 1 ? `<span class="badge badge-info" style="margin-left:6px">該当 ${r.officialCohortN} 期</span>` : ''}</div>
+      </div>` : ''}
     </div>
     <div class="dm-stats" style="margin-bottom:20px">
       <div class="dm-stat"><div class="v">${s.prog}<span style="font-size:13px">%</span></div><div class="l">進捗</div></div>
@@ -1860,6 +2084,320 @@ else $('#page-dashboard').innerHTML = `
     </p>
     <button class="btn btn-primary" onclick="openSettings()">設定を開く</button>
   </div>`;
+
+/* ════════════════════════════════════════════════════════════
+   講師マスタ (teacherMaster) — 講師情報の閲覧・編集
+   ════════════════════════════════════════════════════════════ */
+const TM_DATA = [
+  {id:"0003", name:"magu", account:"magu 𖠿𖥧 ﾏﾝｼｮﾝ ▸▸ ﾘﾉﾍﾞ ▸▸ ｼﾝﾌﾟﾙﾗｲﾌ", ig:"https://www.instagram.com/magu.09/", real:"山口 勇史", genre:"暮らし", rank:"プラチナ", type:"通常", gender:"男性", birth:"1994/09/12", contract:"2024/03/01", active:"稼働中", retire:false, one:true, grad:"AB", ongoing:"C", mg:"こうし", sup:"次回ローンチ時", classes:3, perClass:8, slot:"平日夜・週末", good:"暮らし・リノベ", bad:"ダイエット", launch:"毎月15日〜", students:6},
+  {id:"0004", name:"kei", account:"ケイ⚡️１日１分で分かる【 ＭＢＴＩ×恋愛 】", ig:"", real:"", genre:"エンタメ", rank:"ダイヤモンド", type:"通常", gender:"", birth:"", contract:"2024/01/12", active:"稼働中", retire:false, one:true, grad:"AB", ongoing:"CDE", mg:"こうき", sup:"kenta", classes:3, perClass:10, slot:"平日午後", good:"恋愛・心理", bad:"", launch:"毎月初旬", students:14},
+  {id:"0005", name:"わかな", account:"おさく￤捨て活で〝余裕〟を作るママの暮らし", ig:"https://www.instagram.com/osaku_kurashi", real:"長田 若奈", genre:"暮らし", rank:"プラチナ", type:"通常", gender:"女性", birth:"1991/09/06", contract:"2023/11/01", active:"稼働中", retire:false, one:true, grad:"A", ongoing:"BCD", mg:"うちこ", sup:"ゆん", classes:3, perClass:8, slot:"日中（育児合間）", good:"捨て活・収納", bad:"ガジェット", launch:"毎月20日〜", students:9},
+  {id:"0008", name:"まろ", account:"まろ⌇マネするだけで充実2人暮らし", ig:"https://www.instagram.com/marono_kurashi", real:"横田 未夢", genre:"暮らし", rank:"ダイヤモンド", type:"通常", gender:"女性", birth:"1999/04/01", contract:"2023/06/01", active:"稼働中", retire:false, one:true, grad:"ABC", ongoing:"EFGH", mg:"しゅうへい", sup:"次回ローンチ時", classes:4, perClass:10, slot:"平日終日", good:"二人暮らし", bad:"", launch:"毎月10日〜", students:21},
+  {id:"0010", name:"なぴ", account:"なぴ｜定時で帰れるワーママExcel時短術", ig:"https://www.instagram.com/napi_excel/", real:"江口 菜々", genre:"Excel", rank:"シルバー", type:"通常", gender:"女性", birth:"1996/07/20", contract:"2024/02/15", active:"稼働中", retire:false, one:false, grad:"", ongoing:"A", mg:"こうし", sup:"次回ローンチ時", classes:1, perClass:8, slot:"平日夜のみ", good:"Excel時短", bad:"", launch:"未定", students:7},
+  {id:"0013", name:"きょん", account:"きょん⌇『ゆる投資』でお金を増やすママ", ig:"https://www.instagram.com/kyon__money", real:"村瀬 有里奈", genre:"お金", rank:"プラチナ", type:"通常", gender:"女性", birth:"1992/07/28", contract:"2023/09/01", active:"稼働中", retire:false, one:false, grad:"", ongoing:"AB", mg:"かりん", sup:"おはな", classes:2, perClass:8, slot:"日中", good:"投資・家計", bad:"", launch:"毎月中旬", students:12},
+  {id:"0016", name:"やす", account:"やす| 美容業界13年のメンズ美容オタク", ig:"https://www.instagram.com/mens.beauty_byyasu/", real:"廣岡 靖博", genre:"美容", rank:"シルバー", type:"通常", gender:"男性", birth:"1990/02/05", contract:"2024/04/01", active:"稼働中", retire:false, one:true, grad:"", ongoing:"A", mg:"うちこ", sup:"次回ローンチ時", classes:1, perClass:8, slot:"平日夜", good:"メンズ美容", bad:"", launch:"未定", students:5},
+  {id:"0233", name:"はむ", account:"はむ｜ギャルの暮らし", ig:"https://www.instagram.com/hamuu_life/", real:"對島 剣心", genre:"暮らし", rank:"マスター", type:"専属", gender:"男性", birth:"1998/11/23", contract:"2025/01/15", active:"稼働中", retire:false, one:true, grad:"AB", ongoing:"CD", mg:"こうき", sup:"kenta", classes:2, perClass:10, slot:"平日終日", good:"暮らし全般", bad:"", launch:"毎月初旬", students:18},
+  {id:"0231", name:"ボム", account:"ボム | 今すぐ役立つ子育てライフハック", ig:"https://www.instagram.com/bom_kosodate_lifehack/", real:"長嶋 炫廷", genre:"暮らし", rank:"ダイヤモンド", type:"専属", gender:"女性", birth:"1984/04/07", contract:"2025/02/01", active:"未稼働", retire:false, one:false, grad:"", ongoing:"", mg:"未定", sup:"未定", classes:0, perClass:0, slot:"—", good:"子育て", bad:"", launch:"—", students:0},
+  {id:"0001", name:"村松諒", account:"こまのさぶ", ig:"https://www.instagram.com/koma_sub_story/", real:"", genre:"ガジェット", rank:"マスター", type:"通常", gender:"", birth:"", contract:"2023/04/01", active:"未稼働", retire:true, one:false, grad:"", ongoing:"", mg:"担当なし", sup:"担当なし", classes:0, perClass:0, slot:"—", good:"", bad:"", launch:"—", students:0},
+];
+const TM_STUDENTS = {
+  "0003":[
+    {name:"いずみ さなえ", course:"プレミアムプラス", prog:"未開始", posts:1, mg:"—"},
+    {name:"ますだ あけみ", course:"プレミアムプラス", prog:"未開始", posts:0, mg:"あかり"},
+    {name:"はせがわ まみ", course:"プレミアムプラス", prog:"未開始", posts:1, mg:"みほ"},
+    {name:"なかにし くみな", course:"コミット", prog:"未開始", posts:1, mg:"りな"},
+    {name:"ごとう あやの", course:"プレミアムプラス", prog:"未開始", posts:1, mg:"おぐま"},
+    {name:"はましま まこと", course:"プレミアムプラス", prog:"PP-8完了", posts:0, mg:"あかり"},
+  ],
+};
+const TM_RANKMAP = {"マスター":"master","ダイヤモンド":"diamond","プラチナ":"platinum","ゴールド":"gold","シルバー":"silver","特別条件":"special"};
+const TM_TABS = ["基本情報","契約・稼働","クラス運営","ローンチ","担当生徒"];
+const TM_CHIPS = [["全員",t=>true],["稼働中",t=>t.active==="稼働中"],["未稼働",t=>t.active==="未稼働"],["専属",t=>t.type==="専属"],["1on1 可",t=>t.one],["要対応",t=>t.active==="未稼働"&&!t.retire]];
+let tmView = 'table';
+let tmChipIdx = 0;
+let tmFilter = { q:"", genre:"", rank:"", type:"" };
+let tmCurRec = null, tmCurTab = 0;
+let tmLoaded = false;
+let tmLoading = false;
+
+async function tmFetchIfNeeded(force){
+  if(!force && (tmLoaded || tmLoading)) return;
+  if(!CFG.webAppUrl || !CFG.token){ return; } // 設定無しならサンプルのまま
+  tmLoading = true;
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=teachers`;
+    const resp = await fetch(url);
+    const d = await resp.json();
+    if (d && Array.isArray(d.teachers)) {
+      TM_DATA.length = 0;
+      d.teachers.forEach(t => {
+        // 不足フィールドを補完してUIが壊れないように
+        t.account = t.account || '';
+        t.ig = t.ig || '';
+        t.real = t.real || '';
+        t.genre = t.genre || '';
+        t.rank = t.rank || 'シルバー';
+        t.type = t.type || '通常';
+        t.gender = t.gender || '';
+        t.birth = t.birth || '';
+        t.contract = t.contract || '';
+        t.active = t.active || '';
+        t.one = !!t.one;
+        t.grad = t.grad || '';
+        t.ongoing = t.ongoing || '';
+        t.mg = t.mg || '';
+        t.sup = t.sup || '';
+        t.classes = t.classes || 0;
+        t.perClass = t.perClass || 0;
+        t.slot = t.slot || '';
+        t.good = t.good || '';
+        t.bad = t.bad || '';
+        t.launch = t.launch || '';
+        t.students = t.students || 0;
+        t.retire = !!t.retire;
+        TM_DATA.push(t);
+      });
+      tmLoaded = true;
+    } else if (d && d.error) {
+      console.error('teachers action error:', d);
+    }
+  } catch (e) {
+    console.error('fetch teachers failed:', e);
+  } finally {
+    tmLoading = false;
+  }
+}
+
+const tmEsc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tmInitials = n => (n||"？").slice(0,2);
+const tmRankBadge = r => `<span class="rank ${TM_RANKMAP[r]||'silver'}"><span class="dot"></span>${tmEsc(r||"—")}</span>`;
+const tmTypeBadge = t => t==='専属' ? `<span class="tmbadge tmbadge-red">専属</span>` : `<span class="tmbadge tmbadge-line">通常</span>`;
+const tmActiveBadge = a => a==='稼働中' ? `<span class="tmbadge tmbadge-ok"><span class="dot"></span>稼働中</span>` : `<span class="tmbadge tmbadge-line"><span class="dot"></span>未稼働</span>`;
+const tmGenreTag = g => g ? `<span class="tag">${tmEsc(g)}</span>` : '<span class="faint">—</span>';
+const tmIcon = (n,sz)=>`<svg class="ic" width="${sz||16}" height="${sz||16}"><use href="#i-${n}"/></svg>`;
+function tmClsChips(grad, ongoing){
+  const g=(grad||"").replace(/[^A-Za-z]/g,"").split("").filter(Boolean);
+  const o=(ongoing||"").replace(/[^A-Za-z]/g,"").split("").filter(Boolean);
+  if(!g.length && !o.length) return '<span class="cls"><span class="none">—</span></span>';
+  return '<span class="cls">'+g.map(c=>`<span class="grad">${c}</span>`).join('')+o.map(c=>`<span class="on">${c}</span>`).join('')+'</span>';
+}
+
+function tmFiltered(){
+  return TM_DATA.filter(r=>{
+    if(!TM_CHIPS[tmChipIdx][1](r)) return false;
+    if(tmFilter.q){ const q=tmFilter.q.toLowerCase(); const blob=`${r.name}|${r.account}|${r.id}`.toLowerCase(); if(!blob.includes(q)) return false; }
+    if(tmFilter.genre && r.genre!==tmFilter.genre) return false;
+    if(tmFilter.rank && r.rank!==tmFilter.rank) return false;
+    if(tmFilter.type && r.type!==tmFilter.type) return false;
+    return true;
+  });
+}
+
+async function renderTeacherMaster(){
+  const page = document.getElementById('page-teacherMaster');
+  if (!tmLoaded && CFG.webAppUrl && CFG.token) {
+    page.innerHTML = `<div class="loading" style="padding:40px;text-align:center;color:var(--muted)">講師データを読み込み中…</div>`;
+    await tmFetchIfNeeded();
+  }
+  page.innerHTML = `
+    <div class="tm-head">
+      <div>
+        <div class="tm-title">講師マスタ</div>
+        <div class="tm-sub">全校（全講師） ／ 講師情報の登録・編集</div>
+      </div>
+      <div class="tm-actions">
+        <div class="seg" id="tm-viewseg">
+          <button class="${tmView==='table'?'on':''}" data-v="table">${tmIcon('table',15)}テーブル</button>
+          <button class="${tmView==='cards'?'on':''}" data-v="cards">${tmIcon('grid',15)}カード</button>
+        </div>
+        <button class="btn btn-ghost" id="tm-csv">${tmIcon('csv',16)}CSV</button>
+        <button class="btn btn-primary" id="tm-newbtn">${tmIcon('plus',16)}新規講師</button>
+      </div>
+    </div>
+    <div class="stack">
+      <div class="card card-pad">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+          <div class="searchbar" style="max-width:300px"><svg class="ic"><use href="#i-search"/></svg><input id="tm-q" value="${tmEsc(tmFilter.q)}" placeholder="講師名・アカウントで絞り込み…"></div>
+          <select class="top-filter" id="tm-fGenre" style="min-width:150px"><option value="">全ジャンル</option>${[...new Set(TM_DATA.map(t=>t.genre).filter(Boolean))].sort().map(g=>`<option ${tmFilter.genre===g?'selected':''}>${tmEsc(g)}</option>`).join('')}</select>
+          <select class="top-filter" id="tm-fRank" style="min-width:140px"><option value="">全ランク</option>${["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>`<option ${tmFilter.rank===r?'selected':''}>${tmEsc(r)}</option>`).join('')}</select>
+          <select class="top-filter" id="tm-fType" style="min-width:130px"><option value="">全区分</option><option ${tmFilter.type==='通常'?'selected':''}>通常</option><option ${tmFilter.type==='専属'?'selected':''}>専属</option></select>
+        </div>
+        <div class="chips" id="tm-chips">${TM_CHIPS.map((c,i)=>`<button class="chip ${i===tmChipIdx?'active':''}" data-i="${i}">${c[0]} <span class="c">${TM_DATA.filter(c[1]).length}</span></button>`).join('')}</div>
+      </div>
+      <div class="card" id="tm-listcard"></div>
+    </div>
+  `;
+  // wire
+  document.querySelectorAll('#tm-viewseg button').forEach(b=>b.onclick=()=>{tmView=b.dataset.v; renderTeacherList();});
+  document.querySelectorAll('#tm-chips .chip').forEach(b=>b.onclick=()=>{tmChipIdx=+b.dataset.i; renderTeacherMaster();});
+  document.getElementById('tm-q').oninput = e=>{ tmFilter.q=e.target.value; renderTeacherList(); };
+  document.getElementById('tm-fGenre').onchange = e=>{ tmFilter.genre=e.target.value; renderTeacherList(); };
+  document.getElementById('tm-fRank').onchange = e=>{ tmFilter.rank=e.target.value; renderTeacherList(); };
+  document.getElementById('tm-fType').onchange = e=>{ tmFilter.type=e.target.value; renderTeacherList(); };
+  document.getElementById('tm-newbtn').onclick = ()=>openTeacherDrawer(null, true);
+  document.getElementById('tm-csv').onclick = exportTeachersCSV;
+  renderTeacherList();
+}
+
+function renderTeacherList(){
+  const card = document.getElementById('tm-listcard');
+  const rows = tmFiltered();
+  if(tmView==='table'){
+    card.classList.add('card-pad'); card.style.cssText='padding-top:20px';
+    card.innerHTML = `<div class="card-head"><div class="card-title">講師一覧 <span class="faint" style="font-weight:500">（${TM_DATA.length}名中 ${rows.length}名を表示）</span></div></div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr>
+        <th>講師</th><th>ジャンル</th><th>ランク</th><th>区分</th><th>担当生徒</th><th>クラス</th><th>担当MG</th><th>稼働</th><th></th>
+      </tr></thead><tbody>${rows.map(r=>`
+        <tr class="clickable ${r.active==='未稼働'?'flag':''}" data-id="${r.id}">
+          <td><div class="name-cell"><span class="tm-av">${tmEsc(tmInitials(r.name))}</span>
+            <div style="min-width:0"><div class="nm">${tmEsc(r.name)} <span class="faint num" style="font-weight:500;font-size:11.5px">${r.id}</span></div>
+            <div class="sub">${tmEsc(r.account)}</div></div></div></td>
+          <td>${tmGenreTag(r.genre)}</td>
+          <td>${tmRankBadge(r.rank)}</td>
+          <td>${tmTypeBadge(r.type)}</td>
+          <td class="num">${r.students}名</td>
+          <td>${tmClsChips(r.grad,r.ongoing)}</td>
+          <td>${tmEsc(r.mg)}</td>
+          <td>${tmActiveBadge(r.active)}</td>
+          <td style="text-align:right;color:var(--faint)">${tmIcon('chevron-right',16)}</td>
+        </tr>`).join('')}</tbody></table></div>
+      <div class="tbl-foot"><span>全 <b class="num">${TM_DATA.length}</b> 名 ／ 稼働中 <b class="num">${TM_DATA.filter(t=>t.active==='稼働中').length}</b> 名</span>
+        <div class="pager"><button>‹</button><button class="on">1</button><button>›</button></div></div>`;
+  } else {
+    card.classList.remove('card-pad'); card.style.cssText='border:none;background:none;box-shadow:none';
+    card.innerHTML = `<div class="grid-cards">${rows.map(r=>`
+      <div class="tm-card" data-id="${r.id}">
+        <div class="top"><span class="tm-av lg">${tmEsc(tmInitials(r.name))}</span>
+          <div style="min-width:0"><h3>${tmEsc(r.name)}</h3><div class="hd">${r.id} ・ ${tmEsc(r.genre||'—')}</div></div></div>
+        <div class="acct">${tmEsc(r.account)}</div>
+        <div class="meta">${tmRankBadge(r.rank)} ${tmTypeBadge(r.type)} ${tmActiveBadge(r.active)}</div>
+        <div class="meta">${tmClsChips(r.grad,r.ongoing)}</div>
+        <div class="foot"><span class="stat">担当生徒 <b class="num">${r.students}</b></span><span class="stat">MG <b style="font-size:13px">${tmEsc(r.mg)}</b></span></div>
+      </div>`).join('')}</div>`;
+  }
+  card.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>openTeacherDrawer(el.dataset.id, false));
+}
+
+function tmField(label,val,opts){
+  opts=opts||{};
+  const req = opts.req?'<span class="req">必須</span>':'';
+  if(opts.link!==undefined){
+    return `<div class="field"><label>${label}</label>${opts.link?`<div class="linkfield"><a href="${tmEsc(opts.linkurl||'#')}" target="_blank">${tmIcon('ext',14)} ${tmEsc(opts.linktext||'リンクを開く')}</a></div>`:`<div class="linkfield empty">未設定</div>`}</div>`;
+  }
+  if(opts.sel){
+    const options = opts.options || [val||'—'];
+    return `<div class="field"><label>${label}${req}</label><select>${options.map(o=>`<option ${o===val?'selected':''}>${tmEsc(o)}</option>`).join('')}</select></div>`;
+  }
+  if(opts.area) return `<div class="field"><label>${label}</label><textarea>${tmEsc(val)}</textarea></div>`;
+  return `<div class="field"><label>${label}${req}</label><input value="${tmEsc(val)}" ${opts.ro?'readonly':''}></div>`;
+}
+
+function tmTabContent(r, t){
+  if(t===0) return `
+    <div class="field-row">${tmField("講師名（表示名）",r.name,{req:true})}${tmField("本名",r.real||"")}</div>
+    ${tmField("アカウント名",r.account,{area:true})}
+    <div class="field"><label>アカウントリンク</label>${r.ig?`<div class="linkfield"><a href="${tmEsc(r.ig)}" target="_blank">${tmIcon('ext',14)} ${tmEsc(r.ig)}</a></div>`:'<div class="linkfield empty">未設定</div>'}</div>
+    <div class="field-row three">${tmField("性別",r.gender,{sel:true,options:["","男性","女性"]})}${tmField("生年月日",r.birth)}${tmField("講師ID",r.id,{ro:true})}</div>
+    <div class="field-row three">${tmField("ジャンル",r.genre,{sel:true,req:true,options:["","暮らし","レシピ","ダイエット","スポット","Excel","美容","育児・教育","お金","ガジェット","エンタメ","筋トレ","健康"]})}
+      ${tmField("ランク",r.rank,{sel:true,req:true,options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"]})}
+      ${tmField("通常 / 専属",r.type,{sel:true,options:["通常","専属"]})}</div>`;
+  if(t===1) return `
+    <div class="field-row">${tmField("契約日",r.contract)}${tmField("契約終了日","")}</div>
+    <div class="field-row">${tmField("稼働状況",r.active,{sel:true,req:true,options:["稼働中","未稼働"]})}${tmField("退職",r.retire?"退職済":"—",{sel:true,options:["—","退職済"]})}</div>
+    <div class="sec-label">メモ</div>${tmField("契約に関する備考","",{area:true})}`;
+  if(t===2) return `
+    <div class="field-row three">
+      ${tmField("1on1対応可否",r.one?"可":"不可",{sel:true,options:["可","不可"]})}
+      <div class="field"><label>卒業クラス</label><div class="linkfield" style="border:none;background:none;padding:0">${tmClsChips(r.grad,"")}</div></div>
+      <div class="field"><label>進行クラス</label><div class="linkfield" style="border:none;background:none;padding:0">${tmClsChips("",r.ongoing)}</div></div>
+    </div>
+    ${tmField("生徒管理シート","",{link:r.id!=="0001",linktext:"生徒管理シートを開く"})}
+    ${tmField("講師紹介シート","",{link:r.id!=="0001",linktext:"講師紹介シートを開く"})}
+    ${tmField("紹介画像（Canva）","",{link:true,linktext:"デザインを開く"})}`;
+  if(t===3) return `
+    <div class="field-row">${tmField("講師MG",r.mg,{sel:true,options:["こうし","こうき","うちこ","しゅうへい","かりん","未定","担当なし"]})}${tmField("サポMG",r.sup,{sel:true,options:["kenta","ゆん","おはな","次回ローンチ時","未定","担当なし"]})}</div>
+    <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス")}${tmField("1クラスの人数",r.perClass+" 名")}${tmField("当月ローンチ時期",r.launch)}</div>
+    ${tmField("受け持ち可能な時間帯",r.slot)}
+    <div class="field-row">${tmField("得意ジャンル",r.good)}${tmField("苦手ジャンル",r.bad)}</div>`;
+  if(t===4){
+    const rows = TM_STUDENTS[r.id];
+    if(!rows) return `<div style="font-size:13px;color:var(--muted);padding:8px 2px;line-height:1.7">担当生徒は<b>生徒マスタ</b>と連携して表示されます。<br>現在 <b class="num">${r.students}</b> 名が紐づいています（このデモでは magu のみ実データを表示）。</div>`;
+    return `<div class="substu"><table><thead><tr><th>生徒名</th><th>コース</th><th>進捗</th><th>投稿</th><th>担当MG</th></tr></thead><tbody>
+      ${rows.map(s=>`<tr><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
+        <td><span class="tag">${tmEsc(s.course)}</span></td>
+        <td>${s.prog.includes('完了')?`<span class="tmbadge tmbadge-ok">${tmEsc(s.prog)}</span>`:`<span class="tmbadge tmbadge-line">${tmEsc(s.prog)}</span>`}</td>
+        <td class="num">${s.posts}</td><td>${tmEsc(s.mg)}</td></tr>`).join('')}
+      </tbody></table><div class="add">${tmIcon('plus',14)} 生徒を追加</div></div>`;
+  }
+}
+
+function tmRenderDrawerBody(){
+  document.getElementById('tm-dr-body').innerHTML = tmTabContent(tmCurRec, tmCurTab);
+  document.querySelectorAll('#tmDrawer .dr-tab').forEach((b,i)=>b.classList.toggle('on', i===tmCurTab));
+}
+
+function openTeacherDrawer(id, isNew){
+  tmCurTab = 0;
+  const r = isNew ? {id:"（自動採番）",name:"",account:"",real:"",genre:"",rank:"シルバー",type:"通常",gender:"",birth:"",contract:"",active:"未稼働",one:false,grad:"",ongoing:"",mg:"未定",sup:"未定",classes:0,perClass:0,slot:"",good:"",bad:"",launch:"",students:0,ig:"",retire:false} : TM_DATA.find(t=>t.id===id);
+  if(!r) return;
+  tmCurRec = r;
+  const drawer = document.getElementById('tmDrawer');
+  drawer.innerHTML = `
+    <div class="dr-head">
+      <span class="dr-av">${tmEsc(isNew?'＋':tmInitials(r.name))}</span>
+      <div style="min-width:0;flex:1">
+        <h2>${isNew?'新規講師の登録':tmEsc(r.name)}${isNew?'':`<span class="hd">${r.id}</span>`}</h2>
+        <div class="dr-meta">${isNew?'<span class="tmbadge tmbadge-line">下書き</span>':`${tmRankBadge(r.rank)} ${tmTypeBadge(r.type)} ${tmActiveBadge(r.active)}`}</div>
+      </div>
+      ${isNew?'':`<button class="btn btn-primary btn-sm" id="tm-dr-portal" title="この講師のダッシュボード/担当生徒/講義実施状況などをポータルで見る" style="margin-right:8px;height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:6px">${tmIcon('ext',14)} ポータルで見る</button>`}
+      <button class="dr-x" id="tm-dr-close">${tmIcon('x',18)}</button>
+    </div>
+    <div class="dr-tabs">${TM_TABS.map((t,ti)=>`<button class="dr-tab ${ti===0?'on':''}">${t}${ti===4?`<span class="cnt">${r.students}</span>`:''}</button>`).join('')}</div>
+    <div class="dr-body" id="tm-dr-body"></div>
+    <div class="dr-foot">
+      <button class="btn btn-primary">保存する</button>
+      <button class="btn btn-ghost" id="tm-dr-cancel">キャンセル</button>
+      ${isNew?'':`<span class="hist">最終更新: — ／ 変更履歴</span>`}
+    </div>`;
+  drawer.querySelectorAll('.dr-tab').forEach((b,ti)=>b.onclick=()=>{tmCurTab=ti; tmRenderDrawerBody();});
+  document.getElementById('tm-dr-close').onclick = closeTeacherDrawer;
+  document.getElementById('tm-dr-cancel').onclick = closeTeacherDrawer;
+  const tmPortalBtn = document.getElementById('tm-dr-portal');
+  if (tmPortalBtn) tmPortalBtn.onclick = () => {
+    closeTeacherDrawer();
+    if (typeof selectTeacher === 'function') {
+      try { selectTeacher(r.id); } catch(e) { console.error('selectTeacher failed', e); }
+    }
+  };
+  tmRenderDrawerBody();
+  document.getElementById('tmScrim').classList.add('open');
+  drawer.classList.add('open');
+}
+
+function closeTeacherDrawer(){
+  document.getElementById('tmDrawer').classList.remove('open');
+  document.getElementById('tmScrim').classList.remove('open');
+}
+
+function exportTeachersCSV(){
+  const rows = tmFiltered();
+  const cols = ['id','name','account','ig','real','genre','rank','type','gender','birth','contract','active','one','grad','ongoing','mg','sup','classes','perClass','slot','good','bad','launch','students'];
+  const csv = [cols.join(',')].concat(rows.map(r=>cols.map(c=>{
+    const v = r[c]==null?'':String(r[c]).replace(/"/g,'""');
+    return /[",\n]/.test(v) ? `"${v}"` : v;
+  }).join(','))).join('\n');
+  const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `講師マスタ_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// scrim クリック / Esc で閉じる
+document.addEventListener('click', e=>{ if(e.target.id==='tmScrim') closeTeacherDrawer(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeTeacherDrawer(); });
 </script>
+<div class="scrim" id="tmScrim"></div>
+<aside class="drawer" id="tmDrawer" aria-label="講師の編集"></aside>
 </body>
 </html>
