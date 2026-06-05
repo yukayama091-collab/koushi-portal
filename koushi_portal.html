@@ -1945,7 +1945,43 @@ function renderHelp(){
           <li>第1回・第12回データは講師の生徒管理シートから自動取得</li>
         </ol>
       </div>
+      <div class="card card-pad">
+        <div class="card-title"><svg class="ic"><use href="#i-alert"/></svg> データ整合性チェック</div>
+        <p style="font-size:13.5px;line-height:1.7;color:var(--ink2);margin:10px 0 14px">
+          生徒情報・卒業生情報を講師DB（基本情報）と突合し、<b style="color:var(--ink)">講師IDとクラス名の不一致、未登録講師ID、生徒情報と卒業生情報の食い違い</b>などを検出します。<br>
+          実行すると、<b style="color:var(--ink)">生徒DB内に「データ整合性チェック」タブが自動生成</b>され、問題のある行が一覧化されます。
+        </p>
+        <div id="validateStatus" style="display:none;font-size:12.5px;color:var(--muted);margin-bottom:10px"></div>
+        <button class="btn btn-primary" onclick="runValidation()"><svg class="ic"><use href="#i-refresh"/></svg> データ整合性チェック実行</button>
+      </div>
     </div>`;
+}
+async function runValidation(){
+  const btn = event.target.closest('button');
+  const status = $('#validateStatus');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="ic"><use href="#i-refresh"/></svg> 実行中… (1〜2分かかります)';
+  status.style.display = 'block';
+  status.textContent = 'GAS にチェック処理を依頼中…';
+  try {
+    const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=validate`);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.message || 'validation failed');
+    const lines = [
+      `<b>${data.totalIssues} 件</b> の整合性問題を検出 (${data.checkedAt})`,
+      ...Object.entries(data.byType || {}).map(([t, n]) => `・${t}: ${n} 件`),
+      `<a href="${data.sheetUrl}" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700;text-decoration:underline">「データ整合性チェック」シートを開く →</a>`,
+    ];
+    status.innerHTML = lines.join('<br>');
+    status.style.color = 'var(--ink)';
+  } catch (e) {
+    status.textContent = 'エラー: ' + e.message;
+    status.style.color = 'var(--danger)';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
 }
 
 /* ═════════════ STUDENT MODAL ═════════════ */
