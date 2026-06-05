@@ -618,6 +618,37 @@ function teacherNameFromClass(cls) {
   if (!cls) return '';
   return String(cls).trim().replace(/[0-9A-Za-zＡ-Ｚ０-９ぁ-んァ-ヶ一-龠]?組$/, '').trim();
 }
+// クラス名 → 末尾「組」の直前1文字（クラス識別アルファベット）を返す
+// 例: 山田A組→A, 山田-B組→B, 山田_C組→C, 山田先生D組→D
+function classLetter(cls) {
+  if (!cls) return '';
+  // 全角英数→半角、末尾「組」除去
+  let s = String(cls).trim()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/組\s*$/, '')
+    .trim();
+  if (!s) return '';
+  return s.slice(-1).toUpperCase();   // A/B/C/...
+}
+// クラス名 → 講師名部分（組と末尾1文字を除いた残り。区切り文字「先生」「-」「_」も除去）
+function teacherStem(cls) {
+  if (!cls) return '';
+  let s = String(cls).trim()
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/組\s*$/, '')
+    .trim();
+  // 末尾の1文字（クラスアルファベット）を除去
+  s = s.slice(0, -1);
+  // 区切りや敬称を除去
+  s = s.replace(/[-_‐‑–—−\s]+$/, '').replace(/先生\s*$/, '').replace(/講師\s*$/, '');
+  return s.trim();
+}
+// 「◯月スタート」「◯月予定」など、未開始クラスを示すキーワードを含むかどうか
+function isPlaceholderClass(cls) {
+  if (!cls) return false;
+  return /(\d+|[０-９一二三四五六七八九十]+)月\s*(スタート|予定)/.test(cls)
+      || /月スタート|月予定/.test(cls);
+}
 
 /* ── Step columns ── */
 const SP_STEPS = Array.from({length:10}, (_,i) => `【SP】Step${i+1}完了日`);
@@ -633,7 +664,23 @@ function isGraduated(r) {
     const d = parseDate(r.grad.gradDate);
     return !d || d <= TODAY;
   }
+  // 今日 > 卒業予定日 なら卒業扱い（停滞カウント停止＋卒業済みカテゴリ）
+  const exp = expectedGradDate(r);
+  if (exp && exp < TODAY) return true;
   return false;
+}
+// 卒業判定が変わった生徒について、status='grad' と isStagnant/isStuck をリセット
+// 講義データ（第1回/第12回）が後から読み込まれた時にも再評価できるよう関数化
+function applyGraduationOverrides() {
+  allRows.forEach(r => {
+    if (isGraduated(r)) {
+      if (['inprog','expired','expired80','over80'].includes(r.status)) {
+        r.status = 'grad';
+      }
+      r.isStagnant = false;
+      r.isStuck = false;
+    }
+  });
 }
 function gradDateOf(r) {
   if (r.completed) return fmt(r.completed);
@@ -643,16 +690,18 @@ function gradDateOf(r) {
 
 /* ── Expected graduation date ── */
 function expectedGradDate(r) {
+  // 優先順：(1) 生徒に直接 attach した lec1/lec12 (2) classKey 経由のマップ (3) grad.firstHR フォールバック
   const ck = r.className ? classKey(r.className) : null;
-  const l1 = ck ? lecture1Map.get(ck) : null;
+  let l1 = r.lec1Date || (ck ? lecture1Map.get(ck) : null);
+  let l12 = r.lec12Date || (ck ? lecture12Map.get(ck) : null);
   let base = null;
-  if (l1) base = addDays(l1, 180);
-  else if (r.grad && r.grad.firstHR) {
+  if (l1) {
+    base = addDays(l1, 180);
+  } else if (r.grad && r.grad.firstHR) {
     const hr = parseDate(r.grad.firstHR);
     if (hr) base = addDays(hr, 180);
   }
   if (!base) return null;
-  const l12 = ck ? lecture12Map.get(ck) : null;
   return (l12 && l12 > base) ? l12 : base;
 }
 
@@ -683,6 +732,27 @@ async function preloadTeacherLectures(tid) {
     }
     if (data && data.classes) {
       data.classes.forEach(populateLectureMaps);
+      // この講師の生徒に、所属クラス（末尾「組」直前の文字＝A/B/C…）の第1回/第12回を直接 attach
+      // 例: 生徒の className="山田A組" → letter="A" → 講師シート内のタブ "A組" / "山田A組" 等から該当を探す
+      if (allRows.length) {
+        allRows.forEach(r => {
+          if (r.teacherId !== tid) return;
+          const letter = classLetter(r.className);
+          if (!letter) return;
+          const cls = data.classes.find(c => classLetter(c.tab) === letter);
+          if (cls && cls.lectures) {
+            const lec1Raw = cls.lectures[0] && cls.lectures[0].date;
+            const lec12Raw = cls.lectures[11] && cls.lectures[11].date;
+            const lec1 = lec1Raw ? parseDate(lec1Raw) : null;
+            const lec12 = lec12Raw ? parseDate(lec12Raw) : null;
+            if (lec1) r.lec1Date = lec1;
+            if (lec12) r.lec12Date = lec12;
+            r.lecturesData = cls.lectures;
+          }
+        });
+        // 第1回確定後に「今日>卒業予定日」を再評価
+        applyGraduationOverrides();
+      }
       go(state.page);
     }
   } catch (e) { console.warn('preloadTeacherLectures failed', e); }
@@ -893,14 +963,8 @@ async function loadData() {
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
     });
 
-    // 卒業済みは「超過」バケットから外す
-    allRows.forEach(r => {
-      if (isGraduated(r) && ['expired','expired80','over80'].includes(r.status)) {
-        r.status = 'grad';
-        r.isStagnant = false;
-        r.isStuck = false;
-      }
-    });
+    // 卒業済み（および「今日>卒業予定日」）は「超過」バケットから外して卒業扱い
+    applyGraduationOverrides();
 
     // 講師ID 確定（クラス名から所属講師を優先）
     const classKeyToTid = new Map();
@@ -1033,7 +1097,11 @@ function selectTeacher(tid) {
 }
 
 /* ── viewStudents adapter ── */
-function scopedRows() { return CURRENT_TEACHER ? allRows.filter(r => r.teacherId === CURRENT_TEACHER) : allRows; }
+function scopedRows() {
+  // 「◯月スタート」「◯月予定」など未開始クラス（プレースホルダ）の生徒は集計から除外
+  const base = CURRENT_TEACHER ? allRows.filter(r => r.teacherId === CURRENT_TEACHER) : allRows;
+  return base.filter(r => !isPlaceholderClass(r.className));
+}
 function viewStudents(rows) {
   const src = rows || scopedRows();
   return src.map(r => {
@@ -1688,7 +1756,9 @@ function openClass(clsName){
   const cl = list.filter(s => s.cls === clsName);
   if (!cl.length) return;
   const teacher = cl[0]?.teacher || '';
-  const lecData = classLecturesMap.get(classKey(clsName));
+  // 講師シートの講義データ：まず生徒に attach された lecturesData を優先（letter ベース確実マッチ）
+  const lecturesFromRow = cl.map(s => s.__row?.lecturesData).find(Boolean);
+  const lecData = lecturesFromRow ? { lectures: lecturesFromRow } : classLecturesMap.get(classKey(clsName));
   const lectures = lecData ? lecData.lectures : [];
   const heldCount = lectures.filter(l => l.held).length;
   const nextIdx = heldCount;   // next lecture is heldCount-th (0-indexed)
