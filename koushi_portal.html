@@ -1130,16 +1130,41 @@ async function loadData() {
       if (gradSkippedCount > 0) console.log('[loadData] skipped ' + gradSkippedCount + ' graduates (teacher not in 講師DB)');
     }
 
-    // attach meta — 生徒名・クラス名・講師ID は 生徒情報シート を最優先
+    // データ順番シート（最新CSVで E列クラス名が更新済み）→ 管理ID別の正クラス名マップ
+    const dataOrderByMid = new Map();    // 管理ID(文字列) → クラス名
+    const dataOrderByName = new Map();   // normName → クラス名
+    const DO = data.dataOrder;
+    if (DO && DO.header) {
+      const doi = c => DO.header.indexOf(c);
+      const dId = doi('ID'), dNm = doi('表示名'), dCls = doi('クラス名(講師名)');
+      DO.rows.forEach(r => {
+        const id   = dId>=0 ? String(r[dId]||'').trim() : '';
+        // 数字IDのみを採用（セクションヘッダ「2026/04/01...」等を除外）
+        if (!/^\d+$/.test(id)) return;
+        const cls  = dCls>=0 ? String(r[dCls]||'').trim() : '';
+        const name = dNm>=0 ? String(r[dNm]||'').trim() : '';
+        if (cls) {
+          dataOrderByMid.set(id, cls);
+          if (name) {
+            const nk = normName(name);
+            if (nk && !dataOrderByName.has(nk)) dataOrderByName.set(nk, cls);
+          }
+        }
+      });
+    }
+
+    // attach meta — クラス名は「データ順番」を最優先、無ければ生徒情報を採用
     allRows.forEach((r, i) => {
       r._idx = i;
       const meta = metaOf(r);
       r.teacherId = meta.teacherId || '';
-      if (meta.className) r.className = meta.className;
+      // クラス名の優先順位: (1) データ順番 (2) 生徒情報
+      const doCls = (r.id && dataOrderByMid.get(r.id)) || dataOrderByName.get(normName(r.name));
+      if (doCls) r.className = doCls;
+      else if (meta.className) r.className = meta.className;
       r.grad = gradMap.get(normName(r.name)) || null;
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
-      // 卒業生マスタは「卒業判定」「卒業期」だけ使う（teacherId/className は上書きしない）
-      // 仕様: 生徒名と講師情報は 生徒情報シートを正とする
+      // 卒業生マスタは「卒業判定」「卒業期」だけ使う
       const gm = gradOfficialById.get(r.id) || gradOfficialByName.get(normName(r.name));
       if (gm) {
         r.isOfficialGraduate = true;
