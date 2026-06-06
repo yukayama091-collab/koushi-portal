@@ -1964,7 +1964,118 @@ function renderHelp(){
         <div id="syncTantoStatus" style="display:none;font-size:12.5px;color:var(--muted);margin-bottom:10px"></div>
         <button class="btn btn-dark" onclick="runSyncTanto()"><svg class="ic"><use href="#i-refresh"/></svg> 担当生徒詳細を同期</button>
       </div>
+      <div class="card card-pad">
+        <div class="card-title"><svg class="ic"><use href="#i-clipboard"/></svg> 「データ順番」E列を CSV(LSTEPエクスポート) で更新</div>
+        <p style="font-size:13.5px;line-height:1.7;color:var(--ink2);margin:10px 0 14px">
+          LSTEP からエクスポートした CSV（Shift-JIS）を読み込んで、生徒DB「<b>データ順番</b>」シートの<br>
+          <b style="color:var(--ink)">E列「クラス名(講師名)」</b> を CSV の <b>G列「クラス名(講師名)」</b> で更新します。<br>
+          ・突合キー: <b>A列（管理ID）</b><br>
+          ・検証: CSV の E列「講師ID」と 講師DB「基本情報」を照合し、<b>講師名が一致したものだけ反映</b>（誤データ混入防止）<br>
+          <b style="color:var(--brand)">⚠ 実行前に自動バックアップ</b>（タブ名: データ順番_bk_yyyyMMdd_HHmm）
+        </p>
+        <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="onCsvSelected(event)">
+        <button class="btn btn-ghost" onclick="document.getElementById('csvFileInput').click()"><svg class="ic"><use href="#i-clipboard"/></svg> CSVファイルを選択…</button>
+        <span id="csvFileName" style="margin-left:10px;font-size:13px;color:var(--muted)"></span>
+        <div id="syncDataOrderStatus" style="display:none;font-size:12.5px;color:var(--muted);margin:10px 0"></div>
+        <button id="syncDataOrderBtn" class="btn btn-dark" onclick="runSyncDataOrder()" disabled style="margin-top:12px"><svg class="ic"><use href="#i-refresh"/></svg> 同期実行</button>
+      </div>
     </div>`;
+}
+
+// CSV パース（Shift-JIS / CP932）
+let _csvRows = null;   // パース済みの payload rows
+function onCsvSelected(ev){
+  const file = ev.target.files[0];
+  if (!file) return;
+  $('#csvFileName').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const buf = e.target.result;
+      // CP932/Shift-JIS で UTF-8 化
+      const text = new TextDecoder('shift_jis').decode(buf);
+      // 軽量 CSV パーサ（クォート対応）
+      const lines = text.split(/\r?\n/);
+      const parseLine = (line) => {
+        const out = []; let cur = ''; let inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (inQ) {
+            if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+            else if (c === '"') { inQ = false; }
+            else cur += c;
+          } else {
+            if (c === ',') { out.push(cur); cur = ''; }
+            else if (c === '"') inQ = true;
+            else cur += c;
+          }
+        }
+        out.push(cur);
+        return out;
+      };
+      // 1行目=説明行、2行目=ヘッダー、3行目以降=データ
+      const rows = [];
+      for (let li = 2; li < lines.length; li++) {
+        if (!lines[li]) continue;
+        const cols = parseLine(lines[li]);
+        const id = (cols[0] || '').trim();
+        const teacherId = (cols[4] || '').trim();
+        const className = (cols[6] || '').trim();
+        if (!id) continue;
+        rows.push({ id, teacherId, className });
+      }
+      _csvRows = rows;
+      $('#csvFileName').innerHTML = `${file.name} <span style="color:var(--ok);font-weight:700">${rows.length} 行 読み込み完了</span>`;
+      $('#syncDataOrderBtn').disabled = false;
+    } catch (err) {
+      $('#csvFileName').innerHTML = `<span style="color:var(--danger)">CSV パースエラー: ${err.message}</span>`;
+      _csvRows = null;
+      $('#syncDataOrderBtn').disabled = true;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function runSyncDataOrder(){
+  if (!_csvRows || !_csvRows.length) { alert('先に CSV ファイルを選択してください'); return; }
+  if (!confirm(`データ順番.E列 を CSV の ${_csvRows.length} 行で更新します。実行前にバックアップが取られますが、本当に実行しますか？`)) return;
+  const btn = $('#syncDataOrderBtn');
+  const status = $('#syncDataOrderStatus');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="ic"><use href="#i-refresh"/></svg> 同期中…（〜1分）';
+  status.style.display = 'block';
+  status.textContent = 'CSV を GAS に送信中…';
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=sync_data_order_e`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ rows: _csvRows }),
+    });
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.message || data.error || 'sync failed');
+    const s = data.stats;
+    const lines = [
+      `<b>同期完了</b> (${data.syncedAt}) ／ 全${s.total}行`,
+      `・更新: <b style="color:var(--ok)">${s.updated}</b> 件`,
+      `・変更なし: ${s.unchanged} 件`,
+      `・CSV に該当なし: ${s.noMatch} 件`,
+      `・CSV.講師ID 空欄: ${s.noTeacher} 件`,
+      `・基本情報に該当 tid なし: ${s.unknownTid} 件`,
+      `・<b style="color:var(--warn)">講師名不一致</b>: ${s.nameMismatch} 件（誤データ防止のためスキップ）`,
+      `<a href="${data.sheetUrl}" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700;text-decoration:underline">「データ順番」を開く →</a>`,
+      `<a href="${data.backupUrl}" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:underline">バックアップ「${data.backupTab}」を開く</a>`,
+    ];
+    status.innerHTML = lines.join('<br>');
+    status.style.color = 'var(--ink)';
+  } catch (e) {
+    status.textContent = 'エラー: ' + e.message;
+    status.style.color = 'var(--danger)';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
 }
 async function runSyncTanto(){
   if (!confirm('担当生徒詳細を生徒情報シートで上書きします。実行前にバックアップタブが自動生成されますが、本当に実行しますか？')) return;
