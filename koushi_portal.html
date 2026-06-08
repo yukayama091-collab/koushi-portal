@@ -743,6 +743,7 @@ let lectureCache = new Map();
 let lecture1Map = new Map();
 let lecture12Map = new Map();
 let classLecturesMap = new Map();
+let teacherMasterMap = new Map();   // tid → {name, real, account, accountUrl, genre, rank, type, active, retire}
 
 /* ── Date helpers ── */
 function parseDate(s) {
@@ -1309,6 +1310,10 @@ async function loadData() {
     classSheetMap = new Map();
     (data.classSheets || []).forEach(c => { if (c.teacherId && c.sheetId) classSheetMap.set(c.teacherId, c.sheetId); });
 
+    // 講師マスタ（基本情報の主要フィールド）
+    teacherMasterMap = new Map();
+    (data.teacherMaster || []).forEach(t => { if (t && t.tid) teacherMasterMap.set(t.tid, t); });
+
     populateTeacherFilter();
     $('#lastUpdated').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
     if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
@@ -1691,12 +1696,67 @@ function renderDashboard(){
       </div>`;
   }
 
+  // 講師基本情報カード（CURRENT_TEACHER 選択時のみ）
+  let teacherInfoHtml = '';
+  if (CURRENT_TEACHER) {
+    const tm = teacherMasterMap.get(CURRENT_TEACHER);
+    if (tm) {
+      const myClasses = [...new Set(list.map(s => s.cls).filter(Boolean))].sort();
+      const igUser = (tm.accountUrl || '').match(/instagram\.com\/([^/?#]+)/);
+      const igHandle = igUser ? igUser[1] : '';
+      const safeAcc = (tm.account || tm.name || '').replace(/"/g,'&quot;');
+      teacherInfoHtml = `
+        <div class="card card-pad" id="teacherInfoCard">
+          <div class="card-head" style="margin-bottom:14px">
+            <div class="card-title"><svg class="ic"><use href="#i-user"/></svg> 講師基本情報</div>
+            <span class="card-meta">${tm.active || '—'}${tm.retire ? ' ・ 退職' : ''}</span>
+          </div>
+          <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+            <div class="teacher-avatar" style="width:80px;height:80px;border-radius:18px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:800;flex:none;overflow:hidden">
+              ${tm.name ? tm.name.charAt(0) : '?'}
+            </div>
+            <div style="flex:1;min-width:240px">
+              <div style="font-size:20px;font-weight:800;color:var(--ink);line-height:1.2">${tm.name || '—'} ${tm.real ? `<span style="font-size:13px;font-weight:600;color:var(--muted);margin-left:6px">${tm.real}</span>` : ''}</div>
+              <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
+                ${tm.rank ? `<span class="badge badge-line">${tm.rank}</span>` : ''}
+                ${tm.type ? `<span class="badge badge-dark">${tm.type}</span>` : ''}
+                ${tm.genre ? `<span class="badge badge-grad">${tm.genre}</span>` : ''}
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(220px,1fr));gap:10px 20px;margin-top:14px">
+                <div>
+                  <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">アカウント</div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:3px">${tm.account || '—'}</div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">Instagram</div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:3px">
+                    ${tm.accountUrl
+                      ? `<a href="${tm.accountUrl.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" style="color:var(--brand);text-decoration:underline">${igHandle ? '@' + igHandle : 'リンクを開く'}</a>`
+                      : '—'}
+                  </div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">講師ID</div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums">${tm.tid || '—'}</div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">現在のクラス</div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:3px">${myClasses.length ? myClasses.join(' ・ ') : '—'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+  }
+
   $('#page-dashboard').innerHTML = `
     <div class="page-head">
       <div><div class="page-title">ダッシュボード</div><div class="page-sub">${scopeLabel()} ／ 全クラスのサマリ</div></div>
     </div>
     <div class="stack">
       ${todayHtml}
+      ${teacherInfoHtml}
       ${kpiHtml}
       <div class="grid g2">${followHtml}${upHtml}</div>
       <div class="grid" style="grid-template-columns:1.1fr .9fr">${bottomHtml}${distHtml}</div>
