@@ -327,7 +327,21 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .lec-tl-body{ flex:1; min-width:0; }
 .lec-tl-title{ font-size:14px; font-weight:700; color:var(--ink); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .lec-tl-goal{ font-size:12px; color:var(--muted); margin-top:3px; line-height:1.55; }
-.lec-tl-date{ font-size:11.5px; color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; flex:none; }
+.lec-tl-date{ font-size:11.5px; color:var(--muted); font-weight:600; font-variant-numeric:tabular-nums; flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:4px; min-width:140px; }
+.lec-tl-date input[type=date]{ font:inherit; font-size:12px; border:1px solid var(--line); border-radius:6px; padding:4px 8px; color:var(--ink); background:#fff; cursor:pointer; }
+.lec-tl-date input[type=date]:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 2px var(--brand-soft); }
+.lec-tl-date .save-ind{ font-size:10px; color:var(--ok); font-weight:700; opacity:0; transition:opacity .3s; }
+.lec-tl-date .save-ind.show{ opacity:1; }
+.lec-tl-item.expandable{ cursor:pointer; }
+.lec-tl-item.expandable:hover{ background:var(--soft); }
+.lec-tl-item .lec-tl-toggle{ font-size:11px; color:var(--brand); font-weight:700; margin-left:6px; }
+.lec-1on1-students{ margin-top:8px; padding:10px 14px 12px; background:var(--tint); border:1px dashed var(--line); border-radius:var(--r-box); display:flex; flex-direction:column; gap:6px; }
+.lec-1on1-row{ display:flex; align-items:center; gap:10px; padding:6px 8px; background:#fff; border:1px solid var(--line); border-radius:6px; }
+.lec-1on1-row .nm{ flex:1; font-size:13px; font-weight:600; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lec-1on1-row input[type=date]{ font:inherit; font-size:12px; border:1px solid var(--line); border-radius:6px; padding:4px 8px; color:var(--ink); background:#fff; }
+.lec-1on1-row input[type=date]:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 2px var(--brand-soft); }
+.lec-1on1-row .save-ind{ font-size:10px; color:var(--ok); font-weight:700; opacity:0; transition:opacity .3s; }
+.lec-1on1-row .save-ind.show{ opacity:1; }
 
 /* Help */
 .help-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
@@ -888,6 +902,9 @@ async function preloadTeacherLectures(tid) {
             if (lec1) r.lec1Date = lec1;
             if (lec12) r.lec12Date = lec12;
             r.lecturesData = cls.lectures;
+            r.lecturesStudents = cls.students;   // 生徒×第N回 出欠/個別日程 セル参照用
+            r.lecturesTab = cls.tab;
+            r.lecturesSheetId = sheetId;
           }
         });
         // 第1回確定後に「今日>卒業予定日」を再評価
@@ -2209,20 +2226,27 @@ function openStudent(id){
 }
 
 /* ═════════════ CLASS MODAL (12回タイムライン) ═════════════ */
+// 現在開いているクラス詳細モーダルのコンテキスト（日付編集用）
+let _classCtx = null;
 function openClass(clsName){
   const list = viewStudents();
   const cl = list.filter(s => s.cls === clsName);
   if (!cl.length) return;
   const teacher = cl[0]?.teacher || '';
-  // 講師シートの講義データ：まず生徒に attach された lecturesData を優先（letter ベース確実マッチ）
-  const lecturesFromRow = cl.map(s => s.__row?.lecturesData).find(Boolean);
-  const lecData = lecturesFromRow ? { lectures: lecturesFromRow } : classLecturesMap.get(classKey(clsName));
-  const lectures = lecData ? lecData.lectures : [];
+  // 講師シートの講義データ
+  const sampleRow = cl.map(s => s.__row).find(r => r && r.lecturesData);
+  const lectures = sampleRow ? sampleRow.lecturesData : [];
+  const students = sampleRow ? (sampleRow.lecturesStudents || []) : [];
+  const sheetId = sampleRow ? sampleRow.lecturesSheetId : '';
+  const tab     = sampleRow ? sampleRow.lecturesTab     : '';
+  _classCtx = { clsName, sheetId, tab, lectures, students };
+
   const heldCount = lectures.filter(l => l.held).length;
-  const nextIdx = heldCount;   // next lecture is heldCount-th (0-indexed)
+  const nextIdx = heldCount;
   const need = cl.filter(s => s.status==='stagnant'||s.status==='stuck').length;
   const ok = cl.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
   const grad = cl.filter(s => s.grad).length;
+  const editable = !!(sheetId && tab && lectures.length);
 
   $('#cmTitle').textContent = clsName;
   $('#cmBody').innerHTML = `
@@ -2242,7 +2266,10 @@ function openClass(clsName){
       <div class="dm-stat"><div class="v">${grad}</div><div class="l">卒業</div></div>
     </div>
 
-    <div class="card-title" style="font-size:14px;margin-bottom:12px"><svg class="ic"><use href="#i-calendar"/></svg> 全12回カリキュラム</div>
+    <div class="card-title" style="font-size:14px;margin-bottom:12px">
+      <svg class="ic"><use href="#i-calendar"/></svg> 全12回カリキュラム
+      ${editable ? '<span class="muted" style="font-weight:500;font-size:11.5px">（日付をクリックして編集）</span>' : ''}
+    </div>
     ${!lectures.length ? `<div class="empty" style="padding:24px 0">講師の生徒管理シートを読み込み中…（${CURRENT_TEACHER ? '該当クラスのデータがありません' : '講師フィルタを選択するとここに表示されます'}）</div>` : ''}
     <div class="lec-tl">
       ${CURRICULUM.map((cu, i) => {
@@ -2252,19 +2279,36 @@ function openClass(clsName){
         const isToday = !!d && daysBetween(TODAY, d) === 0;
         const isNext = !isDone && !isToday && i === nextIdx;
         const cls = isDone ? 'done' : isToday ? 'next' : isNext ? 'next' : 'future';
-        const dateStr = d ? `${d.getMonth()+1}/${d.getDate()}（${dow(d)}）` : '未定';
         const typeBadge = `<span class="badge badge-line" style="font-size:11px">${cu.type}</span>`;
         const stateBadge = isDone ? `<span class="badge badge-ok" style="font-size:11px">実施済</span>`
                         : isToday ? `<span class="badge badge-red" style="font-size:11px">本日</span>`
                         : isNext  ? `<span class="badge badge-red" style="font-size:11px">次回</span>`
                         : '';
-        return `<div class="lec-tl-item ${cls}">
+        // 第3回以降は goal を非表示（「通常の添削会」と冗長）
+        const showGoal = i < 2;
+        // 第2回(1on1) は生徒個別、それ以外はクラス全体の日付入力
+        const is1on1 = (cu.no === 2);
+        let dateUI;
+        if (is1on1) {
+          dateUI = editable
+            ? `<button class="lec-tl-toggle" onclick="toggle1on1(${i})" style="background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:4px;color:var(--brand);font-weight:700;font-size:12px">▶ 生徒別に編集</button>`
+            : `<span class="muted">生徒別</span>`;
+        } else if (editable) {
+          const inputVal = d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : '';
+          dateUI = `
+            <input type="date" value="${inputVal}" onchange="setLectureDate(${i}, this.value, this)" title="クリックして日付を選択">
+            <span class="save-ind" id="saveInd-${i}">✓ 保存</span>`;
+        } else {
+          dateUI = d ? `${d.getMonth()+1}/${d.getDate()}（${dow(d)}）` : '未定';
+        }
+        return `<div class="lec-tl-item ${cls}" id="lecRow-${i}">
           <div class="lec-tl-no"><span class="num">${cu.no}</span><span class="lbl">回</span></div>
           <div class="lec-tl-body">
             <div class="lec-tl-title">${cu.title} ${typeBadge} ${stateBadge}</div>
-            <div class="lec-tl-goal">${cu.goal}</div>
+            ${showGoal ? `<div class="lec-tl-goal">${cu.goal}</div>` : ''}
+            ${is1on1 ? `<div id="lec1on1-${i}" style="display:none"></div>` : ''}
           </div>
-          <div class="lec-tl-date">${dateStr}</div>
+          <div class="lec-tl-date">${dateUI}</div>
         </div>`;
       }).join('')}
     </div>
@@ -2286,6 +2330,87 @@ function openClass(clsName){
     </table></div>
   `;
   openModal('classModal');
+}
+
+// クラス全体の講義日付を保存（第1回, 第3〜12回）
+async function setLectureDate(lecIdx, value, inputEl) {
+  if (!_classCtx) return;
+  const lec = _classCtx.lectures[lecIdx];
+  if (!lec || !lec.col) { alert('講義データが読み込まれていません'); return; }
+  const ind = $('#saveInd-' + lecIdx);
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
+      + `&sheetId=${encodeURIComponent(_classCtx.sheetId)}&tab=${encodeURIComponent(_classCtx.tab)}`
+      + `&row=4&col=${encodeURIComponent(lec.col)}&value=${encodeURIComponent(value || '')}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.message || data.error || '保存失敗');
+    // ローカルキャッシュ更新（次回モーダル表示時に反映）
+    _classCtx.lectures[lecIdx].date = value || '';
+    _classCtx.lectures[lecIdx].held = !!value;
+    // lecture1Map / lecture12Map も更新（卒業予定日に影響）
+    const ck = classKey(_classCtx.clsName);
+    if (lecIdx === 0) lecture1Map.set(ck, value ? parseDate(value) : null);
+    if (lecIdx === 11) lecture12Map.set(ck, value ? parseDate(value) : null);
+    // 各生徒の lec1Date/lec12Date も更新
+    allRows.forEach(r => {
+      if (r.className !== _classCtx.clsName) return;
+      if (lecIdx === 0) r.lec1Date = value ? parseDate(value) : null;
+      if (lecIdx === 11) r.lec12Date = value ? parseDate(value) : null;
+    });
+    if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1500); }
+  } catch (e) {
+    alert('保存エラー: ' + e.message);
+  }
+}
+
+// 第2回 1on1 セクションの開閉
+function toggle1on1(lecIdx) {
+  const box = $('#lec1on1-' + lecIdx);
+  if (!box || !_classCtx) return;
+  if (box.style.display === 'none') {
+    // 初回展開時に内容を組み立て
+    if (!box.innerHTML.trim()) {
+      const lec = _classCtx.lectures[lecIdx];
+      const col = lec ? lec.col : null;
+      const html = (_classCtx.students || []).map((st, si) => {
+        const v = (st.att && st.att[lecIdx]) || '';
+        // value が "2026/06/15" 形式なら "2026-06-15" に変換
+        const m = String(v).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+        const inputVal = m ? `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}` : '';
+        return `<div class="lec-1on1-row">
+          <span class="nm">${st.name}</span>
+          <input type="date" value="${inputVal}" onchange="set1on1StudentDate(${si}, ${lecIdx}, this.value, this)">
+          <span class="save-ind" id="ind-1on1-${si}">✓</span>
+        </div>`;
+      }).join('');
+      box.innerHTML = `<div class="lec-1on1-students">${html || '<div class="empty">生徒データなし</div>'}</div>`;
+    }
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+// 第2回 1on1 の生徒個別日付を保存
+async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
+  if (!_classCtx) return;
+  const st = _classCtx.students[studentIdx];
+  const lec = _classCtx.lectures[lecIdx];
+  if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
+  const ind = $('#ind-1on1-' + studentIdx);
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
+      + `&sheetId=${encodeURIComponent(_classCtx.sheetId)}&tab=${encodeURIComponent(_classCtx.tab)}`
+      + `&row=${st.row}&col=${lec.col}&value=${encodeURIComponent(value || '')}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.message || data.error || '保存失敗');
+    if (st.att) st.att[lecIdx] = value || '';
+    if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1500); }
+  } catch (e) {
+    alert('保存エラー: ' + e.message);
+  }
 }
 
 /* ═════════════ Boot ═════════════ */
