@@ -1743,6 +1743,14 @@ function renderDashboard(){
                   <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">現在のクラス</div>
                   <div style="font-size:13.5px;font-weight:600;margin-top:3px">${myClasses.length ? myClasses.join(' ・ ') : '—'}</div>
                 </div>
+                <div>
+                  <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">性別</div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:3px">${tm.gender || '—'}</div>
+                </div>
+                <div>
+                  <div class="muted" style="font-size:11px;font-weight:700;letter-spacing:.04em">生年月日</div>
+                  <div style="font-size:13.5px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums">${tm.birth || '—'}</div>
+                </div>
               </div>
             </div>
           </div>
