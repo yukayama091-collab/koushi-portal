@@ -1395,10 +1395,17 @@ function clearTeacherSelection(){
 }
 
 /* ── viewStudents adapter ── */
+// 正式なクラス名と認める条件：末尾が「組」で終わる
+// 「7月スタート」「休会中」「未定」「6月末希望」「kentaI組【休会中】」など、
+// 末尾が「組」で終わらない不整合クラス名は全て集計から除外
+function isValidClassName(cls) {
+  if (!cls) return false;
+  return /組\s*$/.test(String(cls).trim());
+}
 function scopedRows() {
-  // 「◯月スタート」「◯月予定」など未開始クラス（プレースホルダ）の生徒は集計から除外
+  // 講師フィルタ × 正式クラス名のみ
   const base = CURRENT_TEACHER ? allRows.filter(r => r.teacherId === CURRENT_TEACHER) : allRows;
-  return base.filter(r => !isPlaceholderClass(r.className));
+  return base.filter(r => isValidClassName(r.className));
 }
 function viewStudents(rows) {
   const src = rows || scopedRows();
