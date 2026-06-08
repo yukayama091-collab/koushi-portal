@@ -343,6 +343,19 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .lec-1on1-row .save-ind{ font-size:10px; color:var(--ok); font-weight:700; opacity:0; transition:opacity .3s; }
 .lec-1on1-row .save-ind.show{ opacity:1; }
 
+/* 出席/欠席 トグル（第1回, 第3〜12回） */
+.lec-att-list{ margin-top:10px; padding:10px 14px 12px; background:var(--tint); border:1px dashed var(--line); border-radius:var(--r-box); display:flex; flex-direction:column; gap:6px; }
+.lec-att-row{ display:flex; align-items:center; gap:10px; padding:6px 10px; background:#fff; border:1px solid var(--line); border-radius:6px; }
+.lec-att-row .nm{ flex:1; font-size:13px; font-weight:600; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.att-btn{ font:inherit; font-size:11.5px; font-weight:700; padding:4px 14px; border-radius:14px; border:1px solid var(--line); background:#fff; color:var(--muted); cursor:pointer; transition:.12s; }
+.att-btn:hover{ background:var(--soft); border-color:#d9dadd; }
+.att-btn.att-present.active{ background:var(--ok); color:#fff; border-color:var(--ok); }
+.att-btn.att-absent.active{ background:var(--danger); color:#fff; border-color:var(--danger); }
+.att-btn:disabled{ opacity:.6; cursor:wait; }
+.lec-att-row .save-ind{ font-size:10px; color:var(--ok); font-weight:700; opacity:0; transition:opacity .3s; min-width:18px; text-align:right; }
+.lec-att-row .save-ind.show{ opacity:1; }
+.lec-att-summary{ font-size:11px; color:var(--muted); font-weight:600; margin-top:4px; }
+
 /* Help */
 .help-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
 .help-item{ display:flex; gap:13px; padding:15px 16px; border:1px solid var(--line); border-radius:var(--r-box); background:#fff; }
@@ -2286,7 +2299,7 @@ function openClass(clsName){
                         : '';
         // 第3回以降は goal を非表示（「通常の添削会」と冗長）
         const showGoal = i < 2;
-        // 第2回(1on1) は生徒個別、それ以外はクラス全体の日付入力
+        // 第2回(1on1) は生徒個別の日付、それ以外はクラス全体の日付入力＋出席リスト
         const is1on1 = (cu.no === 2);
         let dateUI;
         if (is1on1) {
@@ -2301,12 +2314,31 @@ function openClass(clsName){
         } else {
           dateUI = d ? `${d.getMonth()+1}/${d.getDate()}（${dow(d)}）` : '未定';
         }
+        // 出席リスト（第1回・第3〜12回のみ自動展開、生徒×出席/欠席ボタン）
+        let attHtml = '';
+        if (!is1on1 && editable && students.length) {
+          const presentCount = students.filter(st => ((st.att||[])[i] || '') !== '欠席').length;
+          const absentCount = students.length - presentCount;
+          attHtml = `<div class="lec-att-summary">出席 ${presentCount} ・ 欠席 ${absentCount}</div>
+            <div class="lec-att-list">
+              ${students.map((st, si) => {
+                const v = (st.att && st.att[i]) || '';
+                const isAbsent = v === '欠席';
+                return `<div class="lec-att-row">
+                  <span class="nm">${st.name}</span>
+                  <button class="att-btn att-present ${!isAbsent ? 'active' : ''}" onclick="setAttendance(${i}, ${si}, '出席', this)">出席</button>
+                  <button class="att-btn att-absent ${isAbsent ? 'active' : ''}" onclick="setAttendance(${i}, ${si}, '欠席', this)">欠席</button>
+                  <span class="save-ind" id="ind-att-${i}-${si}">✓</span>
+                </div>`;
+              }).join('')}
+            </div>`;
+        }
         return `<div class="lec-tl-item ${cls}" id="lecRow-${i}">
           <div class="lec-tl-no"><span class="num">${cu.no}</span><span class="lbl">回</span></div>
           <div class="lec-tl-body">
             <div class="lec-tl-title">${cu.title} ${typeBadge} ${stateBadge}</div>
             ${showGoal ? `<div class="lec-tl-goal">${cu.goal}</div>` : ''}
-            ${is1on1 ? `<div id="lec1on1-${i}" style="display:none"></div>` : ''}
+            ${is1on1 ? `<div id="lec1on1-${i}" style="display:none"></div>` : attHtml}
           </div>
           <div class="lec-tl-date">${dateUI}</div>
         </div>`;
@@ -2410,6 +2442,49 @@ async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
     if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1500); }
   } catch (e) {
     alert('保存エラー: ' + e.message);
+  }
+}
+
+// 第1回 / 第3〜12回 の出席・欠席を保存（生徒×回 セル）
+async function setAttendance(lecIdx, studentIdx, status, btn) {
+  if (!_classCtx) return;
+  const st = _classCtx.students[studentIdx];
+  const lec = _classCtx.lectures[lecIdx];
+  if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
+  const row = btn.closest('.lec-att-row');
+  const presentBtn = row.querySelector('.att-present');
+  const absentBtn  = row.querySelector('.att-absent');
+  const ind = $('#ind-att-' + lecIdx + '-' + studentIdx);
+  // 一時的に両ボタンを無効化（連打防止）
+  presentBtn.disabled = absentBtn.disabled = true;
+  const prevPresent = presentBtn.classList.contains('active');
+  const prevAbsent  = absentBtn.classList.contains('active');
+  // 楽観的にUIを切替
+  presentBtn.classList.toggle('active', status === '出席');
+  absentBtn.classList.toggle('active', status === '欠席');
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
+      + `&sheetId=${encodeURIComponent(_classCtx.sheetId)}&tab=${encodeURIComponent(_classCtx.tab)}`
+      + `&row=${st.row}&col=${lec.col}&value=${encodeURIComponent(status)}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!data.ok) throw new Error(data.message || data.error || '保存失敗');
+    if (st.att) st.att[lecIdx] = status;
+    if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1200); }
+    // 出席/欠席サマリを再計算
+    const summary = row.parentElement.previousElementSibling;
+    if (summary && summary.classList.contains('lec-att-summary')) {
+      const total = _classCtx.students.length;
+      const absent = _classCtx.students.filter(s => ((s.att||[])[lecIdx] || '') === '欠席').length;
+      summary.textContent = `出席 ${total - absent} ・ 欠席 ${absent}`;
+    }
+  } catch (e) {
+    // 失敗したら元に戻す
+    presentBtn.classList.toggle('active', prevPresent);
+    absentBtn.classList.toggle('active', prevAbsent);
+    alert('保存エラー: ' + e.message);
+  } finally {
+    presentBtn.disabled = absentBtn.disabled = false;
   }
 }
 
