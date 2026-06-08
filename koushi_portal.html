@@ -2314,23 +2314,28 @@ function openClass(clsName){
         } else {
           dateUI = d ? `${d.getMonth()+1}/${d.getDate()}（${dow(d)}）` : '未定';
         }
-        // 出席リスト（第1回・第3〜12回のみ自動展開、生徒×出席/欠席ボタン）
+        // 出席リスト（第1回・第3〜12回、デフォルト折り畳み・クリックで展開）
         let attHtml = '';
         if (!is1on1 && editable && students.length) {
           const presentCount = students.filter(st => ((st.att||[])[i] || '') !== '欠席').length;
           const absentCount = students.length - presentCount;
-          attHtml = `<div class="lec-att-summary">出席 ${presentCount} ・ 欠席 ${absentCount}</div>
-            <div class="lec-att-list">
-              ${students.map((st, si) => {
-                const v = (st.att && st.att[i]) || '';
-                const isAbsent = v === '欠席';
-                return `<div class="lec-att-row">
-                  <span class="nm">${st.name}</span>
-                  <button class="att-btn att-present ${!isAbsent ? 'active' : ''}" onclick="setAttendance(${i}, ${si}, '出席', this)">出席</button>
-                  <button class="att-btn att-absent ${isAbsent ? 'active' : ''}" onclick="setAttendance(${i}, ${si}, '欠席', this)">欠席</button>
-                  <span class="save-ind" id="ind-att-${i}-${si}">✓</span>
-                </div>`;
-              }).join('')}
+          attHtml = `<div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+              <button class="lec-tl-toggle" onclick="toggleAttendance(${i})" style="background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:4px;color:var(--brand);font-weight:700;font-size:12px">▶ 出席を編集</button>
+              <span class="lec-att-summary" style="margin-top:0">出席 <b id="att-pres-${i}">${presentCount}</b> ・ 欠席 <b id="att-abs-${i}">${absentCount}</b></span>
+            </div>
+            <div id="lecAtt-${i}" style="display:none">
+              <div class="lec-att-list">
+                ${students.map((st, si) => {
+                  const v = (st.att && st.att[i]) || '';
+                  const isAbsent = v === '欠席';
+                  return `<div class="lec-att-row">
+                    <span class="nm">${st.name}</span>
+                    <button class="att-btn att-present ${!isAbsent ? 'active' : ''}" onclick="setAttendance(${i}, ${si}, '出席', this)">出席</button>
+                    <button class="att-btn att-absent ${isAbsent ? 'active' : ''}" onclick="setAttendance(${i}, ${si}, '欠席', this)">欠席</button>
+                    <span class="save-ind" id="ind-att-${i}-${si}">✓</span>
+                  </div>`;
+                }).join('')}
+              </div>
             </div>`;
         }
         return `<div class="lec-tl-item ${cls}" id="lecRow-${i}">
@@ -2445,6 +2450,20 @@ async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
   }
 }
 
+// 第1回 / 第3〜12回 の出席リスト開閉
+function toggleAttendance(lecIdx) {
+  const box = $('#lecAtt-' + lecIdx);
+  if (!box) return;
+  const btn = box.previousElementSibling?.querySelector('.lec-tl-toggle');
+  if (box.style.display === 'none') {
+    box.style.display = 'block';
+    if (btn) btn.textContent = '▼ 出席を編集';
+  } else {
+    box.style.display = 'none';
+    if (btn) btn.textContent = '▶ 出席を編集';
+  }
+}
+
 // 第1回 / 第3〜12回 の出席・欠席を保存（生徒×回 セル）
 async function setAttendance(lecIdx, studentIdx, status, btn) {
   if (!_classCtx) return;
@@ -2472,12 +2491,12 @@ async function setAttendance(lecIdx, studentIdx, status, btn) {
     if (st.att) st.att[lecIdx] = status;
     if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1200); }
     // 出席/欠席サマリを再計算
-    const summary = row.parentElement.previousElementSibling;
-    if (summary && summary.classList.contains('lec-att-summary')) {
-      const total = _classCtx.students.length;
-      const absent = _classCtx.students.filter(s => ((s.att||[])[lecIdx] || '') === '欠席').length;
-      summary.textContent = `出席 ${total - absent} ・ 欠席 ${absent}`;
-    }
+    const total = _classCtx.students.length;
+    const absent = _classCtx.students.filter(s => ((s.att||[])[lecIdx] || '') === '欠席').length;
+    const presEl = $('#att-pres-' + lecIdx);
+    const absEl  = $('#att-abs-' + lecIdx);
+    if (presEl) presEl.textContent = total - absent;
+    if (absEl)  absEl.textContent  = absent;
   } catch (e) {
     // 失敗したら元に戻す
     presentBtn.classList.toggle('active', prevPresent);
