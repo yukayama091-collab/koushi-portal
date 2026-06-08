@@ -826,33 +826,45 @@ const NEW_STEPS = Array.from({length:19}, (_,i) => `STEP${i+1}完了日`);
 
 /* ── isGraduated / gradDateOf ── */
 function isGraduated(r) {
-  // 公式の卒業生マスタ（卒業生情報タブ）に登録されている → 確定で卒業
+  // 仕様: 投稿プログラムの完了状態は卒業判定に使わない。卒業日に到達したら卒業。
+  // (1) 公式の卒業生マスタ（卒業生情報タブ）に登録されている → 確定で卒業
   if (r.isOfficialGraduate) return true;
-  if (r.completed) return r.completed <= TODAY;
-  if (r.grad && r.grad.status === '卒業生') {
+  // (2) 要サポート生徒分析の「卒業日」が今日以前 → 卒業（status='現役生' でも可）
+  if (r.grad && r.grad.gradDate) {
     const d = parseDate(r.grad.gradDate);
-    return !d || d <= TODAY;
+    if (d && d <= TODAY) return true;
   }
-  // 今日 > 卒業予定日 なら卒業扱い（停滞カウント停止＋卒業済みカテゴリ）
+  // (3) 今日 > 卒業予定日（第1回+180日 / 第12回が後ろならそれ）→ 卒業
   const exp = expectedGradDate(r);
   if (exp && exp < TODAY) return true;
   return false;
 }
-// 卒業判定が変わった生徒について、status='grad' と isStagnant/isStuck をリセット
+// 卒業判定が変わった生徒について status を補正し、経過日数のカウントを「卒業日」で停止する
 // 講義データ（第1回/第12回）が後から読み込まれた時にも再評価できるよう関数化
 function applyGraduationOverrides() {
   allRows.forEach(r => {
-    if (isGraduated(r)) {
-      if (['inprog','expired','expired80','over80'].includes(r.status)) {
-        r.status = 'grad';
+    if (!isGraduated(r)) return;
+    if (['inprog','expired','expired80','over80'].includes(r.status)) {
+      r.status = 'grad';
+    }
+    r.isStagnant = false;
+    r.isStuck = false;
+    // 卒業日（要サポート分析の卒業日 → 卒業予定日 の順）を経過日数の終端とする
+    const gradEnd = (r.grad && r.grad.gradDate ? parseDate(r.grad.gradDate) : null) || expectedGradDate(r);
+    if (gradEnd) {
+      if (r.spStart) {
+        const d = daysBetween(r.spStart, gradEnd);
+        if (d != null) r.daysSinceStart = Math.max(0, d);
       }
-      r.isStagnant = false;
-      r.isStuck = false;
+      if (r.lastStepDate) {
+        const d = daysBetween(r.lastStepDate, gradEnd);
+        if (d != null) r.daysSinceLastStep = Math.max(0, d);
+      }
     }
   });
 }
 function gradDateOf(r) {
-  if (r.completed) return fmt(r.completed);
+  // 投稿プログラムの完了日は使わない（仕様: 卒業は卒業日基準）
   if (r.grad && r.grad.gradDate) return r.grad.gradDate;
   return '';
 }
