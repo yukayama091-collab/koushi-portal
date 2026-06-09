@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.09-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.09-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -635,6 +635,13 @@ table.tbl{ width:100%; border-collapse:collapse; }
         <label>合言葉（アクセストークン）</label>
         <input type="password" id="tokenInput" placeholder="••••••••" autocomplete="off" />
         <div class="hint">窓口側に設定した合言葉と一致させてください。</div>
+      </div>
+      <div class="field" style="margin-top:18px;padding:12px 14px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px">
+        <label style="color:#7a5d00">他の人にデータ込みで共有する</label>
+        <div class="hint" style="color:#7a5d00;margin-bottom:8px">下のボタンで、現在の URL とトークンを埋め込んだ「共有用URL」をクリップボードにコピーします。受け取った人がそのURLを開くと、初期設定なしで即データが表示されます。</div>
+        <button class="btn btn-dark" onclick="copyShareUrl()" type="button" style="width:100%">📋 共有用URLをコピー</button>
+        <div id="shareCopiedMsg" class="hint" style="color:var(--ok);display:none;margin-top:6px">✓ コピーしました。このURLを送ってください。</div>
+        <div class="hint" style="color:#9a7a00;margin-top:8px;font-size:11.5px">⚠ URL には合言葉が含まれます。SNS や Public な場所での共有は避け、信頼できる相手のみに送ってください。</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -723,6 +730,24 @@ const state = {
   searchClass: '',
   searchCurr: '',
 };
+
+// 共有URL の hash に埋め込まれたクレデンシャル ( #u=...&t=... ) を取り込む
+// 受け取った人が一度開けば localStorage に保存されるので、以降は通常URLでもOK
+(function consumeHashCreds(){
+  try {
+    const h = location.hash || '';
+    if (!h || h.length < 2) return;
+    const params = new URLSearchParams(h.slice(1));
+    const u = (params.get('u') || params.get('url') || '').trim();
+    const t = (params.get('t') || params.get('token') || '').trim();
+    if (u) localStorage.setItem('koushi_webapp_url', u.replace(/\s+/g, ''));
+    if (t) localStorage.setItem('koushi_token',      t.replace(/\s+/g, ''));
+    if (u || t) {
+      // クリーンなURLに戻す（履歴を1段で置換）
+      history.replaceState(null, '', location.pathname + location.search);
+    }
+  } catch(e) { console.warn('hash creds parse failed', e); }
+})();
 
 // 起動時に localStorage 値も空白除去（過去の壊れた値を自動修復）
 let CFG = {
@@ -1523,7 +1548,29 @@ function barClass(s){ return s==='stagnant'?'danger':s==='stuck'?'warn':(s==='ok
 function openSettings(){
   $('#webAppUrlInput').value = CFG.webAppUrl;
   $('#tokenInput').value     = CFG.token;
+  const msg = $('#shareCopiedMsg'); if (msg) msg.style.display = 'none';
   openModal('settingsModal');
+}
+function copyShareUrl(){
+  // 設定モーダルの入力値を優先（保存前でも生成可能）。空なら CFG から
+  const url = ($('#webAppUrlInput').value || CFG.webAppUrl || '').replace(/\s+/g, '');
+  const tk  = ($('#tokenInput').value || CFG.token || '').replace(/\s+/g, '');
+  if (!url || !tk) { alert('URL と合言葉の両方が必要です'); return; }
+  const base = location.origin + location.pathname;
+  const shareUrl = `${base}#u=${encodeURIComponent(url)}&t=${encodeURIComponent(tk)}`;
+  const msg = $('#shareCopiedMsg');
+  const finish = () => {
+    if (msg) { msg.style.display = 'block'; msg.textContent = '✓ コピーしました。このURLを送ってください。'; setTimeout(() => { msg.style.display = 'none'; }, 4000); }
+  };
+  const fail = () => {
+    // クリップボード API が使えない場合は prompt でフォールバック
+    window.prompt('共有用URL（手動でコピーしてください）', shareUrl);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(shareUrl).then(finish).catch(fail);
+  } else {
+    fail();
+  }
 }
 function saveSettings(){
   // 全空白（半角・全角・改行）を除去 — コピペ時の混入対策
