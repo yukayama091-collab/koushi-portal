@@ -580,6 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.09-d</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2291,6 +2292,12 @@ function openStudent(id){
   const expGrad = expectedGradDate(r);
   const expStr = expGrad ? fmt(expGrad) : '—';
   const gradActual = gradDateOf(r) || '—';
+  const accountUrl = (r.accountUrl || '').trim();
+  const igMatch = accountUrl.match(/instagram\.com\/([^/?#]+)/);
+  const igHandle = igMatch ? igMatch[1] : '';
+  const accountLine = accountUrl
+    ? `<a href="${accountUrl.replace(/"/g,'&quot;')}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:var(--brand);text-decoration:none;margin-top:8px"><svg class="ic" style="width:14px;height:14px"><use href="#i-ext"/></svg>${igHandle ? '@' + igHandle : 'アカウントを開く'}</a>`
+    : `<div class="muted" style="font-size:12px;margin-top:8px">アカウントURL未登録</div>`;
   $('#smBody').innerHTML = `
     <div class="dm-profile">
       <span class="dm-av">${ini(s.name)}</span>
@@ -2299,6 +2306,7 @@ function openStudent(id){
         <div style="display:flex;gap:8px;align-items:center;margin-top:7px;flex-wrap:wrap">
           ${statusBadge(s.status)}<span class="badge badge-line">${CURR[s.curr]||s.curr}カリキュラム</span><span class="muted" style="font-size:13px">${s.cls}・${s.teacher}</span>
         </div>
+        ${accountLine}
       </div>
     </div>
     <div class="dm-info">
@@ -2329,6 +2337,7 @@ function openStudent(id){
 /* ═════════════ CLASS MODAL (12回タイムライン) ═════════════ */
 // 現在開いているクラス詳細モーダルのコンテキスト（日付編集用）
 let _classCtx = null;
+let _openClassRetried = '';   // 同じクラスで lazy-load 再試行済みフラグ（無限ループ防止）
 function openClass(clsName){
   const list = viewStudents();
   const cl = list.filter(s => s.cls === clsName);
@@ -2342,12 +2351,53 @@ function openClass(clsName){
   const tab     = sampleRow ? sampleRow.lecturesTab     : '';
   _classCtx = { clsName, sheetId, tab, lectures, students };
 
+  // 講義データ未取得 → このクラスの講師の sheetId を即座にロードして再描画
+  let _diagMsg = '';
+  if (!sampleRow && _openClassRetried !== clsName) {
+    // 候補: クラス内生徒の teacherId（重複を含む）→ 先頭の有効値 / fallback で CURRENT_TEACHER
+    const candidates = cl.map(s => s.__row && s.__row.teacherId).filter(t => t);
+    const classTid = candidates.find(t => classSheetMap.get(t)) || (classSheetMap.get(CURRENT_TEACHER) ? CURRENT_TEACHER : '');
+    console.log('[openClass] no lecturesData attached. clsName=', clsName, 'candidates=', [...new Set(candidates)], 'CURRENT_TEACHER=', CURRENT_TEACHER, 'pickedTid=', classTid);
+    if (classTid) {
+      _openClassRetried = clsName;
+      _diagMsg = `講師シート（${classTid}）を読み込み中…`;
+      preloadTeacherLectures(classTid).then(() => {
+        // 再描画
+        if (_classCtx && _classCtx.clsName === clsName) {
+          const refreshed = viewStudents().filter(s => s.cls === clsName).map(s => s.__row).find(r => r && r.lecturesData);
+          if (refreshed) {
+            openClass(clsName);
+          } else {
+            // 再描画してもまだロードできていない → 状況を表示
+            _diagMsg = `講師シート読み込み後も講義データが見つかりません（tid=${classTid}, classLetter=${classLetter(clsName) || '(なし)'}）。クラス名末尾と講師シートのタブ名が一致しているか確認してください。`;
+            openClass(clsName);
+          }
+        }
+      }).catch(e => {
+        console.error('[openClass] preload failed', e);
+      });
+    } else {
+      _diagMsg = `このクラスに紐づく講師シートが見つかりません（候補tid: ${[...new Set(candidates)].join(', ') || 'なし'} / CURRENT_TEACHER: ${CURRENT_TEACHER || '未選択'}）。`;
+    }
+  } else if (sampleRow) {
+    _openClassRetried = '';
+  }
+
   const heldCount = lectures.filter(l => l.held).length;
   const nextIdx = heldCount;
   const need = cl.filter(s => s.status==='stagnant'||s.status==='stuck').length;
   const ok = cl.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
   const grad = cl.filter(s => s.grad).length;
-  const editable = !!(sheetId && tab && lectures.length);
+  // シートが無くてもUIは表示する。保存可否は writable で判定
+  const writable = !!(sheetId && tab && lectures.length);
+  const editable = true;
+  // 出席リストの行データ。シートが無い場合はクラス所属生徒で代替
+  const attRows = (students && students.length)
+    ? students
+    : cl.map(s => ({ name: s.name, row: 0, att: [] }));
+  // 1on1 用も同じ
+  _classCtx.attRows = attRows;
+  _classCtx.writable = writable;
 
   $('#cmTitle').textContent = clsName;
   $('#cmBody').innerHTML = `
@@ -2369,9 +2419,9 @@ function openClass(clsName){
 
     <div class="card-title" style="font-size:14px;margin-bottom:12px">
       <svg class="ic"><use href="#i-calendar"/></svg> 全12回カリキュラム
-      ${editable ? '<span class="muted" style="font-weight:500;font-size:11.5px">（日付をクリックして編集）</span>' : ''}
+      <span class="muted" style="font-weight:500;font-size:11.5px">（日付をクリックして編集）</span>
     </div>
-    ${!lectures.length ? `<div class="empty" style="padding:24px 0">講師の生徒管理シートを読み込み中…（${CURRENT_TEACHER ? '該当クラスのデータがありません' : '講師フィルタを選択するとここに表示されます'}）</div>` : ''}
+    ${!writable && lectures.length ? '' : (!writable ? `<div style="padding:10px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:12.5px">⚠ 講師の生徒管理シート未登録のため、入力しても保存されません。${_diagMsg ? '<br>' + _diagMsg : ''}</div>` : '')}
     <div class="lec-tl">
       ${CURRICULUM.map((cu, i) => {
         const lec = lectures[i] || {};
@@ -2391,29 +2441,25 @@ function openClass(clsName){
         const is1on1 = (cu.no === 2);
         let dateUI;
         if (is1on1) {
-          dateUI = editable
-            ? `<button class="lec-tl-toggle" onclick="toggle1on1(${i})" style="background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:4px;color:var(--brand);font-weight:700;font-size:12px">▶ 生徒別に編集</button>`
-            : `<span class="muted">生徒別</span>`;
-        } else if (editable) {
+          dateUI = `<button class="lec-tl-toggle" onclick="toggle1on1(${i})" style="background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:4px;color:var(--brand);font-weight:700;font-size:12px">▶ 生徒別に編集</button>`;
+        } else {
           const inputVal = d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : '';
           dateUI = `
             <input type="date" value="${inputVal}" onchange="setLectureDate(${i}, this.value, this)" title="クリックして日付を選択">
             <span class="save-ind" id="saveInd-${i}">✓ 保存</span>`;
-        } else {
-          dateUI = d ? `${d.getMonth()+1}/${d.getDate()}（${dow(d)}）` : '未定';
         }
         // 出席リスト（第1回・第3〜12回、デフォルト折り畳み・クリックで展開）
         let attHtml = '';
-        if (!is1on1 && editable && students.length) {
-          const presentCount = students.filter(st => ((st.att||[])[i] || '') !== '欠席').length;
-          const absentCount = students.length - presentCount;
+        if (!is1on1 && attRows.length) {
+          const presentCount = attRows.filter(st => ((st.att||[])[i] || '') !== '欠席').length;
+          const absentCount = attRows.length - presentCount;
           attHtml = `<div style="display:flex;align-items:center;gap:10px;margin-top:6px">
               <button class="lec-tl-toggle" onclick="toggleAttendance(${i})" style="background:none;border:none;cursor:pointer;font-family:inherit;padding:4px 8px;border-radius:4px;color:var(--brand);font-weight:700;font-size:12px">▶ 出席を編集</button>
               <span class="lec-att-summary" style="margin-top:0">出席 <b id="att-pres-${i}">${presentCount}</b> ・ 欠席 <b id="att-abs-${i}">${absentCount}</b></span>
             </div>
             <div id="lecAtt-${i}" style="display:none">
               <div class="lec-att-list">
-                ${students.map((st, si) => {
+                ${attRows.map((st, si) => {
                   const v = (st.att && st.att[i]) || '';
                   const isAbsent = v === '欠席';
                   return `<div class="lec-att-row">
@@ -2460,6 +2506,7 @@ function openClass(clsName){
 // クラス全体の講義日付を保存（第1回, 第3〜12回）
 async function setLectureDate(lecIdx, value, inputEl) {
   if (!_classCtx) return;
+  if (!_classCtx.writable) { alert('講師の生徒管理シートが未登録のため保存できません。\n講師DB「クラス情報管理」のH列に生徒管理シートURLを登録してください。'); return; }
   const lec = _classCtx.lectures[lecIdx];
   if (!lec || !lec.col) { alert('講義データが読み込まれていません'); return; }
   const ind = $('#saveInd-' + lecIdx);
@@ -2498,7 +2545,8 @@ function toggle1on1(lecIdx) {
     if (!box.innerHTML.trim()) {
       const lec = _classCtx.lectures[lecIdx];
       const col = lec ? lec.col : null;
-      const html = (_classCtx.students || []).map((st, si) => {
+      const rows = _classCtx.attRows || [];
+      const html = rows.map((st, si) => {
         const v = (st.att && st.att[lecIdx]) || '';
         // value が "2026/06/15" 形式なら "2026-06-15" に変換
         const m = String(v).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
@@ -2520,6 +2568,7 @@ function toggle1on1(lecIdx) {
 // 第2回 1on1 の生徒個別日付を保存
 async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
   if (!_classCtx) return;
+  if (!_classCtx.writable) { alert('講師の生徒管理シートが未登録のため保存できません。'); return; }
   const st = _classCtx.students[studentIdx];
   const lec = _classCtx.lectures[lecIdx];
   if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
@@ -2555,6 +2604,7 @@ function toggleAttendance(lecIdx) {
 // 第1回 / 第3〜12回 の出席・欠席を保存（生徒×回 セル）
 async function setAttendance(lecIdx, studentIdx, status, btn) {
   if (!_classCtx) return;
+  if (!_classCtx.writable) { alert('講師の生徒管理シートが未登録のため保存できません。'); return; }
   const st = _classCtx.students[studentIdx];
   const lec = _classCtx.lectures[lecIdx];
   if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
