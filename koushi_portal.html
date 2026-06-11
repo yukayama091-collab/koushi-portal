@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.11-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.11-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1992,10 +1992,17 @@ function renderClasses(){
     return Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
   };
 
-  // ヘッダーのソート切替タブ
+  // ヘッダーの並べ替えプルダウン
   const sortLabel = { month:'開始月別', class:'クラスごと', teacher:'講師ごと' }[classesSortMode] || '開始月別';
-  const tabBtn = (mode, label) =>
-    `<button class="dr-tab ${classesSortMode===mode?'on':''}" onclick="setClassesSort('${mode}')" style="background:none;border:none;cursor:pointer;font-family:inherit">${label}</button>`;
+  const sortDropdown = `
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="muted" style="font-size:12px">並び替え</span>
+      <select onchange="setClassesSort(this.value)" style="font:inherit;font-size:13px;padding:7px 28px 7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;min-width:130px">
+        <option value="month" ${classesSortMode==='month'?'selected':''}>開始月別</option>
+        <option value="class" ${classesSortMode==='class'?'selected':''}>クラスごと</option>
+        <option value="teacher" ${classesSortMode==='teacher'?'selected':''}>講師ごと</option>
+      </select>
+    </div>`;
 
   let body = '';
   if (classesSortMode === 'month') {
@@ -2048,13 +2055,9 @@ function renderClasses(){
   }
 
   $('#page-classes').innerHTML = `
-    <div class="page-head">
+    <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
       <div><div class="page-title">クラス一覧</div><div class="page-sub">${scopeLabel()} ／ ${sortLabel}の集計</div></div>
-    </div>
-    <div class="dr-tabs" style="margin-bottom:18px;border-bottom:1px solid var(--line);display:flex;gap:0">
-      ${tabBtn('month','📅 開始月別')}
-      ${tabBtn('class','📚 クラスごと')}
-      ${tabBtn('teacher','👤 講師ごと')}
+      ${sortDropdown}
     </div>
     <div class="stack">${body}</div>`;
 }
