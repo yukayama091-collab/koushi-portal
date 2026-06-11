@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.09-e</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.11-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1939,65 +1939,124 @@ function renderSearch(){
 }
 
 /* ═════════════ CLASSES ═════════════ */
+let classesSortMode = localStorage.getItem('koushi_classes_sort') || 'month';   // 'month' | 'class' | 'teacher'
+function setClassesSort(mode) {
+  classesSortMode = mode;
+  try { localStorage.setItem('koushi_classes_sort', mode); } catch(e){}
+  renderClasses();
+}
 function renderClasses(){
   if (!allRows.length) { $('#page-classes').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const all = viewStudents();
-  // 開始月リスト（YYYY/MM 形式）
-  const months = [...new Set(all.map(s => s.month).filter(Boolean))].sort().reverse();
-  // クラス一覧（重複排除）
   const allClasses = [...new Set(all.map(s => s.cls).filter(Boolean))];
+
+  // クラスカード1枚分のHTML
+  const classCard = (cls) => {
+    const cl = all.filter(s => s.cls === cls);
+    const need = cl.filter(s => s.status==='stagnant'||s.status==='stuck').length;
+    const cok = cl.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
+    const grad = cl.filter(s => s.grad).length;
+    const teacherLabel = cl[0]?.teacher || '';
+    const lecData = classLecturesMap.get(classKey(cls));
+    const lecHeld = lecData ? lecData.lectures.filter(l => l.held).length : 0;
+    return `<div class="card card-pad" style="cursor:pointer" onclick="openClass('${cls.replace(/'/g,"\\'")}')">
+      <div class="card-head" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:11px"><span class="tcard-av" style="background:var(--brand)">${lecHeld}</span>
+          <div><div class="tcard-name">${cls}</div><div class="tcard-role">${teacherLabel} ／ 第${lecHeld||'?'}回 / 全12回</div></div></div>
+        ${need ? `<span class="badge badge-danger">要対応 ${need}</span>` : `<span class="badge badge-line">順調</span>`}
+      </div>
+      <div class="grid g3" style="gap:10px">
+        <div class="dm-stat"><div class="v">${cl.length}</div><div class="l">生徒数</div></div>
+        <div class="dm-stat"><div class="v" style="color:var(--ok)">${cok}</div><div class="l">達成</div></div>
+        <div class="dm-stat"><div class="v">${grad}</div><div class="l">卒業</div></div>
+      </div>
+      <div class="bar-row" style="margin-top:14px"><span style="font-size:12px;color:var(--muted);min-width:60px">達成率</span>
+        <div class="bar ok"><i style="width:${pct(cok,cl.length)}%"></i></div><span class="bar-lbl">${pct(cok,cl.length)}%</span></div>
+    </div>`;
+  };
+
+  // クラスの代表 month（最頻出）
+  const classMonth = (cls) => {
+    const ms = all.filter(s => s.cls === cls).map(s => s.month).filter(Boolean);
+    if (!ms.length) return '';
+    const counts = {};
+    ms.forEach(x => counts[x] = (counts[x]||0)+1);
+    return Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+  };
+  // クラスの代表 teacher
+  const classTeacher = (cls) => {
+    const ts = all.filter(s => s.cls === cls).map(s => s.teacher).filter(Boolean);
+    if (!ts.length) return '';
+    const counts = {};
+    ts.forEach(x => counts[x] = (counts[x]||0)+1);
+    return Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+  };
+
+  // ヘッダーのソート切替タブ
+  const sortLabel = { month:'開始月別', class:'クラスごと', teacher:'講師ごと' }[classesSortMode] || '開始月別';
+  const tabBtn = (mode, label) =>
+    `<button class="dr-tab ${classesSortMode===mode?'on':''}" onclick="setClassesSort('${mode}')" style="background:none;border:none;cursor:pointer;font-family:inherit">${label}</button>`;
+
+  let body = '';
+  if (classesSortMode === 'month') {
+    const months = [...new Set(allClasses.map(classMonth).filter(Boolean))].sort().reverse();
+    body = months.map(m => {
+      const cs = allClasses.filter(c => classMonth(c) === m).sort();
+      if (!cs.length) return '';
+      const mStudents = all.filter(s => cs.includes(s.cls));
+      const ok = mStudents.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
+      const [y, mo] = m.split('/');
+      return `<div>
+        <div class="card-head" style="margin-bottom:12px">
+          <div class="card-title"><svg class="ic"><use href="#i-calendar"/></svg> ${y}年${+mo}月 開始</div>
+          <span class="card-meta">${cs.length}クラス ・ ${mStudents.length}名 ・ 平均達成 ${pct(ok,mStudents.length)}%</span>
+        </div>
+        <div class="grid g2">${cs.map(classCard).join('')}</div>
+      </div>`;
+    }).join('');
+  } else if (classesSortMode === 'class') {
+    // クラス名でソート、グループ化なし
+    const sorted = allClasses.slice().sort((a,b) => String(a).localeCompare(String(b),'ja'));
+    body = `<div>
+      <div class="card-head" style="margin-bottom:12px">
+        <div class="card-title"><svg class="ic"><use href="#i-book"/></svg> 全クラス</div>
+        <span class="card-meta">${sorted.length}クラス ・ ${all.length}名</span>
+      </div>
+      <div class="grid g2">${sorted.map(classCard).join('')}</div>
+    </div>`;
+  } else if (classesSortMode === 'teacher') {
+    // 講師ごとにグルーピング
+    const byTeacher = new Map();
+    allClasses.forEach(cls => {
+      const t = classTeacher(cls) || '(講師不明)';
+      if (!byTeacher.has(t)) byTeacher.set(t, []);
+      byTeacher.get(t).push(cls);
+    });
+    const teachers = [...byTeacher.keys()].sort((a,b) => String(a).localeCompare(String(b),'ja'));
+    body = teachers.map(t => {
+      const cs = byTeacher.get(t).sort();
+      const tStudents = all.filter(s => cs.includes(s.cls));
+      const ok = tStudents.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
+      return `<div>
+        <div class="card-head" style="margin-bottom:12px">
+          <div class="card-title"><svg class="ic"><use href="#i-users"/></svg> ${t}</div>
+          <span class="card-meta">${cs.length}クラス ・ ${tStudents.length}名 ・ 平均達成 ${pct(ok,tStudents.length)}%</span>
+        </div>
+        <div class="grid g2">${cs.map(classCard).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
   $('#page-classes').innerHTML = `
     <div class="page-head">
-      <div><div class="page-title">クラス一覧</div><div class="page-sub">${scopeLabel()} ／ 開始月別の集計</div></div>
+      <div><div class="page-title">クラス一覧</div><div class="page-sub">${scopeLabel()} ／ ${sortLabel}の集計</div></div>
     </div>
-    <div class="stack">
-      ${months.map(m => {
-        const cs = allClasses.filter(c => {
-          const cl = all.filter(s => s.cls === c);
-          // 最頻出 month で判定
-          const ms = cl.map(s => s.month).filter(Boolean);
-          if (!ms.length) return false;
-          const counts = {};
-          ms.forEach(x => counts[x] = (counts[x]||0)+1);
-          const top = Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
-          return top === m;
-        });
-        if (!cs.length) return '';
-        const mStudents = all.filter(s => cs.includes(s.cls));
-        const ok = mStudents.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
-        const [y, mo] = m.split('/');
-        return `<div>
-          <div class="card-head" style="margin-bottom:12px">
-            <div class="card-title"><svg class="ic"><use href="#i-calendar"/></svg> ${y}年${+mo}月 開始</div>
-            <span class="card-meta">${cs.length}クラス ・ ${mStudents.length}名 ・ 平均達成 ${pct(ok,mStudents.length)}%</span>
-          </div>
-          <div class="grid g2">
-            ${cs.sort().map(cls => {
-              const cl = all.filter(s => s.cls === cls);
-              const need = cl.filter(s => s.status==='stagnant'||s.status==='stuck').length;
-              const cok = cl.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
-              const grad = cl.filter(s => s.grad).length;
-              const teacherLabel = cl[0]?.teacher || '';
-              const lecData = classLecturesMap.get(classKey(cls));
-              const lecHeld = lecData ? lecData.lectures.filter(l => l.held).length : 0;
-              return `<div class="card card-pad" style="cursor:pointer" onclick="openClass('${cls.replace(/'/g,"\\'")}')">
-                <div class="card-head" style="margin-bottom:14px">
-                  <div style="display:flex;align-items:center;gap:11px"><span class="tcard-av" style="background:var(--brand)">${lecHeld}</span>
-                    <div><div class="tcard-name">${cls}</div><div class="tcard-role">${teacherLabel} ／ 第${lecHeld||'?'}回 / 全12回</div></div></div>
-                  ${need ? `<span class="badge badge-danger">要対応 ${need}</span>` : `<span class="badge badge-line">順調</span>`}
-                </div>
-                <div class="grid g3" style="gap:10px">
-                  <div class="dm-stat"><div class="v">${cl.length}</div><div class="l">生徒数</div></div>
-                  <div class="dm-stat"><div class="v" style="color:var(--ok)">${cok}</div><div class="l">達成</div></div>
-                  <div class="dm-stat"><div class="v">${grad}</div><div class="l">卒業</div></div>
-                </div>
-                <div class="bar-row" style="margin-top:14px"><span style="font-size:12px;color:var(--muted);min-width:60px">達成率</span>
-                  <div class="bar ok"><i style="width:${pct(cok,cl.length)}%"></i></div><span class="bar-lbl">${pct(cok,cl.length)}%</span></div>
-              </div>`;
-            }).join('')}
-          </div></div>`;
-      }).join('')}
-    </div>`;
+    <div class="dr-tabs" style="margin-bottom:18px;border-bottom:1px solid var(--line);display:flex;gap:0">
+      ${tabBtn('month','📅 開始月別')}
+      ${tabBtn('class','📚 クラスごと')}
+      ${tabBtn('teacher','👤 講師ごと')}
+    </div>
+    <div class="stack">${body}</div>`;
 }
 
 /* ═════════════ PROGRESS ═════════════ */
