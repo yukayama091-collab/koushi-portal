@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.11-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.12-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -700,7 +700,7 @@ const STATUS = {
   over80:  { label:'80日達成', badge:'badge-info',   dot:'sdot-info'   },
   stagnant:{ label:'停滞中',   badge:'badge-danger', dot:'sdot-danger' },
   stuck:   { label:'つまずき', badge:'badge-warn',   dot:'sdot-warn'   },
-  grad:    { label:'卒業',     badge:'badge-grad',   dot:'sdot-gray'   },
+  grad:    { label:'卒業済み', badge:'badge-grad',   dot:'sdot-gray'   },
   no_sp:   { label:'未開始',   badge:'badge-line',   dot:'sdot-gray'   },
 };
 const CURR = { new:'新', old:'旧', roster:'名簿' };
@@ -870,7 +870,8 @@ function isGraduated(r) {
 function applyGraduationOverrides() {
   allRows.forEach(r => {
     if (!isGraduated(r)) return;
-    if (['inprog','expired','expired80','over80'].includes(r.status)) {
+    // 卒業に到達したら、停滞中・要対応中・no_sp も含めて「卒業」へ統一
+    if (r.status !== 'grad') {
       r.status = 'grad';
     }
     r.isStagnant = false;
@@ -1931,15 +1932,22 @@ function renderClasses(){
     const cl = all.filter(s => s.cls === cls);
     const need = cl.filter(s => s.status==='stagnant'||s.status==='stuck').length;
     const cok = cl.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
-    const grad = cl.filter(s => s.grad).length;
+    const grad = cl.filter(s => s.status==='grad' || s.grad).length;
     const teacherLabel = cl[0]?.teacher || '';
     const lecData = classLecturesMap.get(classKey(cls));
     const lecHeld = lecData ? lecData.lectures.filter(l => l.held).length : 0;
-    return `<div class="card card-pad" style="cursor:pointer" onclick="openClass('${cls.replace(/'/g,"\\'")}')">
+    // クラス全員が卒業 → クラスも「卒業済み」
+    const allGrad = cl.length > 0 && cl.every(s => s.status === 'grad' || s.grad);
+    const statusBadgeHtml = allGrad
+      ? `<span class="badge badge-ok">卒業済み</span>`
+      : need
+        ? `<span class="badge badge-danger">要対応 ${need}</span>`
+        : `<span class="badge badge-line">順調</span>`;
+    return `<div class="card card-pad ${allGrad?'class-graduated':''}" style="cursor:pointer${allGrad?';opacity:.85':''}" onclick="openClass('${cls.replace(/'/g,"\\'")}')">
       <div class="card-head" style="margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:11px"><span class="tcard-av" style="background:var(--brand)">${lecHeld}</span>
+        <div style="display:flex;align-items:center;gap:11px"><span class="tcard-av" style="background:${allGrad?'var(--ok)':'var(--brand)'}">${lecHeld}</span>
           <div><div class="tcard-name">${cls}</div><div class="tcard-role">${teacherLabel} ／ 第${lecHeld||'?'}回 / 全12回</div></div></div>
-        ${need ? `<span class="badge badge-danger">要対応 ${need}</span>` : `<span class="badge badge-line">順調</span>`}
+        ${statusBadgeHtml}
       </div>
       <div class="grid g3" style="gap:10px">
         <div class="dm-stat"><div class="v">${cl.length}</div><div class="l">生徒数</div></div>
@@ -2983,9 +2991,9 @@ function tmTabContent(r, t){
       <div class="field"><label>卒業クラス</label><div class="linkfield" style="border:none;background:none;padding:0">${tmClsChips(r.grad,"")}</div></div>
       <div class="field"><label>進行クラス</label><div class="linkfield" style="border:none;background:none;padding:0">${tmClsChips("",r.ongoing)}</div></div>
     </div>
-    ${tmField("生徒管理シート","",{link:r.id!=="0001",linktext:"生徒管理シートを開く"})}
-    ${tmField("講師紹介シート","",{link:r.id!=="0001",linktext:"講師紹介シートを開く"})}
-    ${tmField("紹介画像（Canva）","",{link:true,linktext:"デザインを開く"})}`;
+    ${tmField("生徒管理シート","",{link:!!r.studentSheet,linkurl:r.studentSheet,linktext:"生徒管理シートを開く"})}
+    ${tmField("講師紹介シート","",{link:!!r.introSheet,linkurl:r.introSheet,linktext:"講師紹介シートを開く"})}
+    ${tmField("紹介画像（Canva）","",{link:!!r.introImage,linkurl:r.introImage,linktext:"デザインを開く"})}`;
   if(t===3) return `
     <div class="field-row">${tmField("講師MG",r.mg,{sel:true,options:["こうし","こうき","うちこ","しゅうへい","かりん","未定","担当なし"]})}${tmField("サポMG",r.sup,{sel:true,options:["kenta","ゆん","おはな","次回ローンチ時","未定","担当なし"]})}</div>
     <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス")}${tmField("1クラスの人数",r.perClass+" 名")}${tmField("当月ローンチ時期",r.launch)}</div>
