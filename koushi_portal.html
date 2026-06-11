@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.11-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.11-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1223,15 +1223,18 @@ async function loadData() {
       });
     }
 
-    // attach meta — クラス名は「データ順番」を最優先、無ければ生徒情報を採用
+    // attach meta — クラス名は「生徒情報」を真実のソースに、無ければ「データ順番」をフォールバック
     allRows.forEach((r, i) => {
       r._idx = i;
       const meta = metaOf(r);
       r.teacherId = meta.teacherId || '';
-      // クラス名の優先順位: (1) データ順番 (2) 生徒情報
-      const doCls = (r.id && dataOrderByMid.get(r.id)) || dataOrderByName.get(normName(r.name));
-      if (doCls) r.className = doCls;
-      else if (meta.className) r.className = meta.className;
+      // クラス名の優先順位: (1) 生徒情報 (2) データ順番
+      if (meta.className) {
+        r.className = meta.className;
+      } else {
+        const doCls = (r.id && dataOrderByMid.get(r.id)) || dataOrderByName.get(normName(r.name));
+        if (doCls) r.className = doCls;
+      }
       r.grad = gradMap.get(normName(r.name)) || null;
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
       // 卒業生マスタは「卒業判定」「卒業期」だけ使う
