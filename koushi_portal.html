@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.12-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.12-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -855,12 +855,14 @@ function isGraduated(r) {
   // 仕様: 投稿プログラムの完了状態は卒業判定に使わない。卒業日に到達したら卒業。
   // (1) 公式の卒業生マスタ（卒業生情報タブ）に登録されている → 確定で卒業
   if (r.isOfficialGraduate) return true;
-  // (2) 要サポート生徒分析の「卒業日」が今日以前 → 卒業（status='現役生' でも可）
+  // (2) 生徒情報シートの Z列「卒業生」 → 即卒業
+  if (r.isStudentSheetGrad) return true;
+  // (3) 要サポート生徒分析の「卒業日」が今日以前 → 卒業（status='現役生' でも可）
   if (r.grad && r.grad.gradDate) {
     const d = parseDate(r.grad.gradDate);
     if (d && d <= TODAY) return true;
   }
-  // (3) 今日 > 卒業予定日（第1回+180日 / 第12回が後ろならそれ）→ 卒業
+  // (4) 今日 > 卒業予定日（第1回+180日 / 第12回が後ろならそれ）→ 卒業
   const exp = expectedGradDate(r);
   if (exp && exp < TODAY) return true;
   return false;
@@ -1108,7 +1110,8 @@ async function loadData() {
     if (S && S.header) {
       const si = c => S.header.indexOf(c);
       const sId = si('管理ID'), sNm = si('表示名'), sTid = si('講師ID'),
-            sCls = si('クラス名(講師名)'), sUrl = si('【提出フォーム】アカウントURL');
+            sCls = si('クラス名(講師名)'), sUrl = si('【提出フォーム】アカウントURL'),
+            sGrad = si('卒業生');
       S.rows.forEach(r => {
         const id   = sId>=0 ? String(r[sId]||'').trim() : '';
         const name = sNm>=0 ? String(r[sNm]||'').trim() : '';
@@ -1116,6 +1119,7 @@ async function loadData() {
           teacherId: sTid>=0 ? String(r[sTid]||'').trim() : '',
           className: sCls>=0 ? String(r[sCls]||'').replace(/[\s　]+/g,'').trim() : '',
           accountUrl: sUrl>=0 ? String(r[sUrl]||'').trim() : '',
+          isStudentSheetGrad: sGrad>=0 && String(r[sGrad]||'').trim() === '卒業生',
         };
         if (id) studentMeta.set(id, meta);
         const nk = normName(name);
@@ -1238,6 +1242,7 @@ async function loadData() {
       }
       r.grad = gradMap.get(normName(r.name)) || null;
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
+      r.isStudentSheetGrad = !!meta.isStudentSheetGrad;
       // 卒業生マスタは「卒業判定」「卒業期」だけ使う
       const gm = gradOfficialById.get(r.id) || gradOfficialByName.get(normName(r.name));
       if (gm) {
