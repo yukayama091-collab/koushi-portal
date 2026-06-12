@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.12-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.12-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1252,34 +1252,16 @@ async function loadData() {
       }
     });
 
-    // 卒業生マスタにいるが allRows に居ない生徒も名簿として追加（卒業生として表示）
-    // 講師DB未登録の講師の卒業生はスキップ
-    if (GR && GR.header) {
-      const exId2 = new Set(), exNm2 = new Set();
-      allRows.forEach(r => { if (r.id) exId2.add(r.id); if (r.name) exNm2.add(normName(r.name)); });
-      const gri = c => GR.header.indexOf(c);
-      const grId = gri('登録ID'), grNm = gri('表示名'),
-            grCohort = gri('卒業期・組'), grCls = gri('講師クラス名'), grTId = gri('講師ID');
-      GR.rows.forEach(r => {
-        const id = grId>=0 ? String(r[grId]||'').trim() : '';
-        const name = grNm>=0 ? String(r[grNm]||'').trim() : '';
-        if (!name && !id) return;
-        const tIdRaw = grTId>=0 ? String(r[grTId]||'').trim() : '';
-        const tid = (tIdRaw && tIdRaw !== 'DB未登録') ? tIdRaw : '';
-        // 講師DBに無い講師の生徒はスキップ
-        if (!tid || !knownTeacherIds.has(tid)) return;
-        const nk = normName(name);
-        if (id && exId2.has(id)) return;
-        if (nk && exNm2.has(nk)) return;
-        const row = rosterRow(id, name);
-        row.className = grCls>=0 ? String(r[grCls]||'').trim() : '';
-        row.teacherId = tid;
-        row.isOfficialGraduate = true;
-        row.officialCohort = grCohort>=0 ? String(r[grCohort]||'').trim() : '';
-        row.officialCohortN = 1;
-        row._idx = allRows.length;
-        allRows.push(row);
+    // 講師ポータルに表示するのは「生徒情報シート」に載っている生徒のみ
+    // → 投稿プログラム由来でも、生徒情報に無い生徒はここで除外する
+    if (S && S.header) {
+      const before = allRows.length;
+      allRows = allRows.filter(r => {
+        const byId = r.id && studentMeta.has(r.id);
+        const byName = studentMetaByName.has(normName(r.name));
+        return byId || byName;
       });
+      console.log(`[loadData] 生徒情報シートで絞り込み: ${before} → ${allRows.length}`);
     }
 
     // 卒業済み（および「今日>卒業予定日」）は「超過」バケットから外して卒業扱い
