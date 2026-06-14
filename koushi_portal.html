@@ -580,7 +580,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       </div>
       <datalist id="teacherList"></datalist>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.12-c</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1804,9 +1804,32 @@ function renderDashboard(){
 }
 
 /* ═════════════ TODO ═════════════ */
+let todoFilter = {
+  cls: localStorage.getItem('koushi_todo_cls') || '',
+  teacher: localStorage.getItem('koushi_todo_teacher') || '',
+};
+function setTodoFilter(key, val) {
+  todoFilter[key] = val || '';
+  try { localStorage.setItem('koushi_todo_' + key, todoFilter[key]); } catch(e){}
+  renderTodo();
+}
+function clearTodoFilter() {
+  todoFilter = { cls:'', teacher:'' };
+  try { localStorage.removeItem('koushi_todo_cls'); localStorage.removeItem('koushi_todo_teacher'); } catch(e){}
+  renderTodo();
+}
 function renderTodo(){
   if (!allRows.length) { $('#page-todo').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
-  const list = viewStudents();
+  const allList = viewStudents();
+  // 絞り込み前のリスト集合からプルダウンの選択肢を作る
+  const classesOpts = [...new Set(allList.map(s => s.cls).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
+  const teachersOpts = [...new Set(allList.map(s => s.teacher).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
+  // フィルタ適用
+  const list = allList.filter(s => {
+    if (todoFilter.cls && s.cls !== todoFilter.cls) return false;
+    if (todoFilter.teacher && s.teacher !== todoFilter.teacher) return false;
+    return true;
+  });
   const groups = [
     {key:'stagnant', cls:'urgent', title:'停滞中（最優先）', ico:'i-octagon', col:'var(--danger)', metric:'停滞日数', unit:'日', val:s=>s.days, desc:s=>`最終ステップ ${s.step} から ${s.days}日 進捗なし`},
     {key:'stuck',    cls:'warn',   title:'つまずき',         ico:'i-zap',     col:'var(--warn)',   metric:'停滞日数', unit:'日', val:s=>s.days, desc:s=>`${s.step} で停滞中（${s.days}日）`},
@@ -1814,10 +1837,28 @@ function renderTodo(){
     {key:'no_sp',    cls:'idle',   title:'未開始',           ico:'i-clock',   col:'var(--faint)',  metric:'登録から', unit:'日', val:s=>s.days, desc:s=>`投稿プログラム未開始（登録 ${s.days}日）`},
   ];
   const total = list.filter(s => ['stagnant','stuck','over80','no_sp'].includes(s.status)).length;
+  const filterActive = !!(todoFilter.cls || todoFilter.teacher);
   $('#page-todo').innerHTML = `
-    <div class="page-head">
+    <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
       <div><div class="page-title">やること</div><div class="page-sub">${scopeLabel()} ／ 優先度の高い順に対応してください</div></div>
-      <div class="page-actions"><span class="badge badge-dark">${total} 件</span></div>
+      <div class="page-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="muted" style="font-size:12px">クラス</span>
+          <select onchange="setTodoFilter('cls', this.value)" style="font:inherit;font-size:13px;padding:7px 28px 7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;min-width:130px">
+            <option value="">全クラス</option>
+            ${classesOpts.map(c => `<option value="${c.replace(/"/g,'&quot;')}" ${todoFilter.cls===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="muted" style="font-size:12px">講師</span>
+          <select onchange="setTodoFilter('teacher', this.value)" style="font:inherit;font-size:13px;padding:7px 28px 7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;min-width:130px">
+            <option value="">全講師</option>
+            ${teachersOpts.map(t => `<option value="${t.replace(/"/g,'&quot;')}" ${todoFilter.teacher===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        ${filterActive ? `<button class="btn btn-ghost btn-sm" onclick="clearTodoFilter()" type="button">クリア</button>` : ''}
+        <span class="badge badge-dark">${total} 件</span>
+      </div>
     </div>
     <div class="stack">
       ${groups.map(g => {
@@ -1834,7 +1875,7 @@ function renderTodo(){
               <svg class="ic" style="color:var(--faint)"><use href="#i-chevron-right"/></svg>
             </div></div>`).join('')}
         </div>`;
-      }).join('') || `<div class="card card-pad"><div class="empty">対応が必要な生徒はいません 🎉</div></div>`}
+      }).join('') || `<div class="card card-pad"><div class="empty">${filterActive ? '絞り込み条件に該当する対応生徒はいません' : '対応が必要な生徒はいません 🎉'}</div></div>`}
     </div>`;
 }
 
