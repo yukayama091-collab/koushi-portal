@@ -521,6 +521,32 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .nav-pop-item{ display:block; width:100%; text-align:left; padding:9px 12px; font:inherit; font-size:13px; font-weight:600; color:#dcdde0; background:none; border:none; border-radius:7px; cursor:pointer; }
 .nav-pop-item:hover{ background:#2a2c32; color:#fff; }
 
+/* Timeline (Gantt) */
+.tl-wrap{ background:#fff; border:1px solid var(--line); border-radius:var(--r-card); overflow:hidden; }
+.tl-headRow{ display:flex; border-bottom:1px solid var(--line); background:var(--tint); }
+.tl-headFix{ position:sticky; left:0; z-index:3; background:var(--tint); border-right:1px solid var(--line); width:200px; min-width:200px; padding:8px 12px; font-size:12px; font-weight:700; color:var(--muted); display:flex; align-items:flex-end; }
+.tl-headTrack{ position:relative; }
+.tl-mo-row{ display:flex; border-bottom:1px solid var(--line); background:var(--soft); }
+.tl-mo{ flex:none; padding:6px 8px; font-size:12px; font-weight:700; color:var(--ink2); border-right:1px solid var(--line); white-space:nowrap; overflow:hidden; }
+.tl-dy-row{ display:flex; }
+.tl-dy{ flex:none; padding:6px 0; font-size:11px; color:var(--muted); text-align:center; border-right:1px solid #f0f1f3; }
+.tl-dy.sun{ color:#d9534f; background:#fef6f5; }
+.tl-dy.sat{ color:#3b78c5; background:#f5f9fe; }
+.tl-dy.today{ background:#ffeaea; color:var(--brand); font-weight:700; }
+.tl-body{ position:relative; max-height:600px; overflow:auto; }
+.tl-row{ display:flex; border-bottom:1px solid #f0f1f3; position:relative; }
+.tl-rowname{ position:sticky; left:0; z-index:2; background:#fff; border-right:1px solid var(--line); width:200px; min-width:200px; padding:6px 12px; cursor:pointer; display:flex; flex-direction:column; justify-content:center; }
+.tl-rowname:hover{ background:var(--soft); }
+.tl-rowname-main{ font-size:13px; font-weight:700; color:var(--ink); line-height:1.2; }
+.tl-rowname-sub{ font-size:10.5px; color:var(--faint); line-height:1.2; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tl-row-track{ position:relative; flex:none; }
+.tl-bar{ position:absolute; top:50%; transform:translateY(-50%); height:18px; border-radius:4px; color:#fff; font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,.08); opacity:.85; overflow:hidden; }
+.tl-bar:hover{ opacity:1; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+.tl-bar span{ padding:0 6px; }
+.tl-dot{ position:absolute; top:50%; transform:translateY(-50%); width:8px; height:8px; background:#fff; border:2px solid var(--ink2); border-radius:50%; z-index:1; }
+.tl-dot:hover{ background:var(--brand); border-color:var(--brand); transform:translateY(-50%) scale(1.4); }
+.tl-today-line{ position:absolute; top:0; bottom:0; width:2px; background:var(--brand); opacity:.5; pointer-events:none; z-index:1; }
+
 @media (max-width:860px){
   .drawer{ width:100%; }
 }
@@ -586,7 +612,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -598,6 +624,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="search" onclick="go('search')" title="生徒名・クラス・状態で検索"><svg class="ic"><use href="#i-search"/></svg> 生徒検索</button>
     <button class="nav" data-page="classes" onclick="go('classes')" title="開始月別のクラス集計"><svg class="ic"><use href="#i-book"/></svg> クラス一覧</button>
     <button class="nav" data-page="progress" onclick="go('progress')" title="状況別の生徒詳細"><svg class="ic"><use href="#i-trending"/></svg> 進捗キャッチアップ</button>
+    <button class="nav" data-page="timeline" onclick="go('timeline')" title="生徒ごとの進捗タイムライン（ガント）"><svg class="ic"><use href="#i-calendar"/></svg> 進捗タイムライン</button>
     <div class="nav-pop-wrap">
       <button class="nav" type="button" title="SnsClubサービス">
         <svg class="ic"><use href="#i-layers"/></svg> SnsClubサービス
@@ -626,6 +653,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-search" class="page"></div>
       <div id="page-classes" class="page"></div>
       <div id="page-progress" class="page"></div>
+      <div id="page-timeline" class="page"></div>
       <div id="page-teacherMaster" class="page"></div>
       <div id="page-help" class="page"></div>
     </div>
@@ -1512,7 +1540,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, teacherMaster:renderTeacherMaster, help:renderHelp };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, help:renderHelp };
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -2217,6 +2245,186 @@ function stepRow(label, done, cls) {
   let sq = '';
   for (let i = 0; i < 10; i++) sq += `<span class="sq ${cls}-${i<done?'done':'todo'}"></span>`;
   return `<div class="steps-row"><span class="steps-label">${label}</span><div class="steps">${sq}</div></div>`;
+}
+
+/* ═════════════ TIMELINE (Gantt) ═════════════ */
+let timelineFilter = {
+  cls: localStorage.getItem('koushi_tl_cls') || '',
+  teacher: localStorage.getItem('koushi_tl_teacher') || '',
+};
+function setTimelineFilter(key, val) {
+  timelineFilter[key] = val || '';
+  try { localStorage.setItem('koushi_tl_' + key, timelineFilter[key]); } catch(e){}
+  renderTimeline();
+}
+function clearTimelineFilter() {
+  timelineFilter = { cls:'', teacher:'' };
+  try { localStorage.removeItem('koushi_tl_cls'); localStorage.removeItem('koushi_tl_teacher'); } catch(e){}
+  renderTimeline();
+}
+
+function renderTimeline(){
+  if (!allRows.length) { $('#page-timeline').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
+  const allList = viewStudents();
+  const classesOpts = [...new Set(allList.map(s => s.cls).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
+  const teachersOpts = [...new Set(allList.map(s => s.teacher).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
+  // フィルタ
+  let list = allList.filter(s => {
+    if (timelineFilter.cls && s.cls !== timelineFilter.cls) return false;
+    if (timelineFilter.teacher && s.teacher !== timelineFilter.teacher) return false;
+    return true;
+  });
+  // ステップ完了日を持つ生徒のみ表示
+  list = list.filter(s => {
+    const r = s.__row;
+    if (!r) return false;
+    return r.spStart || (r.allStepDates && r.allStepDates.some(Boolean));
+  });
+  // クラス → 名前 で並び替え
+  list.sort((a,b) => String(a.cls||'').localeCompare(String(b.cls||''),'ja') || String(a.name||'').localeCompare(String(b.name||''),'ja'));
+
+  // フィルタ条件が無くて生徒が多すぎる場合は警告
+  const filterActive = !!(timelineFilter.cls || timelineFilter.teacher);
+  const TOO_MANY = 50;
+  const showWarning = !filterActive && list.length > TOO_MANY;
+  if (showWarning) list = list.slice(0, TOO_MANY);
+
+  // 日付範囲の計算
+  let minDate = null, maxDate = null;
+  list.forEach(s => {
+    const r = s.__row;
+    const dates = [];
+    if (r.spStart) dates.push(r.spStart);
+    if (r.allStepDates) r.allStepDates.forEach(d => { if (d) dates.push(d); });
+    dates.forEach(d => {
+      if (!minDate || d < minDate) minDate = d;
+      if (!maxDate || d > maxDate) maxDate = d;
+    });
+  });
+  if (!minDate) minDate = new Date(TODAY.getFullYear(), TODAY.getMonth() - 3, 1);
+  if (!maxDate) maxDate = new Date(TODAY);
+  // 余白を前後に追加（前後7日）
+  const startDate = new Date(minDate); startDate.setDate(startDate.getDate() - 7); startDate.setHours(0,0,0,0);
+  const endDate   = new Date(maxDate); endDate.setDate(endDate.getDate() + 7);   endDate.setHours(0,0,0,0);
+  // 今日が範囲内に入っていなければ含める
+  if (TODAY > endDate) { endDate.setTime(TODAY.getTime()); endDate.setDate(endDate.getDate() + 7); }
+
+  const DAY_PX = 22;             // 1日あたりの幅
+  const ROW_H  = 38;             // 各生徒行の高さ
+  const totalDays = Math.max(1, Math.round((endDate - startDate) / 86400000) + 1);
+  const totalW = totalDays * DAY_PX;
+
+  // ヘッダー: 月行 + 日行
+  const months = []; let cursor = new Date(startDate); let monthStart = new Date(cursor);
+  while (cursor <= endDate) {
+    const next = new Date(cursor); next.setDate(next.getDate() + 1);
+    const isLast = next > endDate;
+    const monthChange = next.getMonth() !== cursor.getMonth() || isLast;
+    if (monthChange) {
+      const days = Math.round(((isLast ? next : new Date(next.getFullYear(), cursor.getMonth(), cursor.getDate())) - monthStart) / 86400000) + (isLast ? 1 : 0);
+      months.push({ y: monthStart.getFullYear(), m: monthStart.getMonth()+1, days });
+      monthStart = new Date(next);
+    }
+    cursor = next;
+  }
+  const monthHeader = months.map(mo => `<div class="tl-mo" style="width:${mo.days * DAY_PX}px">${mo.y}年${mo.m}月</div>`).join('');
+
+  const dayHeader = (() => {
+    let out = ''; const d = new Date(startDate);
+    for (let i = 0; i < totalDays; i++) {
+      const isToday = daysBetween(TODAY, d) === 0;
+      const wd = d.getDay();
+      const cls = isToday ? 'today' : (wd===0?'sun':wd===6?'sat':'');
+      out += `<div class="tl-dy ${cls}" style="width:${DAY_PX}px">${d.getDate()}</div>`;
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
+  })();
+
+  const dateToX = (date) => Math.round((date - startDate) / 86400000) * DAY_PX;
+
+  // 各生徒のバー描画
+  const rows = list.map(s => {
+    const r = s.__row;
+    const isNew = r.kind === 'new';
+    // フェーズ: 新は単一、旧は SP/AP/PP
+    const phases = [];
+    if (isNew) {
+      const dates = (r.allStepDates||[]).filter(Boolean);
+      if (dates.length) {
+        const start = r.spStart || dates[0];
+        const end = dates[dates.length - 1];
+        phases.push({ name:'STEP', start, end, color:'#7c5cff', label:'新プログラム' });
+      }
+    } else {
+      const sp = (r.allStepDates||[]).slice(0,10).filter(Boolean);
+      const ap = (r.allStepDates||[]).slice(10,15).filter(Boolean);
+      const pp = (r.allStepDates||[]).slice(15,25).filter(Boolean);
+      if (sp.length) phases.push({ name:'SP', start: r.spStart || sp[0], end: sp[sp.length-1], color:'#16a085', label:'SP'});
+      if (ap.length) phases.push({ name:'AP', start: ap[0], end: ap[ap.length-1], color:'#3498db', label:'AP'});
+      if (pp.length) phases.push({ name:'PP', start: pp[0], end: pp[pp.length-1], color:'#8e44ad', label:'PP'});
+    }
+    const bars = phases.map(p => {
+      const x1 = dateToX(p.start);
+      const x2 = dateToX(p.end) + DAY_PX - 2;
+      const w = Math.max(DAY_PX - 2, x2 - x1);
+      return `<div class="tl-bar" style="left:${x1}px;width:${w}px;background:${p.color}" title="${p.label} ${fmt(p.start)} 〜 ${fmt(p.end)}"><span>${p.label}</span></div>`;
+    }).join('');
+    const dots = (r.allStepDates||[]).map((d, i) => {
+      if (!d) return '';
+      const x = dateToX(d);
+      const stepLabel = isNew ? `STEP${i+1}` : (i<10?`SP${i+1}`:i<15?`AP${i-9}`:`PP${i-14}`);
+      return `<div class="tl-dot" style="left:${x + DAY_PX/2 - 4}px" title="${stepLabel} 完了: ${fmt(d)}"></div>`;
+    }).join('');
+    return `<div class="tl-row" style="height:${ROW_H}px" data-id="${s.id}">
+      <div class="tl-rowname" onclick="openStudent('${s.id}')" title="${s.name} / ${s.cls}">
+        <div class="tl-rowname-main">${s.name}</div>
+        <div class="tl-rowname-sub">${s.cls}・${s.teacher||''}</div>
+      </div>
+      <div class="tl-row-track" style="width:${totalW}px">${bars}${dots}</div>
+    </div>`;
+  }).join('');
+
+  // 今日の縦ライン
+  const todayX = dateToX(TODAY);
+
+  $('#page-timeline').innerHTML = `
+    <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+      <div><div class="page-title">進捗タイムライン</div><div class="page-sub">${scopeLabel()} ／ 生徒ごとのプログラム進捗をガントで表示</div></div>
+      <div class="page-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="muted" style="font-size:12px">クラス</span>
+          <select onchange="setTimelineFilter('cls', this.value)" style="font:inherit;font-size:13px;padding:7px 28px 7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;min-width:130px">
+            <option value="">全クラス</option>
+            ${classesOpts.map(c => `<option value="${c.replace(/"/g,'&quot;')}" ${timelineFilter.cls===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="muted" style="font-size:12px">講師</span>
+          <select onchange="setTimelineFilter('teacher', this.value)" style="font:inherit;font-size:13px;padding:7px 28px 7px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;cursor:pointer;min-width:130px">
+            <option value="">全講師</option>
+            ${teachersOpts.map(t => `<option value="${t.replace(/"/g,'&quot;')}" ${timelineFilter.teacher===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        ${filterActive ? `<button class="btn btn-ghost btn-sm" onclick="clearTimelineFilter()" type="button">クリア</button>` : ''}
+        <span class="badge badge-dark">${list.length} 名</span>
+      </div>
+    </div>
+    ${showWarning ? `<div style="padding:10px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:13px">⚠ 対象生徒が多いため最初の ${TOO_MANY} 名のみ表示しています。「クラス」「講師」で絞り込んでください。</div>` : ''}
+    ${!list.length ? `<div class="card card-pad"><div class="empty">表示する生徒がいません</div></div>` : `
+    <div class="tl-wrap">
+      <div class="tl-headRow">
+        <div class="tl-rowname tl-headFix">生徒</div>
+        <div class="tl-headTrack" style="width:${totalW}px">
+          <div class="tl-mo-row">${monthHeader}</div>
+          <div class="tl-dy-row">${dayHeader}</div>
+        </div>
+      </div>
+      <div class="tl-body">
+        ${rows}
+        <div class="tl-today-line" style="left:${200 + todayX}px"></div>
+      </div>
+    </div>`}`;
 }
 
 /* ═════════════ HELP ═════════════ */
