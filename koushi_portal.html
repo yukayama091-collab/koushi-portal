@@ -579,8 +579,9 @@ table.tbl{ width:100%; border-collapse:collapse; }
         <button type="button" id="teacherFilterClear" onclick="clearTeacherSelection()" title="講師選択を解除" aria-label="クリア" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:16px;line-height:1">×</button>
       </div>
       <datalist id="teacherList"></datalist>
+      <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1569,6 +1570,26 @@ function getTodayLecs() {
   });
   return list.sort((a,b) => a.cls.localeCompare(b.cls));
 }
+// 今日の講義（全講師対象。CURRENT_TEACHER が設定されていればその講師の分のみ）
+function getTodayLecsAll() {
+  const list = [];
+  const cls = [...new Set(scopedRows().map(r => r.className).filter(Boolean))];
+  cls.forEach(c => {
+    const cd = classLecturesMap.get(classKey(c));
+    if (!cd) return;
+    (cd.lectures||[]).forEach((l, i) => {
+      const d = parseDate(l.date);
+      if (!d) return;
+      if (daysBetween(TODAY, d) === 0) {
+        // 講師名は scopedRows から取得
+        const row = allRows.find(r => r.className === c);
+        const teacher = row && row.teacherId ? (teacherMeta.get(row.teacherId)?.label || '') : '';
+        list.push({ cls:c, no:i+1, type:l.type||'', date:d, teacher });
+      }
+    });
+  });
+  return list.sort((a,b) => a.cls.localeCompare(b.cls));
+}
 function getUpcomingLecs(limit) {
   const list = [];
   const allCls = [...new Set(scopedRows().map(r => r.className).filter(Boolean))];
@@ -1599,7 +1620,7 @@ function renderDashboard(){
   const active = list.filter(s => !s.grad && s.status!=='no_sp').length;
   const need = list.filter(s => s.status==='stagnant'||s.status==='stuck').length;
   const todayLecs = getTodayLecs();
-  const upcoming = getUpcomingLecs(7);
+  const todayAll = getTodayLecsAll();
 
   // Today banner
   const todayHtml = CURRENT_TEACHER ? `
@@ -1654,14 +1675,14 @@ function renderDashboard(){
 
   const upHtml = `
     <div class="card card-pad">
-      <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-calendar"/></svg> 今後の講義</div><span class="card-meta">直近の予定</span></div>
+      <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-calendar"/></svg> 本日の講義</div><span class="card-meta">${TODAY.getMonth()+1}/${TODAY.getDate()}(${dow(TODAY)}) ・ ${todayAll.length}件</span></div>
       <div class="up-list">
-        ${upcoming.length ? upcoming.map(l => `
-          <div class="up-item ${l.d===0?'today-row':''}" onclick="openClass('${l.cls.replace(/'/g,"\\'")}')">
+        ${todayAll.length ? todayAll.map(l => `
+          <div class="up-item today-row" onclick="openClass('${l.cls.replace(/'/g,"\\'")}')">
             <div class="up-date"><div class="md">${mdy(l.date)}</div><div class="dy">${dow(l.date)}</div></div>
-            <div class="up-meta"><div class="up-cls">${l.cls}</div><div class="up-no">第${l.no}回・${l.type||'—'}</div></div>
-            <span class="badge badge-line">${l.d===0?'今日':l.d===1?'明日':`+${l.d}日`}</span>
-          </div>`).join('') : `<div class="empty" style="padding:20px 0">${CURRENT_TEACHER?'今後の講義予定なし':'講師を選択すると講義スケジュールが表示されます'}</div>`}
+            <div class="up-meta"><div class="up-cls">${l.cls}</div><div class="up-no">第${l.no}回・${l.type||'—'}${l.teacher?`　／　${l.teacher}`:''}</div></div>
+            <span class="badge badge-red">今日</span>
+          </div>`).join('') : `<div class="empty" style="padding:20px 0">本日の講義予定はありません</div>`}
       </div>
     </div>`;
 
@@ -2777,6 +2798,13 @@ if (_gs) _gs.addEventListener('input', e => {
   else renderSearch();
   const sb = $('#searchBox'); if (sb && sb !== e.target) sb.value = e.target.value;
 });
+
+// ヘッダーの今日の日付ピル
+(function setTodayPill(){
+  const el = $('#todayPill');
+  if (!el) return;
+  el.innerHTML = `<svg class="ic" style="width:13px;height:13px"><use href="#i-calendar"/></svg>${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${dow(TODAY)})`;
+})();
 
 // 初期描画
 go('dashboard');
