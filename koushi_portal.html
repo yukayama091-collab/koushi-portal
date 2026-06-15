@@ -281,7 +281,8 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .overlay.open{ display:flex; }
 .modal{ background:#fff; border-radius:var(--r-card); width:100%; max-width:540px; box-shadow:var(--shadow-pop);
   max-height:90vh; display:flex; flex-direction:column; animation:pop .16s ease; }
-.modal.wide{ max-width:860px; }
+.modal.wide{ max-width:min(1200px, 95vw); }
+.modal-body{ min-width:0; }
 @keyframes pop{ from{ transform:scale(.97); opacity:0; } to{ transform:none; opacity:1; } }
 .modal-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:24px 26px 16px; }
 .modal-eyebrow{ font-size:11px; font-weight:700; letter-spacing:.1em; color:var(--faint); text-transform:uppercase; margin-bottom:5px; }
@@ -613,7 +614,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-i</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-j</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2780,12 +2781,99 @@ function openStudent(id){
       <div class="dm-stat"><div class="v">${s.posts}</div><div class="l">投稿数</div></div>
       <div class="dm-stat"><div class="v">${s.sp+s.ap+s.pp}<span style="font-size:13px;color:var(--faint)">/30</span></div><div class="l">完了ステップ</div></div>
     </div>
-    <div class="card-title" style="font-size:14px;margin-bottom:12px"><svg class="ic"><use href="#i-trending"/></svg> 投稿プログラム進行</div>
-    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
-      ${stepRow('SP',s.sp,'sp')}${stepRow('AP',s.ap,'ap')}${stepRow('PP',s.pp,'pp')}
-    </div>
+    <div class="card-title" style="font-size:14px;margin-bottom:12px"><svg class="ic"><use href="#i-trending"/></svg> 投稿プログラム進行（ガント）</div>
+    ${renderStudentGantt(r)}
   `;
   openModal('studentModal');
+}
+
+// 生徒1人ぶんのガント（投稿プログラム進行）
+function renderStudentGantt(r) {
+  if (!r) return '<div class="empty">データなし</div>';
+  const isNew = r.kind === 'new';
+  // 日付集約
+  const allDates = [];
+  if (r.spStart) allDates.push(r.spStart);
+  if (r.allStepDates) r.allStepDates.forEach(d => { if (d) allDates.push(d); });
+  if (!allDates.length) return '<div class="empty" style="padding:14px 0">完了日が入力されたステップがまだありません</div>';
+  let minD = allDates.reduce((a,b)=>a<b?a:b);
+  let maxD = allDates.reduce((a,b)=>a>b?a:b);
+  const startD = new Date(minD); startD.setDate(startD.getDate()-3); startD.setHours(0,0,0,0);
+  const endD = new Date(maxD); endD.setDate(endD.getDate()+3); endD.setHours(0,0,0,0);
+  if (TODAY > endD) { endD.setTime(TODAY.getTime()); endD.setDate(endD.getDate()+3); }
+  const DAY = 16, RH = 30;
+  const totalDays = Math.max(1, Math.round((endD - startD)/86400000) + 1);
+  const totalW = totalDays * DAY;
+  // 月ヘッダー
+  const months = []; let cur = new Date(startD); let ms = new Date(cur);
+  while (cur <= endD) {
+    const nx = new Date(cur); nx.setDate(nx.getDate()+1);
+    const isLast = nx > endD;
+    if (nx.getMonth() !== cur.getMonth() || isLast) {
+      const days = Math.round((nx - ms)/86400000);
+      months.push({ y:ms.getFullYear(), m:ms.getMonth()+1, days });
+      ms = new Date(nx);
+    }
+    cur = nx;
+  }
+  const monthHeader = months.map(mo => `<div class="tl-mo" style="width:${mo.days * DAY}px">${mo.y}/${mo.m}</div>`).join('');
+  let dayHeader = ''; const dd = new Date(startD);
+  for (let i=0;i<totalDays;i++) {
+    const isT = daysBetween(TODAY, dd)===0;
+    const wd = dd.getDay();
+    const c = isT?'today':wd===0?'sun':wd===6?'sat':'';
+    dayHeader += `<div class="tl-dy ${c}" style="width:${DAY}px;font-size:9.5px">${dd.getDate()}</div>`;
+    dd.setDate(dd.getDate()+1);
+  }
+  const dateToX = d => Math.round((d - startD)/86400000) * DAY;
+
+  // 行構成: SP/AP/PP (旧) または STEP (新)
+  const phases = [];
+  if (isNew) {
+    const ds = (r.allStepDates||[]);
+    const filled = ds.filter(Boolean);
+    if (filled.length) {
+      phases.push({ name:'STEP', steps: ds, color:'#7c5cff', labelFn:(i)=>`STEP${i+1}`, start: r.spStart || filled[0], end: filled[filled.length-1] });
+    }
+  } else {
+    const sp = (r.allStepDates||[]).slice(0,10);
+    const ap = (r.allStepDates||[]).slice(10,15);
+    const pp = (r.allStepDates||[]).slice(15,25);
+    if (sp.some(Boolean)) phases.push({ name:'SP', steps:sp, color:'#16a085', labelFn:(i)=>`SP${i+1}`, start: r.spStart || sp.filter(Boolean)[0], end: sp.filter(Boolean).pop() });
+    if (ap.some(Boolean)) phases.push({ name:'AP', steps:ap, color:'#3498db', labelFn:(i)=>`AP${i+1}`, start: ap.filter(Boolean)[0], end: ap.filter(Boolean).pop() });
+    if (pp.some(Boolean)) phases.push({ name:'PP', steps:pp, color:'#8e44ad', labelFn:(i)=>`PP${i+1}`, start: pp.filter(Boolean)[0], end: pp.filter(Boolean).pop() });
+  }
+
+  const rowsHtml = phases.map(ph => {
+    if (!ph.start || !ph.end) return '';
+    const x1 = dateToX(ph.start);
+    const x2 = dateToX(ph.end) + DAY - 2;
+    const w = Math.max(DAY - 2, x2 - x1);
+    const bar = `<div class="tl-bar" style="left:${x1}px;width:${w}px;background:${ph.color};height:18px;font-size:10px" title="${ph.name} ${fmt(ph.start)} 〜 ${fmt(ph.end)}"><span>${ph.name}</span></div>`;
+    const dots = ph.steps.map((d, i) => {
+      if (!d) return '';
+      const x = dateToX(d);
+      return `<div class="tl-dot" style="left:${x + DAY/2 - 4}px" title="${ph.labelFn(i)} 完了: ${fmt(d)}"></div>`;
+    }).join('');
+    return `<div class="tl-row" style="height:${RH}px">
+      <div class="tl-rowname" style="width:60px;min-width:60px;padding:4px 8px;justify-content:center"><div class="tl-rowname-main" style="font-size:12px">${ph.name}</div></div>
+      <div class="tl-row-track" style="width:${totalW}px">${bar}${dots}</div>
+    </div>`;
+  }).join('');
+  const todayX = dateToX(TODAY);
+  return `<div class="tl-wrap" style="max-height:360px">
+    <div class="tl-headRow">
+      <div class="tl-rowname tl-headFix" style="width:60px;min-width:60px;padding:6px 8px;font-size:11px">フェーズ</div>
+      <div class="tl-headTrack" style="width:${totalW}px">
+        <div class="tl-mo-row">${monthHeader}</div>
+        <div class="tl-dy-row">${dayHeader}</div>
+      </div>
+    </div>
+    <div class="tl-body">
+      ${rowsHtml || '<div class="empty" style="padding:14px">対象のステップ完了日がありません</div>'}
+      <div class="tl-today-line" style="left:${60 + todayX}px"></div>
+    </div>
+  </div>`;
 }
 
 /* ═════════════ CLASS MODAL (12回タイムライン) ═════════════ */
