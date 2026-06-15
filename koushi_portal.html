@@ -614,7 +614,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-j</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-k</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3042,7 +3042,7 @@ function openClass(clsName){
       const startD = new Date(minD); startD.setDate(startD.getDate()-7); startD.setHours(0,0,0,0);
       const endD = new Date(maxD); endD.setDate(endD.getDate()+7); endD.setHours(0,0,0,0);
       if (TODAY > endD) { endD.setTime(TODAY.getTime()); endD.setDate(endD.getDate()+7); }
-      const DAY = 14, RH = 34;
+      const DAY = 14, RH = 46;
       const totalDays = Math.max(1, Math.round((endD - startD)/86400000) + 1);
       const totalW = totalDays * DAY;
       // 月ヘッダー
@@ -3098,9 +3098,9 @@ function openClass(clsName){
         }).join('');
         const urgent = s.status==='stagnant';
         return `<div class="tl-row ${urgent?'flag':''}" style="height:${RH}px">
-          <div class="tl-rowname" style="width:160px;min-width:160px;padding:4px 10px" onclick="_studentBack={type:'class',cls:'${clsName.replace(/'/g,"\\'")}'};closeModal('classModal');setTimeout(()=>openStudent('${s.id}'),50)">
+          <div class="tl-rowname" style="width:160px;min-width:160px;padding:5px 10px;gap:3px" onclick="_studentBack={type:'class',cls:'${clsName.replace(/'/g,"\\'")}'};closeModal('classModal');setTimeout(()=>openStudent('${s.id}'),50)">
             <div class="tl-rowname-main" style="font-size:12px">${s.name}</div>
-            <div class="tl-rowname-sub" style="font-size:10px">${statusBadge(s.status)} ${s.prog}%</div>
+            <div class="tl-rowname-sub" style="font-size:10px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">${statusBadge(s.status)}<span>${s.prog}%</span></div>
           </div>
           <div class="tl-row-track" style="width:${totalW}px">${bars}${dots}</div>
         </div>`;
