@@ -614,7 +614,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-n</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-o</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3651,33 +3651,46 @@ function tmTabContent(r, t){
       return '未開始';
     };
     const progClass = s => (s.status === 'grad' || s.completed) ? 'tmbadge-ok' : s.status === 'stagnant' ? 'tmbadge-red' : 'tmbadge-line';
-    // クラスごとにグルーピング
+    // クラスごとにグルーピング（折りたたみアコーディオン）
     const byClass = new Map();
     list.forEach(s => {
       const k = s.cls || '(クラス未設定)';
       if (!byClass.has(k)) byClass.set(k, []);
       byClass.get(k).push(s);
     });
-    const groupsHtml = [...byClass.entries()].map(([cls, members]) => {
+    const groupsHtml = [...byClass.entries()].map(([cls, members], gi) => {
       const grad = members.filter(s => s.status === 'grad').length;
       const need = members.filter(s => s.status === 'stagnant' || s.status === 'stuck').length;
-      return `<div style="margin-bottom:14px">
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--soft);border-radius:8px 8px 0 0;border:1px solid var(--line);border-bottom:none;font-size:12.5px;font-weight:700">
-          <span style="color:var(--ink)">${tmEsc(cls)}</span>
+      return `<div class="tm-classacc" style="margin-bottom:10px;border:1px solid var(--line);border-radius:8px;overflow:hidden">
+        <button type="button" onclick="tmToggleClass(${gi})" class="tm-classacc-head" data-acc="${gi}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--soft);width:100%;border:none;cursor:pointer;font:inherit;text-align:left">
+          <svg class="ic tm-classacc-arrow" data-acc-arrow="${gi}" style="width:14px;height:14px;transition:transform .15s;transform:rotate(0deg)"><use href="#i-chevron-right"/></svg>
+          <span style="color:var(--ink);font-size:13px;font-weight:700">${tmEsc(cls)}</span>
           <span class="tmbadge tmbadge-line">${members.length}名</span>
           ${grad ? `<span class="tmbadge tmbadge-ok">卒業 ${grad}</span>` : ''}
           ${need ? `<span class="tmbadge tmbadge-red">要対応 ${need}</span>` : ''}
+        </button>
+        <div data-acc-body="${gi}" style="display:none">
+          <div class="substu" style="border:none;border-radius:0"><table><thead><tr><th>生徒名</th><th>コース</th><th>進捗</th><th>投稿</th></tr></thead><tbody>
+            ${members.map(s=>`<tr style="cursor:pointer" onclick="event.stopPropagation();closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)"><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
+              <td><span class="tag">${tmEsc(s.__row?.course||'—')}</span></td>
+              <td><span class="tmbadge ${progClass(s)}">${tmEsc(progText(s))}</span></td>
+              <td class="num">${s.posts||0}</td></tr>`).join('')}
+          </tbody></table></div>
         </div>
-        <div class="substu" style="border-radius:0 0 8px 8px"><table><thead><tr><th>生徒名</th><th>コース</th><th>進捗</th><th>投稿</th></tr></thead><tbody>
-          ${members.map(s=>`<tr style="cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)"><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
-            <td><span class="tag">${tmEsc(s.__row?.course||'—')}</span></td>
-            <td><span class="tmbadge ${progClass(s)}">${tmEsc(progText(s))}</span></td>
-            <td class="num">${s.posts||0}</td></tr>`).join('')}
-        </tbody></table></div>
       </div>`;
     }).join('');
-    return `${groupsHtml}<div style="padding:6px 2px;font-size:12px;color:var(--faint)">合計 ${list.length} 名 / ${byClass.size} クラス</div>`;
+    return `${groupsHtml}<div style="padding:6px 2px;font-size:12px;color:var(--faint)">合計 ${list.length} 名 / ${byClass.size} クラス　・　クラス名をクリックで生徒一覧を展開</div>`;
   }
+}
+
+// クラスアコーディオンの開閉
+function tmToggleClass(idx) {
+  const body = document.querySelector(`[data-acc-body="${idx}"]`);
+  const arrow = document.querySelector(`[data-acc-arrow="${idx}"]`);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
 }
 
 // 講師IDに紐づく担当生徒の実数（viewStudentsから）
