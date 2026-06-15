@@ -614,7 +614,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-l</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-m</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -694,6 +694,26 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('settingsModal')">キャンセル</button>
       <button class="btn btn-primary" onclick="saveSettings()">保存して読み込む</button>
+    </div>
+  </div>
+</div>
+
+<!-- SnsClubイベント (Googleカレンダー予定一覧) modal -->
+<div class="overlay" id="snsClubEventsModal" onclick="if(event.target===this)closeModal('snsClubEventsModal')">
+  <div class="modal wide">
+    <div class="modal-head">
+      <div>
+        <div class="modal-eyebrow">SnsClubサービス</div>
+        <div class="modal-title">SnsClubイベント</div>
+      </div>
+      <button class="modal-x" onclick="closeModal('snsClubEventsModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body" id="snsClubEventsBody" style="padding:0;max-height:70vh;overflow:auto">
+      <div style="padding:40px;text-align:center;color:var(--muted)">読み込み中…</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('snsClubEventsModal')">閉じる</button>
+      <a class="btn btn-primary" href="https://calendar.google.com/calendar/u/0/r/month" target="_blank" rel="noopener">Googleカレンダーで開く</a>
     </div>
   </div>
 </div>
@@ -801,6 +821,8 @@ const state = {
 let CFG = {
   webAppUrl: (localStorage.getItem('koushi_webapp_url') || '').replace(/\s+/g, ''),
   token:     (localStorage.getItem('koushi_token')      || '').replace(/\s+/g, ''),
+  // SnsClubイベント用カレンダーID (info@levela.co.jp 管理)
+  snsclubCalendarId: 'c_4143a7ed518b1386d698a8a9276cded9ab71af25b39bed86e6f089e5ddb04464@group.calendar.google.com',
 };
 // クリーニングした値を再保存
 if (CFG.webAppUrl) try { localStorage.setItem('koushi_webapp_url', CFG.webAppUrl); } catch(e){}
@@ -1601,11 +1623,94 @@ function barClass(s){ return s==='stagnant'?'danger':s==='stuck'?'warn':(s==='ok
 
 // SnsClubサービス サブメニューの遷移先（URLは後日設定可能）
 function openSnsClubItem(kind) {
+  if (kind === 'event') { openSnsClubEvents(); return; }
   const labels = { event:'SnsClubイベント', roadmap:'講師用ロードマップ', program:'プログラム詳細' };
   const urls = (window.SNS_CLUB_URLS) || {};
   const url = urls[kind];
   if (url) { window.open(url, '_blank', 'noopener'); return; }
   alert(`${labels[kind] || kind} のURLは未設定です。\n設定するには、ブラウザのコンソールで以下のように実行してください：\n\nwindow.SNS_CLUB_URLS = { event:'https://...', roadmap:'https://...', program:'https://...' };`);
+}
+
+/* ── SnsClubイベント (Googleカレンダー予定一覧) ── */
+async function openSnsClubEvents(){
+  openModal('snsClubEventsModal');
+  const body = document.getElementById('snsClubEventsBody');
+  if (!body) return;
+  if (!CFG.webAppUrl || !CFG.token) {
+    body.innerHTML = '<div style="padding:24px;color:var(--muted);text-align:center">右上の「設定」から受付窓口URLとトークンを設定してください</div>';
+    return;
+  }
+  body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)"><svg class="ic" style="animation:spin 1s linear infinite"><use href="#i-refresh"/></svg> 予定を読み込み中…</div>';
+  try {
+    const params = new URLSearchParams({
+      token: CFG.token,
+      action: 'events',
+      days: '30',
+    });
+    if (CFG.snsclubCalendarId) params.set('calendarId', CFG.snsclubCalendarId);
+    const resp = await fetch(`${CFG.webAppUrl}?${params.toString()}`);
+    const d = await resp.json();
+    renderSnsClubEvents(d);
+  } catch (e) {
+    body.innerHTML = `<div style="padding:24px;color:var(--danger)">読み込みに失敗しました: ${String(e.message || e)}</div>`;
+  }
+}
+
+function renderSnsClubEvents(d){
+  const body = document.getElementById('snsClubEventsBody');
+  if (!body) return;
+  if (d.error) {
+    body.innerHTML = `<div style="padding:24px"><div style="color:var(--danger);margin-bottom:12px">⚠️ カレンダーにアクセスできません: <code>${escapeHtml(String(d.error))}</code></div><div style="color:var(--muted);font-size:13px;line-height:1.7">info@levela.co.jp 側で「設定と共有」→「特定のユーザーまたはグループと共有する」で <b>yuka.yama091@gmail.com</b> を追加してください</div></div>`;
+    return;
+  }
+  const events = d.events || [];
+  const cal = d.calendar || {};
+  const fromD = d.from ? new Date(d.from) : null;
+  const toD = d.to ? new Date(d.to) : null;
+  const fmtRange = fromD && toD ? `${fromD.getMonth()+1}/${fromD.getDate()} 〜 ${toD.getMonth()+1}/${toD.getDate()}` : '';
+  let html = `<div style="padding:10px 22px 0;color:var(--muted);font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span>📅 ${escapeHtml(cal.name || '(無題のカレンダー)')}</span>
+    <span>${fmtRange} ・ ${events.length}件</span>
+  </div>`;
+  if (events.length === 0) {
+    html += '<div style="padding:60px 24px;text-align:center;color:var(--muted)">この期間に予定はありません</div>';
+  } else {
+    // 日付ごとにグループ
+    const byDate = new Map();
+    events.forEach(e => {
+      const key = e.startStr.slice(0, 10); // YYYY/MM/DD
+      if (!byDate.has(key)) byDate.set(key, []);
+      byDate.get(key).push(e);
+    });
+    html += '<div class="evt-list" style="padding:14px 22px 22px">';
+    [...byDate.keys()].sort().forEach(date => {
+      const d2 = new Date(date.replace(/\//g, '-'));
+      const wd = ['日','月','火','水','木','金','土'][d2.getDay()];
+      html += `<div class="evt-day" style="margin-bottom:14px">
+        <div style="font-weight:700;font-size:12px;color:var(--ink);padding:6px 0;border-bottom:1px solid var(--line);margin-bottom:8px">${date.slice(5)} (${wd})</div>`;
+      byDate.get(date).forEach(e => {
+        const time = e.allDay ? '終日' : e.startStr.slice(11);
+        const endTime = e.allDay ? '' : ` – ${e.endStr.slice(11)}`;
+        html += `<div class="evt-item" style="padding:10px 12px;border-radius:8px;background:var(--soft);margin-bottom:6px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="min-width:96px;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums">${time}${endTime}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;color:var(--ink);font-size:13.5px">${escapeHtml(e.title || '(無題)')}</div>
+              ${e.location ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px">📍 ${escapeHtml(e.location)}</div>` : ''}
+              ${e.description ? `<div style="font-size:11.5px;color:var(--muted);margin-top:4px;white-space:pre-wrap">${escapeHtml(e.description.slice(0, 200))}${e.description.length > 200 ? '…' : ''}</div>` : ''}
+            </div>
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  body.innerHTML = html;
+}
+
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
 }
 
 /* ── Settings ── */
@@ -3535,14 +3640,25 @@ function tmTabContent(r, t){
     ${tmField("受け持ち可能な時間帯",r.slot)}
     <div class="field-row">${tmField("得意ジャンル",r.good)}${tmField("苦手ジャンル",r.bad)}</div>`;
   if(t===4){
-    const rows = TM_STUDENTS[r.id];
-    if(!rows) return `<div style="font-size:13px;color:var(--muted);padding:8px 2px;line-height:1.7">担当生徒は<b>生徒マスタ</b>と連携して表示されます。<br>現在 <b class="num">${r.students}</b> 名が紐づいています（このデモでは magu のみ実データを表示）。</div>`;
-    return `<div class="substu"><table><thead><tr><th>生徒名</th><th>コース</th><th>進捗</th><th>投稿</th><th>担当MG</th></tr></thead><tbody>
-      ${rows.map(s=>`<tr><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
-        <td><span class="tag">${tmEsc(s.course)}</span></td>
-        <td>${s.prog.includes('完了')?`<span class="tmbadge tmbadge-ok">${tmEsc(s.prog)}</span>`:`<span class="tmbadge tmbadge-line">${tmEsc(s.prog)}</span>`}</td>
-        <td class="num">${s.posts}</td><td>${tmEsc(s.mg)}</td></tr>`).join('')}
-      </tbody></table><div class="add">${tmIcon('plus',14)} 生徒を追加</div></div>`;
+    // 講師ID(r.id) に紐づく生徒を allRows / viewStudents から動的に抽出
+    const list = (typeof viewStudents === 'function' ? viewStudents() : []).filter(s => s.__row && s.__row.teacherId === r.id);
+    // クラス → 名前で並べ替え
+    list.sort((a,b) => String(a.cls||'').localeCompare(String(b.cls||''),'ja') || String(a.name||'').localeCompare(String(b.name||''),'ja'));
+    if(!list.length) return `<div style="font-size:13px;color:var(--muted);padding:8px 2px;line-height:1.7">担当生徒は<b>生徒マスタ</b>と連携して表示されます。<br>現在、講師ID <b>${tmEsc(r.id)}</b> に紐づく生徒はいません。</div>`;
+    const progText = s => {
+      if (s.status === 'grad') return '卒業済み';
+      if (s.completed) return '完了';
+      if (s.step && s.step !== '—') return `${s.step} 進行中`;
+      return '未開始';
+    };
+    const progClass = s => (s.status === 'grad' || s.completed) ? 'tmbadge-ok' : s.status === 'stagnant' ? 'tmbadge-red' : 'tmbadge-line';
+    return `<div class="substu"><table><thead><tr><th>生徒名</th><th>クラス</th><th>コース</th><th>進捗</th><th>投稿</th></tr></thead><tbody>
+      ${list.map(s=>`<tr style="cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)"><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
+        <td>${tmEsc(s.cls||'—')}</td>
+        <td><span class="tag">${tmEsc(s.__row?.course||'—')}</span></td>
+        <td><span class="tmbadge ${progClass(s)}">${tmEsc(progText(s))}</span></td>
+        <td class="num">${s.posts||0}</td></tr>`).join('')}
+      </tbody></table><div style="padding:8px 12px;font-size:11px;color:var(--faint)">合計 ${list.length} 名</div></div>`;
   }
 }
 
