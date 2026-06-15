@@ -522,10 +522,10 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .nav-pop-item:hover{ background:#2a2c32; color:#fff; }
 
 /* Timeline (Gantt) */
-.tl-wrap{ background:#fff; border:1px solid var(--line); border-radius:var(--r-card); overflow:hidden; }
-.tl-headRow{ display:flex; border-bottom:1px solid var(--line); background:var(--tint); }
-.tl-headFix{ position:sticky; left:0; z-index:3; background:var(--tint); border-right:1px solid var(--line); width:200px; min-width:200px; padding:8px 12px; font-size:12px; font-weight:700; color:var(--muted); display:flex; align-items:flex-end; }
-.tl-headTrack{ position:relative; }
+.tl-wrap{ background:#fff; border:1px solid var(--line); border-radius:var(--r-card); overflow:auto; max-height:600px; position:relative; }
+.tl-headRow{ display:flex; border-bottom:1px solid var(--line); background:var(--tint); position:sticky; top:0; z-index:5; }
+.tl-headFix{ position:sticky; left:0; z-index:6; background:var(--tint); border-right:1px solid var(--line); width:200px; min-width:200px; padding:8px 12px; font-size:12px; font-weight:700; color:var(--muted); display:flex; align-items:flex-end; }
+.tl-headTrack{ position:relative; flex:none; }
 .tl-mo-row{ display:flex; border-bottom:1px solid var(--line); background:var(--soft); }
 .tl-mo{ flex:none; padding:6px 8px; font-size:12px; font-weight:700; color:var(--ink2); border-right:1px solid var(--line); white-space:nowrap; overflow:hidden; }
 .tl-dy-row{ display:flex; }
@@ -533,9 +533,9 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .tl-dy.sun{ color:#d9534f; background:#fef6f5; }
 .tl-dy.sat{ color:#3b78c5; background:#f5f9fe; }
 .tl-dy.today{ background:#ffeaea; color:var(--brand); font-weight:700; }
-.tl-body{ position:relative; max-height:600px; overflow:auto; }
+.tl-body{ position:relative; }
 .tl-row{ display:flex; border-bottom:1px solid #f0f1f3; position:relative; }
-.tl-rowname{ position:sticky; left:0; z-index:2; background:#fff; border-right:1px solid var(--line); width:200px; min-width:200px; padding:6px 12px; cursor:pointer; display:flex; flex-direction:column; justify-content:center; }
+.tl-rowname{ position:sticky; left:0; z-index:4; background:#fff; border-right:1px solid var(--line); width:200px; min-width:200px; padding:6px 12px; cursor:pointer; display:flex; flex-direction:column; justify-content:center; }
 .tl-rowname:hover{ background:var(--soft); }
 .tl-rowname-main{ font-size:13px; font-weight:700; color:var(--ink); line-height:1.2; }
 .tl-rowname-sub{ font-size:10.5px; color:var(--faint); line-height:1.2; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -573,6 +573,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 <symbol id="i-refresh" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><polyline points="21 3 21 8 16 8"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><polyline points="3 21 3 16 8 16"/></g></symbol>
 <symbol id="i-x" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></g></symbol>
 <symbol id="i-chevron-right" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></g></symbol>
+<symbol id="i-chevron-left" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></g></symbol>
 <symbol id="i-send" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></g></symbol>
 <symbol id="i-award" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></g></symbol>
 <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></g></symbol>
@@ -612,7 +613,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-h</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-i</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -697,14 +698,15 @@ table.tbl{ width:100%; border-collapse:collapse; }
 </div>
 
 <!-- Student detail modal -->
-<div class="overlay" id="studentModal" onclick="if(event.target===this)closeModal('studentModal')">
+<div class="overlay" id="studentModal" onclick="if(event.target===this){_studentBack=null;closeModal('studentModal')}">
   <div class="modal wide">
     <div class="modal-head">
-      <div>
+      <button class="modal-back" id="smBack" onclick="studentModalBack()" title="戻る" style="width:34px;height:34px;border-radius:50%;border:none;background:var(--soft);color:var(--muted);cursor:pointer;display:none;align-items:center;justify-content:center;margin-right:6px;flex:none"><svg class="ic" style="width:18px;height:18px"><use href="#i-chevron-left"/></svg></button>
+      <div style="flex:1">
         <div class="modal-eyebrow">生徒詳細</div>
         <div class="modal-title" id="smTitle">—</div>
       </div>
-      <button class="modal-x" onclick="closeModal('studentModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+      <button class="modal-x" onclick="_studentBack=null;closeModal('studentModal')"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
     <div class="modal-body" id="smBody"></div>
   </div>
@@ -2721,11 +2723,25 @@ async function runValidation(){
 }
 
 /* ═════════════ STUDENT MODAL ═════════════ */
+// 生徒詳細から戻る先（クラス名等）
+let _studentBack = null;
+function studentModalBack() {
+  const back = _studentBack;
+  _studentBack = null;
+  $('#smBack').style.display = 'none';
+  closeModal('studentModal');
+  if (back && back.type === 'class' && back.cls) {
+    setTimeout(() => openClass(back.cls), 50);
+  }
+}
 function openStudent(id){
   const list = viewStudents();
   const s = list.find(x => x.id === id);
   if (!s) return;
   $('#smTitle').textContent = s.name;
+  // 戻るボタンの表示/非表示
+  const backBtn = $('#smBack');
+  if (backBtn) backBtn.style.display = (_studentBack && _studentBack.type==='class' && _studentBack.cls) ? 'inline-flex' : 'none';
   const r = s.__row;
   const expGrad = expectedGradDate(r);
   const expStr = expGrad ? fmt(expGrad) : '—';
@@ -2994,7 +3010,7 @@ function openClass(clsName){
         }).join('');
         const urgent = s.status==='stagnant';
         return `<div class="tl-row ${urgent?'flag':''}" style="height:${RH}px">
-          <div class="tl-rowname" style="width:160px;min-width:160px;padding:4px 10px" onclick="closeModal('classModal');setTimeout(()=>openStudent('${s.id}'),50)">
+          <div class="tl-rowname" style="width:160px;min-width:160px;padding:4px 10px" onclick="_studentBack={type:'class',cls:'${clsName.replace(/'/g,"\\'")}'};closeModal('classModal');setTimeout(()=>openStudent('${s.id}'),50)">
             <div class="tl-rowname-main" style="font-size:12px">${s.name}</div>
             <div class="tl-rowname-sub" style="font-size:10px">${statusBadge(s.status)} ${s.prog}%</div>
           </div>
@@ -3002,7 +3018,7 @@ function openClass(clsName){
         </div>`;
       }).join('');
       const todayX = dateToX(TODAY);
-      return `<div class="tl-wrap" style="margin-bottom:6px">
+      return `<div class="tl-wrap" style="margin-bottom:6px;max-height:420px">
         <div class="tl-headRow">
           <div class="tl-rowname tl-headFix" style="width:160px;min-width:160px;padding:6px 10px;font-size:11px">生徒</div>
           <div class="tl-headTrack" style="width:${totalW}px">
@@ -3010,7 +3026,7 @@ function openClass(clsName){
             <div class="tl-dy-row">${dayHeader}</div>
           </div>
         </div>
-        <div class="tl-body" style="max-height:360px">
+        <div class="tl-body">
           ${rows}
           <div class="tl-today-line" style="left:${160 + todayX}px"></div>
         </div>
@@ -3164,7 +3180,7 @@ async function setAttendance(lecIdx, studentIdx, status, btn) {
 
 /* ═════════════ Boot ═════════════ */
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') $$('.overlay.open').forEach(o => o.classList.remove('open'));
+  if (e.key === 'Escape') { _studentBack = null; $$('.overlay.open').forEach(o => o.classList.remove('open')); }
 });
 const _gs = $('#globalSearch');
 if (_gs) _gs.addEventListener('input', e => {
