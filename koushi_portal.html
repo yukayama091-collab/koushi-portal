@@ -614,7 +614,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-m</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-n</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3642,7 +3642,6 @@ function tmTabContent(r, t){
   if(t===4){
     // 講師ID(r.id) に紐づく生徒を allRows / viewStudents から動的に抽出
     const list = (typeof viewStudents === 'function' ? viewStudents() : []).filter(s => s.__row && s.__row.teacherId === r.id);
-    // クラス → 名前で並べ替え
     list.sort((a,b) => String(a.cls||'').localeCompare(String(b.cls||''),'ja') || String(a.name||'').localeCompare(String(b.name||''),'ja'));
     if(!list.length) return `<div style="font-size:13px;color:var(--muted);padding:8px 2px;line-height:1.7">担当生徒は<b>生徒マスタ</b>と連携して表示されます。<br>現在、講師ID <b>${tmEsc(r.id)}</b> に紐づく生徒はいません。</div>`;
     const progText = s => {
@@ -3652,14 +3651,39 @@ function tmTabContent(r, t){
       return '未開始';
     };
     const progClass = s => (s.status === 'grad' || s.completed) ? 'tmbadge-ok' : s.status === 'stagnant' ? 'tmbadge-red' : 'tmbadge-line';
-    return `<div class="substu"><table><thead><tr><th>生徒名</th><th>クラス</th><th>コース</th><th>進捗</th><th>投稿</th></tr></thead><tbody>
-      ${list.map(s=>`<tr style="cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)"><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
-        <td>${tmEsc(s.cls||'—')}</td>
-        <td><span class="tag">${tmEsc(s.__row?.course||'—')}</span></td>
-        <td><span class="tmbadge ${progClass(s)}">${tmEsc(progText(s))}</span></td>
-        <td class="num">${s.posts||0}</td></tr>`).join('')}
-      </tbody></table><div style="padding:8px 12px;font-size:11px;color:var(--faint)">合計 ${list.length} 名</div></div>`;
+    // クラスごとにグルーピング
+    const byClass = new Map();
+    list.forEach(s => {
+      const k = s.cls || '(クラス未設定)';
+      if (!byClass.has(k)) byClass.set(k, []);
+      byClass.get(k).push(s);
+    });
+    const groupsHtml = [...byClass.entries()].map(([cls, members]) => {
+      const grad = members.filter(s => s.status === 'grad').length;
+      const need = members.filter(s => s.status === 'stagnant' || s.status === 'stuck').length;
+      return `<div style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--soft);border-radius:8px 8px 0 0;border:1px solid var(--line);border-bottom:none;font-size:12.5px;font-weight:700">
+          <span style="color:var(--ink)">${tmEsc(cls)}</span>
+          <span class="tmbadge tmbadge-line">${members.length}名</span>
+          ${grad ? `<span class="tmbadge tmbadge-ok">卒業 ${grad}</span>` : ''}
+          ${need ? `<span class="tmbadge tmbadge-red">要対応 ${need}</span>` : ''}
+        </div>
+        <div class="substu" style="border-radius:0 0 8px 8px"><table><thead><tr><th>生徒名</th><th>コース</th><th>進捗</th><th>投稿</th></tr></thead><tbody>
+          ${members.map(s=>`<tr style="cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)"><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
+            <td><span class="tag">${tmEsc(s.__row?.course||'—')}</span></td>
+            <td><span class="tmbadge ${progClass(s)}">${tmEsc(progText(s))}</span></td>
+            <td class="num">${s.posts||0}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>`;
+    }).join('');
+    return `${groupsHtml}<div style="padding:6px 2px;font-size:12px;color:var(--faint)">合計 ${list.length} 名 / ${byClass.size} クラス</div>`;
   }
+}
+
+// 講師IDに紐づく担当生徒の実数（viewStudentsから）
+function tmStudentCountFor(teacherId) {
+  if (typeof viewStudents !== 'function' || !allRows.length) return 0;
+  return viewStudents().filter(s => s.__row && s.__row.teacherId === teacherId).length;
 }
 
 function tmRenderDrawerBody(){
@@ -3683,7 +3707,7 @@ function openTeacherDrawer(id, isNew){
       ${isNew?'':`<button class="btn btn-primary btn-sm" id="tm-dr-portal" title="この講師のダッシュボード/担当生徒/講義実施状況などをポータルで見る" style="margin-right:8px;height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:6px">${tmIcon('ext',14)} ポータルで見る</button>`}
       <button class="dr-x" id="tm-dr-close">${tmIcon('x',18)}</button>
     </div>
-    <div class="dr-tabs">${TM_TABS.map((t,ti)=>`<button class="dr-tab ${ti===0?'on':''}">${t}${ti===4?`<span class="cnt">${r.students}</span>`:''}</button>`).join('')}</div>
+    <div class="dr-tabs">${TM_TABS.map((t,ti)=>`<button class="dr-tab ${ti===0?'on':''}">${t}${ti===4?`<span class="cnt">${tmStudentCountFor(r.id)}</span>`:''}</button>`).join('')}</div>
     <div class="dr-body" id="tm-dr-body"></div>
     <div class="dr-foot">
       <button class="btn btn-primary">保存する</button>
