@@ -614,7 +614,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-o</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.15-p</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3670,11 +3670,20 @@ function tmTabContent(r, t){
           ${need ? `<span class="tmbadge tmbadge-red">要対応 ${need}</span>` : ''}
         </button>
         <div data-acc-body="${gi}" style="display:none">
-          <div class="substu" style="border:none;border-radius:0"><table><thead><tr><th>生徒名</th><th>コース</th><th>進捗</th><th>投稿</th></tr></thead><tbody>
-            ${members.map(s=>`<tr style="cursor:pointer" onclick="event.stopPropagation();closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)"><td style="font-weight:600;color:var(--ink)">${tmEsc(s.name)}</td>
-              <td><span class="tag">${tmEsc(s.__row?.course||'—')}</span></td>
-              <td><span class="tmbadge ${progClass(s)}">${tmEsc(progText(s))}</span></td>
-              <td class="num">${s.posts||0}</td></tr>`).join('')}
+          <div class="substu" style="border:none;border-radius:0"><table><thead><tr><th>生徒名</th><th>コース</th><th style="min-width:160px">進捗</th><th>投稿</th></tr></thead><tbody>
+            ${members.map(s=>{
+              const isGrad = s.status === 'grad';
+              return `<tr><td style="font-weight:600;color:var(--ink);cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)">${tmEsc(s.name)}</td>
+              <td>${s.__row?.course?`<span class="tag">${tmEsc(s.__row.course)}</span>`:'<span class="faint">—</span>'}</td>
+              <td>
+                <select onchange="setStudentGradFromUi('${s.id}', this.value === 'grad', this)" style="font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer">
+                  <option value="auto" ${!isGrad?'selected':''}>${tmEsc(progText(s))}</option>
+                  <option value="grad" ${isGrad?'selected':''}>卒業済み</option>
+                </select>
+                <span class="save-ind" data-grad-ind="${s.id}" style="margin-left:6px;font-size:11px;color:var(--ok);display:none">✓ 保存</span>
+              </td>
+              <td class="num">${s.posts||0}</td></tr>`;
+            }).join('')}
           </tbody></table></div>
         </div>
       </div>`;
@@ -3697,6 +3706,35 @@ function tmToggleClass(idx) {
 function tmStudentCountFor(teacherId) {
   if (typeof viewStudents !== 'function' || !allRows.length) return 0;
   return viewStudents().filter(s => s.__row && s.__row.teacherId === teacherId).length;
+}
+
+// 個別生徒の卒業フラグを UI から切替
+async function setStudentGradFromUi(studentId, isGrad, selectEl) {
+  if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
+  const ind = document.querySelector(`[data-grad-ind="${studentId}"]`);
+  const prevDisabled = selectEl.disabled;
+  selectEl.disabled = true;
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=set_student_grad`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mid: studentId, isGrad: !!isGrad })
+    });
+    const d = await resp.json();
+    if (!d.ok) throw new Error(d.message || d.error || '保存失敗');
+    // ローカル row の卒業フラグを即時更新（再ロード不要で反映）
+    const row = allRows.find(r => r.id === studentId);
+    if (row) {
+      row.isStudentSheetGrad = !!isGrad;
+      applyGraduationOverrides();
+    }
+    if (ind) { ind.style.display = 'inline'; setTimeout(() => { ind.style.display = 'none'; }, 1500); }
+  } catch (e) {
+    alert('保存エラー: ' + e.message);
+  } finally {
+    selectEl.disabled = prevDisabled;
+  }
 }
 
 function tmRenderDrawerBody(){
