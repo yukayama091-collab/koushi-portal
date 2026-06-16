@@ -617,7 +617,7 @@ table.tbl{ width:100%; min-width:max-content; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-h</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-i</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3630,7 +3630,7 @@ const TM_TABLE_TABS = [
   { key:'class', label:'クラス運営', cols: [
     {h:'講師', td:r=>tmNameCell(r)},
     {h:'1on1', td:r=>`<td>${r.one?'<span class="tmbadge tmbadge-ok">可</span>':'<span class="tmbadge tmbadge-line">—</span>'}</td>`},
-    {h:'卒業/進行クラス', td:r=>`<td>${tmClsChips(r.grad,r.ongoing)}</td>`},
+    {h:'卒業/進行クラス', thStyle:'width:114.13px;height:42.89px;min-width:114.13px', td:r=>`<td style="width:114.13px;min-width:114.13px">${tmClsChips(r.grad,r.ongoing)}</td>`},
     {h:'生徒管理シート', td:r=>{
       const url = r.studentSheet;
       return `<td style="white-space:nowrap">${url && /^https?:/.test(url) ? `<a href="${tmEsc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;border:1px solid var(--line);white-space:nowrap">${tmIcon('ext',12)} 開く</a>` : '<span class="faint">—</span>'}</td>`;
@@ -3671,7 +3671,7 @@ function renderTeacherList(){
     const tab = TM_TABLE_TABS.find(t=>t.key===tmTableMode) || TM_TABLE_TABS[0];
     card.innerHTML = `<div class="card-head"><div class="card-title">講師一覧 <span class="faint" style="font-weight:500">（${TM_DATA.length}名中 ${rows.length}名を表示）</span></div></div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr>
-        ${tab.cols.map(c=>`<th>${c.h}</th>`).join('')}<th></th>
+        ${tab.cols.map(c=>`<th${c.thStyle?` style="${c.thStyle}"`:''}>${c.h}</th>`).join('')}<th></th>
       </tr></thead><tbody>${rows.map(r=>`
         <tr class="clickable ${r.active==='未稼働'?'flag':''}" data-id="${r.id}">
           ${tab.cols.map(c=>c.td(r)).join('')}
