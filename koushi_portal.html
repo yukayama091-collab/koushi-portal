@@ -617,7 +617,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-k</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-l</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1188,11 +1188,14 @@ async function loadData() {
       S.rows.forEach(r => {
         const id   = sId>=0 ? String(r[sId]||'').trim() : '';
         const name = sNm>=0 ? String(r[sNm]||'').trim() : '';
+        const gradRaw = sGrad>=0 ? String(r[sGrad]||'').trim() : '';
         const meta = {
           teacherId: sTid>=0 ? String(r[sTid]||'').trim() : '',
           className: sCls>=0 ? String(r[sCls]||'').replace(/[\s　]+/g,'').trim() : '',
           accountUrl: sUrl>=0 ? String(r[sUrl]||'').trim() : '',
-          isStudentSheetGrad: sGrad>=0 && String(r[sGrad]||'').trim() === '卒業生',
+          studentSheetGradValue: gradRaw,
+          isStudentSheetGrad: gradRaw === '卒業生',
+          isStudentSheetCancel: gradRaw === '解約',
         };
         if (id) studentMeta.set(id, meta);
         const nk = normName(name);
@@ -1316,6 +1319,8 @@ async function loadData() {
       r.grad = gradMap.get(normName(r.name)) || null;
       r.accountUrl = (meta.accountUrl || (r.grad && r.grad.accountUrl) || '').trim();
       r.isStudentSheetGrad = !!meta.isStudentSheetGrad;
+      r.isStudentSheetCancel = !!meta.isStudentSheetCancel;
+      r.studentSheetGradValue = meta.studentSheetGradValue || '';
       // 卒業生マスタは「卒業判定」「卒業期」だけ使う
       const gm = gradOfficialById.get(r.id) || gradOfficialByName.get(normName(r.name));
       if (gm) {
@@ -3812,13 +3817,15 @@ function tmTabContent(r, t){
         <div data-acc-body="${gi}" style="display:none">
           <div class="substu" style="border:none;border-radius:0"><table><thead><tr><th>生徒名</th><th>コース</th><th style="min-width:160px">進捗</th><th>投稿</th></tr></thead><tbody>
             ${members.map(s=>{
-              const isGrad = s.status === 'grad';
+              const sheetVal = s.__row?.studentSheetGradValue || (s.__row?.isStudentSheetGrad ? '卒業生' : (s.__row?.isStudentSheetCancel ? '解約' : ''));
+              const sel = sheetVal === '卒業生' ? 'grad' : sheetVal === '解約' ? 'cancel' : 'inprog';
               return `<tr><td style="font-weight:600;color:var(--ink);cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)">${tmEsc(s.name)}</td>
               <td>${s.__row?.course?`<span class="tag">${tmEsc(s.__row.course)}</span>`:'<span class="faint">—</span>'}</td>
               <td>
-                <select onchange="setStudentGradFromUi('${s.id}', this.value === 'grad', this)" style="font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer">
-                  <option value="auto" ${!isGrad?'selected':''}>${tmEsc(progText(s))}</option>
-                  <option value="grad" ${isGrad?'selected':''}>卒業済み</option>
+                <select onchange="setStudentGradFromUi('${s.id}', this.value, this)" style="font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer">
+                  <option value="grad" ${sel==='grad'?'selected':''}>卒業済み</option>
+                  <option value="inprog" ${sel==='inprog'?'selected':''}>進行中</option>
+                  <option value="cancel" ${sel==='cancel'?'selected':''}>解約</option>
                 </select>
                 <span class="save-ind" data-grad-ind="${s.id}" style="margin-left:6px;font-size:11px;color:var(--ok);display:none">✓ 保存</span>
               </td>
@@ -3859,10 +3866,12 @@ function tmStudentCountFor(teacherId) {
   return viewStudents().filter(s => s.__row && s.__row.teacherId === teacherId).length;
 }
 
-// 個別生徒の卒業フラグを UI から切替
-async function setStudentGradFromUi(studentId, isGrad, selectEl) {
+// 個別生徒の進捗ステータスを UI から切替
+// kind: 'grad' (卒業済み) / 'inprog' (進行中) / 'cancel' (解約)
+async function setStudentGradFromUi(studentId, kind, selectEl) {
   if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
   const ind = document.querySelector(`[data-grad-ind="${studentId}"]`);
+  const value = kind === 'grad' ? '卒業生' : kind === 'cancel' ? '解約' : '';
   const prevDisabled = selectEl.disabled;
   selectEl.disabled = true;
   try {
@@ -3870,14 +3879,16 @@ async function setStudentGradFromUi(studentId, isGrad, selectEl) {
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mid: studentId, isGrad: !!isGrad })
+      body: JSON.stringify({ mid: studentId, value: value })
     });
     const d = await resp.json();
     if (!d.ok) throw new Error(d.message || d.error || '保存失敗');
-    // ローカル row の卒業フラグを即時更新（再ロード不要で反映）
+    // ローカル row のフラグを即時更新
     const row = allRows.find(r => r.id === studentId);
     if (row) {
-      row.isStudentSheetGrad = !!isGrad;
+      row.studentSheetGradValue = value;
+      row.isStudentSheetGrad = (value === '卒業生');
+      row.isStudentSheetCancel = (value === '解約');
       applyGraduationOverrides();
     }
     if (ind) { ind.style.display = 'inline'; setTimeout(() => { ind.style.display = 'none'; }, 1500); }
