@@ -616,7 +616,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-e</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-f</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3625,14 +3625,20 @@ const TM_TABLE_TABS = [
   ]},
   { key:'class', label:'クラス運営', cols: [
     {h:'講師', td:r=>tmNameCell(r)},
-    {h:'リンク', td:r=>{
-      const linkBtn = (url, label, ico) => url && /^https?:/.test(url)
-        ? `<a href="${tmEsc(url)}" target="_blank" rel="noopener" title="${label}" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;border:1px solid var(--line)">${tmIcon(ico,12)} ${label}</a>`
-        : `<span class="faint" style="font-size:11.5px;padding:4px 10px;display:inline-flex;align-items:center;gap:4px">${label}<span style="opacity:.5">—</span></span>`;
-      return `<td><div style="display:flex;gap:4px;flex-wrap:wrap">${linkBtn(r.studentSheet,'生徒管理','table')}${linkBtn(r.introSheet,'紹介シート','book')}${linkBtn(r.introImage,'紹介画像','grid')}</div></td>`;
-    }},
     {h:'1on1', td:r=>`<td>${r.one?'<span class="tmbadge tmbadge-ok">可</span>':'<span class="tmbadge tmbadge-line">—</span>'}</td>`},
     {h:'卒業/進行クラス', td:r=>`<td>${tmClsChips(r.grad,r.ongoing)}</td>`},
+    {h:'生徒管理シート', td:r=>{
+      const url = r.studentSheet;
+      return `<td style="white-space:nowrap">${url && /^https?:/.test(url) ? `<a href="${tmEsc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;border:1px solid var(--line);white-space:nowrap">${tmIcon('ext',12)} 開く</a>` : '<span class="faint">—</span>'}</td>`;
+    }},
+    {h:'紹介シート', td:r=>{
+      const url = r.introSheet;
+      return `<td style="white-space:nowrap">${url && /^https?:/.test(url) ? `<a href="${tmEsc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;border:1px solid var(--line);white-space:nowrap">${tmIcon('ext',12)} 開く</a>` : '<span class="faint">—</span>'}</td>`;
+    }},
+    {h:'紹介画像', td:r=>{
+      const url = r.introImage;
+      return `<td style="white-space:nowrap">${url && /^https?:/.test(url) ? `<a href="${tmEsc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:6px;text-decoration:none;font-size:11.5px;font-weight:600;border:1px solid var(--line);white-space:nowrap">${tmIcon('ext',12)} 開く</a>` : '<span class="faint">—</span>'}</td>`;
+    }},
     {h:'担当生徒', td:r=>`<td class="num">${tmStudentCountFor(r.id)}名</td>`},
   ]},
   { key:'launch', label:'ローンチ', cols: [
