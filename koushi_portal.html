@@ -593,6 +593,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 <symbol id="i-table" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></g></symbol>
 <symbol id="i-grid" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></g></symbol>
 <symbol id="i-csv" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></g></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></g></symbol>
 <symbol id="i-ext" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></g></symbol>
 </defs>
 </svg>
@@ -616,7 +617,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-f</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-g</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3556,7 +3557,8 @@ async function renderTeacherMaster(){
           <button class="${tmView==='table'?'on':''}" data-v="table">${tmIcon('table',15)}テーブル</button>
           <button class="${tmView==='cards'?'on':''}" data-v="cards">${tmIcon('grid',15)}カード</button>
         </div>
-        <button class="btn btn-ghost" id="tm-csv">${tmIcon('csv',16)}CSV</button>
+        <button class="btn btn-ghost" id="tm-csv" title="現在の表示講師をCSVでダウンロード">${tmIcon('csv',16)}CSVダウンロード</button>
+        <button class="btn btn-ghost" id="tm-csv-upload" title="CSVをアップロードして講師DBを一括更新">${tmIcon('upload',16)||tmIcon('csv',16)}CSVアップロード</button>
         <button class="btn btn-primary" id="tm-newbtn">${tmIcon('plus',16)}新規講師</button>
       </div>
     </div>
@@ -3593,6 +3595,8 @@ async function renderTeacherMaster(){
   if (tmModeSel) tmModeSel.onchange = e=>{ tmTableMode=e.target.value; renderTeacherList(); };
   document.getElementById('tm-newbtn').onclick = ()=>openTeacherDrawer(null, true);
   document.getElementById('tm-csv').onclick = exportTeachersCSV;
+  const tmUploadBtn = document.getElementById('tm-csv-upload');
+  if (tmUploadBtn) tmUploadBtn.onclick = importTeachersCSV;
   renderTeacherList();
 }
 
@@ -3933,10 +3937,10 @@ function closeTeacherDrawer(){
   document.getElementById('tmScrim').classList.remove('open');
 }
 
+const TM_CSV_COLS = ['id','name','account','ig','real','genre','rank','type','gender','birth','contract','contractEnd','active','retire','extraRank','studentSheet','introSheet','introImage','one','grad','ongoing','mg','sup','classes','perClass','slot','good','bad','launch','students'];
 function exportTeachersCSV(){
   const rows = tmFiltered();
-  const cols = ['id','name','account','ig','real','genre','rank','type','gender','birth','contract','active','one','grad','ongoing','mg','sup','classes','perClass','slot','good','bad','launch','students'];
-  const csv = [cols.join(',')].concat(rows.map(r=>cols.map(c=>{
+  const csv = [TM_CSV_COLS.join(',')].concat(rows.map(r=>TM_CSV_COLS.map(c=>{
     const v = r[c]==null?'':String(r[c]).replace(/"/g,'""');
     return /[",\n]/.test(v) ? `"${v}"` : v;
   }).join(','))).join('\n');
@@ -3945,6 +3949,93 @@ function exportTeachersCSV(){
   a.href = URL.createObjectURL(blob);
   a.download = `講師マスタ_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
+}
+
+// CSV → 配列パース（簡易RFC4180準拠、ダブルクォート対応）
+function parseCSV(text) {
+  // BOM 除去
+  text = text.replace(/^﻿/, '');
+  const rows = [];
+  let cur = []; let cell = ''; let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i+1] === '"') { cell += '"'; i++; }
+        else inQ = false;
+      } else cell += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { cur.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i+1] === '\n') i++;
+        cur.push(cell); cell = '';
+        if (cur.length > 1 || cur[0] !== '') rows.push(cur);
+        cur = [];
+      } else cell += c;
+    }
+  }
+  if (cell !== '' || cur.length) { cur.push(cell); if (cur.length > 1 || cur[0] !== '') rows.push(cur); }
+  return rows;
+}
+
+async function importTeachersCSV(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv,text/csv';
+  input.onchange = async () => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
+    if (!confirm(`「${file.name}」をアップロードして講師DBを一括更新します。\n\n実行前にバックアップタブが自動生成されます。続けますか？`)) return;
+    let text;
+    try { text = await file.text(); } catch(e) { alert('ファイル読み込み失敗: ' + e.message); return; }
+    const rowsArr = parseCSV(text);
+    if (!rowsArr.length) { alert('CSVが空です'); return; }
+    const header = rowsArr.shift();
+    const colIdx = name => header.indexOf(name);
+    const idIdx = colIdx('id');
+    if (idIdx < 0) { alert('CSVの1行目に id 列がありません'); return; }
+    const entries = [];
+    rowsArr.forEach(r => {
+      const obj = {};
+      header.forEach((h, i) => { if (h) obj[h] = r[i] != null ? String(r[i]) : ''; });
+      if (obj.id) entries.push(obj);
+    });
+    if (!entries.length) { alert('有効な行がありません'); return; }
+    const btn = document.getElementById('tm-csv-upload');
+    if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
+    try {
+      const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=import_teachers_bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: entries })
+      });
+      const d = await resp.json();
+      if (!d.ok) throw new Error(d.message || d.error || '更新失敗');
+      const s = d.stats || {};
+      alert([
+        `✓ 講師DB一括更新完了`,
+        `・受信: ${s.received||0}行`,
+        `・実際に更新: ${s.updated||0}名`,
+        `・変更セル数: ${s.cellsChanged||0}`,
+        `・id一致なし: ${s.skippedNotFound||0}`,
+        `・id空欄: ${s.skippedNoId||0}`,
+        ``,
+        `バックアップ:`,
+        ...(d.backupTabs || []).map(t => `  - ${t}`)
+      ].join('\n'));
+      // 再読込
+      tmLoaded = false;
+      await tmFetchIfNeeded(true);
+      renderTeacherMaster();
+    } catch (e) {
+      alert('アップロードエラー: ' + e.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = `${tmIcon('upload',16)||''}CSVアップロード`; }
+    }
+  };
+  input.click();
 }
 
 // scrim クリック / Esc で閉じる
