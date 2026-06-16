@@ -615,7 +615,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3574,15 +3574,6 @@ async function renderTeacherMaster(){
             <button class="${tmView==='cards'?'on':''}" data-v="cards">${tmIcon('grid',15)}カード</button>
           </div>
         </div>
-        <div class="dr-tabs" id="tm-tabletabs-top" style="border-bottom:1px solid var(--line);padding:0;margin-top:14px;overflow-x:auto">
-          ${[
-            {key:'basic',label:'基本情報'},
-            {key:'contract',label:'契約・稼働'},
-            {key:'class',label:'クラス運営'},
-            {key:'launch',label:'ローンチ'},
-            {key:'students',label:'担当生徒'}
-          ].map(t=>`<button class="dr-tab ${t.key===tmTableMode?'on':''}" data-mode="${t.key}">${t.label}</button>`).join('')}
-        </div>
       </div>
       <div class="card" id="tm-listcard"></div>
     </div>
@@ -3590,7 +3581,6 @@ async function renderTeacherMaster(){
   // wire
   document.querySelectorAll('#tm-viewseg button, #tm-viewseg2 button').forEach(b=>b.onclick=()=>{tmView=b.dataset.v; renderTeacherMaster();});
   document.querySelectorAll('#tm-chips .chip').forEach(b=>b.onclick=()=>{tmChipIdx=+b.dataset.i; renderTeacherMaster();});
-  document.querySelectorAll('#tm-tabletabs-top .dr-tab').forEach(b=>b.onclick=()=>{tmTableMode=b.dataset.mode; renderTeacherMaster();});
   document.getElementById('tm-q').oninput = e=>{ tmFilter.q=e.target.value; renderTeacherList(); };
   document.getElementById('tm-fGenre').onchange = e=>{ tmFilter.genre=e.target.value; renderTeacherList(); };
   document.getElementById('tm-fRank').onchange = e=>{ tmFilter.rank=e.target.value; renderTeacherList(); };
