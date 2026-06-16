@@ -557,7 +557,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 </head>
 <body>
 <div id="readonlyBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,#fff3cd,#ffe69c);color:#7a5d00;padding:6px 16px;text-align:center;font-size:12.5px;font-weight:700;border-bottom:1px solid #d4ac00;box-shadow:0 1px 3px rgba(0,0,0,.06)">
-  🔒 デモモード（プレビュー）— 画面上の編集はできますが、データベースには保存されません
+  🔒 デモモード（プレビュー）— サーバー側で書き込み全拒否。データベースには絶対に保存されません
 </div>
 <script>
   if (window.READONLY) {
@@ -629,7 +629,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-m</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-n</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -814,27 +814,27 @@ const state = {
   searchCurr: '',
 };
 
-// 共有URL の hash に埋め込まれたクレデンシャル ( #u=...&t=...&ro=1 ) を取り込む
-// 受け取った人が一度開けば localStorage に保存されるので、以降は通常URLでもOK
-// ro=1 が付いていればデモモード（書き込みは全てローカルのみで終了）
+// デモ専用トークン（このトークンを使ったアクセスは GAS が書き込みアクションを全て拒否）
+const DEMO_TOKEN = 'Demo7vXkqWmRtNbZcAyJpFsHd2';
+
+// 共有URL の hash に埋め込まれたクレデンシャル ( #u=...&t=... ) を取り込む
+// デモトークンが使われていれば自動的に READONLY モードになる
 (function consumeHashCreds(){
   try {
     const h = location.hash || '';
-    if (!h || h.length < 2) return;
-    const params = new URLSearchParams(h.slice(1));
-    const u = (params.get('u') || params.get('url') || '').trim();
-    const t = (params.get('t') || params.get('token') || '').trim();
-    const ro = (params.get('ro') || params.get('readonly') || '').trim();
-    if (u) localStorage.setItem('koushi_webapp_url', u.replace(/\s+/g, ''));
-    if (t) localStorage.setItem('koushi_token',      t.replace(/\s+/g, ''));
-    if (ro === '1' || ro === 'true' || ro === 'yes') {
-      window.READONLY = true;
-      // URLからクレデンシャルは消すが、ro はセッション間で持続させない（必要なら共有者が再度付与）
+    if (h && h.length >= 2) {
+      const params = new URLSearchParams(h.slice(1));
+      const u = (params.get('u') || params.get('url') || '').trim();
+      const t = (params.get('t') || params.get('token') || '').trim();
+      if (u) localStorage.setItem('koushi_webapp_url', u.replace(/\s+/g, ''));
+      if (t) localStorage.setItem('koushi_token',      t.replace(/\s+/g, ''));
+      if (u || t) {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
     }
-    if (u || t || ro) {
-      // クリーンなURLに戻す（履歴を1段で置換）
-      history.replaceState(null, '', location.pathname + location.search);
-    }
+    // 現在の token がデモトークンならREADONLYモード
+    const curTok = (localStorage.getItem('koushi_token') || '').trim();
+    if (curTok === DEMO_TOKEN) window.READONLY = true;
   } catch(e) { console.warn('hash creds parse failed', e); }
 })();
 
