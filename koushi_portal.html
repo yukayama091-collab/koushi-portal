@@ -615,7 +615,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.16-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3566,6 +3566,9 @@ async function renderTeacherMaster(){
           <select class="top-filter" id="tm-fGenre" style="min-width:150px"><option value="">全ジャンル</option>${[...new Set(TM_DATA.map(t=>t.genre).filter(Boolean))].sort().map(g=>`<option ${tmFilter.genre===g?'selected':''}>${tmEsc(g)}</option>`).join('')}</select>
           <select class="top-filter" id="tm-fRank" style="min-width:140px"><option value="">全ランク</option>${["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>`<option ${tmFilter.rank===r?'selected':''}>${tmEsc(r)}</option>`).join('')}</select>
           <select class="top-filter" id="tm-fType" style="min-width:130px"><option value="">全区分</option><option ${tmFilter.type==='通常'?'selected':''}>通常</option><option ${tmFilter.type==='専属'?'selected':''}>専属</option></select>
+          <select class="top-filter" id="tm-fMode" style="min-width:150px" title="表示する情報シートを切替">
+            ${TM_TABLE_TABS.map(t=>`<option value="${t.key}" ${t.key===tmTableMode?'selected':''}>${t.label}</option>`).join('')}
+          </select>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
           <div class="chips" id="tm-chips">${TM_CHIPS.map((c,i)=>`<button class="chip ${i===tmChipIdx?'active':''}" data-i="${i}">${c[0]} <span class="c">${TM_DATA.filter(c[1]).length}</span></button>`).join('')}</div>
@@ -3585,6 +3588,8 @@ async function renderTeacherMaster(){
   document.getElementById('tm-fGenre').onchange = e=>{ tmFilter.genre=e.target.value; renderTeacherList(); };
   document.getElementById('tm-fRank').onchange = e=>{ tmFilter.rank=e.target.value; renderTeacherList(); };
   document.getElementById('tm-fType').onchange = e=>{ tmFilter.type=e.target.value; renderTeacherList(); };
+  const tmModeSel = document.getElementById('tm-fMode');
+  if (tmModeSel) tmModeSel.onchange = e=>{ tmTableMode=e.target.value; renderTeacherList(); };
   document.getElementById('tm-newbtn').onclick = ()=>openTeacherDrawer(null, true);
   document.getElementById('tm-csv').onclick = exportTeachersCSV;
   renderTeacherList();
@@ -3650,10 +3655,7 @@ function renderTeacherList(){
   if(tmView==='table'){
     card.classList.add('card-pad'); card.style.cssText='padding-top:20px';
     const tab = TM_TABLE_TABS.find(t=>t.key===tmTableMode) || TM_TABLE_TABS[0];
-    const tabsBar = `<div class="dr-tabs" id="tm-tabletabs" style="border-bottom:1px solid var(--line);padding:0;margin:-20px -24px 16px;overflow-x:auto">
-      ${TM_TABLE_TABS.map(t=>`<button class="dr-tab ${t.key===tmTableMode?'on':''}" data-mode="${t.key}">${t.label}</button>`).join('')}
-    </div>`;
-    card.innerHTML = `${tabsBar}<div class="card-head"><div class="card-title">講師一覧 <span class="faint" style="font-weight:500">（${TM_DATA.length}名中 ${rows.length}名を表示）</span></div></div>
+    card.innerHTML = `<div class="card-head"><div class="card-title">講師一覧 <span class="faint" style="font-weight:500">（${TM_DATA.length}名中 ${rows.length}名を表示）</span></div></div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr>
         ${tab.cols.map(c=>`<th>${c.h}</th>`).join('')}<th></th>
       </tr></thead><tbody>${rows.map(r=>`
@@ -3663,7 +3665,6 @@ function renderTeacherList(){
         </tr>`).join('')}</tbody></table></div>
       <div class="tbl-foot"><span>全 <b class="num">${TM_DATA.length}</b> 名 ／ 稼働中 <b class="num">${TM_DATA.filter(t=>t.active==='稼働中').length}</b> 名</span>
         <div class="pager"><button>‹</button><button class="on">1</button><button>›</button></div></div>`;
-    document.querySelectorAll('#tm-tabletabs .dr-tab').forEach(b=>b.onclick=()=>{tmTableMode=b.dataset.mode; renderTeacherList();});
   } else {
     card.classList.remove('card-pad'); card.style.cssText='border:none;background:none;box-shadow:none';
     card.innerHTML = `<div class="grid-cards">${rows.map(r=>`
