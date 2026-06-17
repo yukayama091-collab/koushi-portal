@@ -641,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.17-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.17-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3559,6 +3559,7 @@ async function tmFetchIfNeeded(force){
         t.students = t.students || 0;
         t.retire = !!t.retire;
         t.extraRank = t.extraRank || '';
+        t.profileImage = t.profileImage || '';
         TM_DATA.push(t);
       });
       tmLoaded = true;
@@ -3581,15 +3582,43 @@ function tmInstaAvatar(ig){
   if (!m) return null;
   return `https://unavatar.io/instagram/${m[1]}?fallback=false`;
 }
-// アバター HTML を生成 (Instagram あれば画像、なければイニシャル)
+// Google Drive の共有URL を直接画像表示用に変換
+//   https://drive.google.com/file/d/{ID}/view → https://drive.google.com/uc?export=view&id={ID}
+//   https://drive.google.com/open?id={ID}     → 同上
+// その他のURLはそのまま返す
+function tmNormalizeImageUrl(url){
+  if (!url) return '';
+  const s = String(url).trim();
+  if (!s) return '';
+  let m = s.match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/);
+  if (m) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+  m = s.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  if (m && /drive\.google\.com/.test(s)) return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+  return s;
+}
+// アバター HTML を生成
+//   優先順位: (1) profileImage列 (2) Instagramプロフィール (unavatar) (3) イニシャル
 function tmAvatarHtml(r, sizeClass){
   const cls = sizeClass ? `tm-av ${sizeClass}` : 'tm-av';
-  const insta = tmInstaAvatar(r.ig);
   const initials = tmEsc(tmInitials(r.name));
-  if (insta) {
-    // 画像取得失敗時はイニシャル表示にフォールバック
-    return `<span class="${cls}" style="overflow:hidden;background:var(--soft)"><img src="${insta}" alt="${tmEsc(r.name)}" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.parentElement.innerHTML='${initials.replace(/'/g, "\\'")}';this.parentElement.style.background='var(--soft)'"></span>`;
+  const initialsFallback = `this.parentElement.innerHTML='${initials.replace(/'/g, "\\'")}';this.parentElement.style.background='var(--soft)'`;
+  // (1) profileImage (講師DB 基本情報の「プロフィール画像」列)
+  const manual = tmNormalizeImageUrl(r.profileImage);
+  if (manual) {
+    const safeUrl = manual.replace(/"/g,'&quot;');
+    // 失敗時は Instagram フォールバック → 失敗時は イニシャル
+    const insta = tmInstaAvatar(r.ig);
+    const onerror = insta
+      ? `this.onerror=function(){${initialsFallback}};this.src='${insta.replace(/'/g,"\\'")}'`
+      : initialsFallback;
+    return `<span class="${cls}" style="overflow:hidden;background:var(--soft)"><img src="${safeUrl}" alt="${tmEsc(r.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block" onerror="${onerror}"></span>`;
   }
+  // (2) Instagram via unavatar
+  const insta = tmInstaAvatar(r.ig);
+  if (insta) {
+    return `<span class="${cls}" style="overflow:hidden;background:var(--soft)"><img src="${insta}" alt="${tmEsc(r.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block" onerror="${initialsFallback}"></span>`;
+  }
+  // (3) Initials
   return `<span class="${cls}">${initials}</span>`;
 }
 const tmRankBadge = r => `<span class="rank ${TM_RANKMAP[r]||'silver'}"><span class="dot"></span>${tmEsc(r||"—")}</span>`;
@@ -4018,7 +4047,7 @@ function closeTeacherDrawer(){
   document.getElementById('tmScrim').classList.remove('open');
 }
 
-const TM_CSV_COLS = ['id','name','account','ig','real','genre','rank','type','gender','birth','contract','contractEnd','active','retire','extraRank','studentSheet','introSheet','introImage','one','grad','ongoing','mg','sup','classes','perClass','slot','good','bad','launch','students'];
+const TM_CSV_COLS = ['id','name','account','ig','profileImage','real','genre','rank','type','gender','birth','contract','contractEnd','active','retire','extraRank','studentSheet','introSheet','introImage','one','grad','ongoing','mg','sup','classes','perClass','slot','good','bad','launch','students'];
 function exportTeachersCSV(){
   const rows = tmFiltered();
   const csv = [TM_CSV_COLS.join(',')].concat(rows.map(r=>TM_CSV_COLS.map(c=>{
