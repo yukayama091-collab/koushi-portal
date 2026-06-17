@@ -560,13 +560,14 @@ table.tbl{ width:100%; border-collapse:collapse; }
   🔒 デモモード（プレビュー）— サーバー側で書き込み全拒否。データベースには絶対に保存されません
 </div>
 <script>
-  // localStorage または hash params のトークンをチェック → デモトークンならバナー表示
+  // localStorage / hash / query 全部からトークンをチェック → デモトークンならバナー表示
   (function checkReadonlyBanner(){
     const DEMO = 'Demo7vXkqWmRtNbZcAyJpFsHd2';
     let tok = '';
     try {
-      const params = new URLSearchParams((location.hash||'').slice(1));
-      tok = (params.get('t') || params.get('token') || localStorage.getItem('koushi_token') || '').trim();
+      const hp = new URLSearchParams((location.hash||'').slice(1));
+      const qp = new URLSearchParams(location.search || '');
+      tok = (hp.get('t') || hp.get('token') || qp.get('t') || qp.get('token') || localStorage.getItem('koushi_token') || '').trim();
     } catch(e) {}
     if (tok === DEMO) {
       window.READONLY = true;
@@ -640,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.17-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.17-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -828,25 +829,40 @@ const state = {
 // デモ専用トークン（このトークンを使ったアクセスは GAS が書き込みアクションを全て拒否）
 const DEMO_TOKEN = 'Demo7vXkqWmRtNbZcAyJpFsHd2';
 
-// 共有URL の hash に埋め込まれたクレデンシャル ( #u=...&t=... ) を取り込む
+// 共有URL の hash または query string に埋め込まれたクレデンシャルを取り込む
+// メッセージアプリでは hash 部分が落とされやすいので、query string も受け付ける
 // デモトークンが使われていれば自動的に READONLY モードになる
-(function consumeHashCreds(){
+(function consumeShareCreds(){
   try {
+    let u = '', t = '', hadParams = false;
+    // (1) hash (#u=...&t=...)
     const h = location.hash || '';
     if (h && h.length >= 2) {
-      const params = new URLSearchParams(h.slice(1));
-      const u = (params.get('u') || params.get('url') || '').trim();
-      const t = (params.get('t') || params.get('token') || '').trim();
-      if (u) localStorage.setItem('koushi_webapp_url', u.replace(/\s+/g, ''));
-      if (t) localStorage.setItem('koushi_token',      t.replace(/\s+/g, ''));
-      if (u || t) {
-        history.replaceState(null, '', location.pathname + location.search);
-      }
+      const hp = new URLSearchParams(h.slice(1));
+      u = (hp.get('u') || hp.get('url') || u).trim();
+      t = (hp.get('t') || hp.get('token') || t).trim();
+      if (u || t) hadParams = true;
+    }
+    // (2) query string (?u=...&t=...)  ← メッセージアプリ経由でも保持される
+    const qs = location.search || '';
+    if (qs && qs.length >= 2) {
+      const qp = new URLSearchParams(qs);
+      const qu = (qp.get('u') || qp.get('url') || '').trim();
+      const qt = (qp.get('t') || qp.get('token') || '').trim();
+      if (qu && !u) u = qu;
+      if (qt && !t) t = qt;
+      if (qu || qt) hadParams = true;
+    }
+    if (u) localStorage.setItem('koushi_webapp_url', u.replace(/\s+/g, ''));
+    if (t) localStorage.setItem('koushi_token',      t.replace(/\s+/g, ''));
+    if (hadParams) {
+      // クリーンなURLに置換（履歴1段）
+      history.replaceState(null, '', location.pathname);
     }
     // 現在の token がデモトークンならREADONLYモード
     const curTok = (localStorage.getItem('koushi_token') || '').trim();
     if (curTok === DEMO_TOKEN) window.READONLY = true;
-  } catch(e) { console.warn('hash creds parse failed', e); }
+  } catch(e) { console.warn('share creds parse failed', e); }
 })();
 
 // デモ(READONLY)モード時は書き込み系アクションを全てブロックして仮の成功を返す
