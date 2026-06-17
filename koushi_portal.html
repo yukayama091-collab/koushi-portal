@@ -641,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.17-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.17-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -671,6 +671,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-staff"/></svg> 従業員・MG<span class="soon-tag">今後</span></button>
     <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-layers"/></svg> クラス<span class="soon-tag">今後</span></button>
     <div class="side-section">サポート</div>
+    <button class="nav" data-page="history" onclick="go('history')" title="編集履歴の一覧"><svg class="ic"><use href="#i-clock"/></svg> 編集履歴</button>
     <button class="nav" data-page="help" onclick="go('help')" title="マーク・色・使い方の説明"><svg class="ic"><use href="#i-help"/></svg> ヘルプ・凡例</button>
     <div class="side-foot">講師ポータル v3.0 ・ LeVela</div>
   </aside>
@@ -683,6 +684,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-classes" class="page"></div>
       <div id="page-progress" class="page"></div>
       <div id="page-timeline" class="page"></div>
+      <div id="page-history" class="page"></div>
       <div id="page-teacherMaster" class="page"></div>
       <div id="page-help" class="page"></div>
     </div>
@@ -709,6 +711,11 @@ table.tbl{ width:100%; border-collapse:collapse; }
         <label>合言葉（アクセストークン）</label>
         <input type="password" id="tokenInput" placeholder="••••••••" autocomplete="off" />
         <div class="hint">窓口側に設定した合言葉と一致させてください。</div>
+      </div>
+      <div class="field">
+        <label>あなたの名前（編集履歴に表示）</label>
+        <input type="text" id="actorNameInput" placeholder="例: 山田" autocomplete="off" />
+        <div class="hint">編集履歴ページに記録される表示名。空欄でもOKです（ブラウザIDが匿名識別子として保存されます）。</div>
       </div>
       <div class="field" style="margin-top:18px;padding:12px 14px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px">
         <label style="color:#7a5d00">他の人にデータ込みで共有する</label>
@@ -828,6 +835,28 @@ const state = {
 
 // デモ専用トークン（このトークンを使ったアクセスは GAS が書き込みアクションを全て拒否）
 const DEMO_TOKEN = 'Demo7vXkqWmRtNbZcAyJpFsHd2';
+
+// 編集履歴ログ用のアクター情報（ブラウザID + 表示名）
+function getActorInfo() {
+  let id = localStorage.getItem('koushi_actor_id') || '';
+  if (!id) {
+    id = 'B' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+    try { localStorage.setItem('koushi_actor_id', id); } catch(e){}
+  }
+  const name = localStorage.getItem('koushi_actor_name') || '';
+  return { id, name };
+}
+function setActorName(name) {
+  try { localStorage.setItem('koushi_actor_name', String(name||'').trim()); } catch(e){}
+}
+// 書き込みURL/POSTパラメータに actor 情報を埋め込むヘルパー
+function withActor(qsOrObj) {
+  const a = getActorInfo();
+  if (typeof qsOrObj === 'string') {
+    return qsOrObj + `&actor_id=${encodeURIComponent(a.id)}&actor_name=${encodeURIComponent(a.name)}`;
+  }
+  return Object.assign({}, qsOrObj, { actor_id: a.id, actor_name: a.name });
+}
 
 // 共有URL の hash または query string に埋め込まれたクレデンシャルを取り込む
 // メッセージアプリでは hash 部分が落とされやすいので、query string も受け付ける
@@ -1686,7 +1715,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, help:renderHelp };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, history:renderHistory, help:renderHelp };
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -1795,6 +1824,7 @@ function escapeHtml(s){
 function openSettings(){
   $('#webAppUrlInput').value = CFG.webAppUrl;
   $('#tokenInput').value     = CFG.token;
+  const an = $('#actorNameInput'); if (an) an.value = getActorInfo().name || '';
   const msg = $('#shareCopiedMsg'); if (msg) msg.style.display = 'none';
   openModal('settingsModal');
 }
@@ -1831,6 +1861,8 @@ function saveSettings(){
     localStorage.setItem('koushi_webapp_url', url);
     localStorage.setItem('koushi_token', tk);
   } catch(e){}
+  const an = $('#actorNameInput');
+  if (an) setActorName(an.value);
   closeModal('settingsModal');
   loadData();
 }
@@ -2660,6 +2692,67 @@ function renderTimeline(){
     </div>`}`;
 }
 
+/* ═════════════ EDIT HISTORY ═════════════ */
+let _historyCache = null;
+let _historyLoading = false;
+async function renderHistory(){
+  const page = $('#page-history');
+  const actor = getActorInfo();
+  const renderShell = (body) => {
+    page.innerHTML = `
+      <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+        <div><div class="page-title">編集履歴</div><div class="page-sub">誰がいつ何を変更したかの一覧（最新200件）</div></div>
+        <div class="page-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="muted" style="font-size:12px">あなたの名前</span>
+            <input type="text" id="historyActorName" value="${(actor.name||'').replace(/"/g,'&quot;')}" placeholder="未設定" style="font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;min-width:140px" onchange="setActorName(this.value)">
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="renderHistory(true)" type="button"><svg class="ic"><use href="#i-refresh"/></svg>再読込</button>
+        </div>
+      </div>
+      ${body}`;
+    const ai = $('#historyActorName');
+    if (ai) ai.addEventListener('input', e => setActorName(e.target.value));
+  };
+  if (!CFG.webAppUrl || !CFG.token) { renderShell('<div class="card card-pad"><div class="empty">設定が必要です</div></div>'); return; }
+  // キャッシュ利用（再読込でリセット）
+  if (arguments[0] === true) _historyCache = null;
+  if (_historyLoading) { renderShell('<div class="card card-pad"><div class="empty">読み込み中…</div></div>'); return; }
+  if (!_historyCache) {
+    _historyLoading = true;
+    renderShell('<div class="card card-pad"><div class="empty">読み込み中…</div></div>');
+    try {
+      const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_edit_history&limit=200`);
+      const d = await resp.json();
+      _historyCache = d;
+    } catch(e) {
+      _historyCache = { error: String(e) };
+    } finally {
+      _historyLoading = false;
+    }
+  }
+  const d = _historyCache;
+  if (d.error) { renderShell(`<div class="card card-pad"><div class="empty">読込エラー: ${d.error}</div></div>`); return; }
+  const rows = d.rows || [];
+  if (!rows.length) { renderShell('<div class="card card-pad"><div class="empty">まだ編集履歴がありません</div></div>'); return; }
+  const tbl = `<div class="card card-pad" style="padding:0">
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>日時</th><th>編集者</th><th>アクション</th><th>対象</th><th>変更前</th><th>変更後</th><th>メモ</th></tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="nowrap" style="font-size:12px;color:var(--muted)">${(r[0]||'').toString().replace(/[<>]/g,'')}</td>
+          <td style="font-weight:600">${(r[1]||'<span class="faint">—</span>').toString().replace(/[<>]/g,'')}</td>
+          <td><span class="badge badge-line">${(r[3]||'').toString().replace(/[<>]/g,'')}</span></td>
+          <td>${(r[4]||'').toString().replace(/[<>]/g,'')}</td>
+          <td class="muted" style="max-width:200px;word-break:break-all">${(r[5]||'').toString().replace(/[<>]/g,'')}</td>
+          <td style="max-width:200px;word-break:break-all">${(r[6]||'').toString().replace(/[<>]/g,'')}</td>
+          <td class="muted" style="max-width:200px;word-break:break-all;font-size:12px">${(r[7]||'').toString().replace(/[<>]/g,'')}</td>
+        </tr>`).join('')}
+      </tbody></table></div>
+  </div>`;
+  renderShell(tbl);
+}
+
 /* ═════════════ HELP ═════════════ */
 function renderHelp(){
   $('#page-help').innerHTML = `
@@ -3345,9 +3438,9 @@ async function setLectureDate(lecIdx, value, inputEl) {
   if (!lec || !lec.col) { alert('講義データが読み込まれていません'); return; }
   const ind = $('#saveInd-' + lecIdx);
   try {
-    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
+    const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
       + `&sheetId=${encodeURIComponent(_classCtx.sheetId)}&tab=${encodeURIComponent(_classCtx.tab)}`
-      + `&row=4&col=${encodeURIComponent(lec.col)}&value=${encodeURIComponent(value || '')}`;
+      + `&row=4&col=${encodeURIComponent(lec.col)}&value=${encodeURIComponent(value || '')}`);
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.ok) throw new Error(data.message || data.error || '保存失敗');
@@ -3408,9 +3501,9 @@ async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
   if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
   const ind = $('#ind-1on1-' + studentIdx);
   try {
-    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
+    const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
       + `&sheetId=${encodeURIComponent(_classCtx.sheetId)}&tab=${encodeURIComponent(_classCtx.tab)}`
-      + `&row=${st.row}&col=${lec.col}&value=${encodeURIComponent(value || '')}`;
+      + `&row=${st.row}&col=${lec.col}&value=${encodeURIComponent(value || '')}`);
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.ok) throw new Error(data.message || data.error || '保存失敗');
@@ -3454,9 +3547,9 @@ async function setAttendance(lecIdx, studentIdx, status, btn) {
   presentBtn.classList.toggle('active', status === '出席');
   absentBtn.classList.toggle('active', status === '欠席');
   try {
-    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
+    const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
       + `&sheetId=${encodeURIComponent(_classCtx.sheetId)}&tab=${encodeURIComponent(_classCtx.tab)}`
-      + `&row=${st.row}&col=${lec.col}&value=${encodeURIComponent(status)}`;
+      + `&row=${st.row}&col=${lec.col}&value=${encodeURIComponent(status)}`);
     const resp = await fetch(url);
     const data = await resp.json();
     if (!data.ok) throw new Error(data.message || data.error || '保存失敗');
@@ -4004,7 +4097,7 @@ async function setStudentGradFromUi(studentId, kind, selectEl) {
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mid: studentId, value: value })
+      body: JSON.stringify(withActor({ mid: studentId, value: value }))
     });
     const d = await resp.json();
     if (!d.ok) throw new Error(d.message || d.error || '保存失敗');
@@ -4145,7 +4238,7 @@ async function importTeachersCSV(){
       const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=import_teachers_bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: entries })
+        body: JSON.stringify(withActor({ rows: entries }))
       });
       const d = await resp.json();
       if (!d.ok) throw new Error(d.message || d.error || '更新失敗');
