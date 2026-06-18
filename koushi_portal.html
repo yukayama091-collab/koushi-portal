@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3412,7 +3412,7 @@ function renderStudentGantt(r) {
   const startD = new Date(minD); startD.setDate(startD.getDate()-3); startD.setHours(0,0,0,0);
   const endD = new Date(maxD); endD.setDate(endD.getDate()+3); endD.setHours(0,0,0,0);
   if (TODAY > endD) { endD.setTime(TODAY.getTime()); endD.setDate(endD.getDate()+3); }
-  const DAY = 16, RH = 30;
+  const DAY = 16, RH = 38;  // 行高さ (bar 30px + 余白)
   const totalDays = Math.max(1, Math.round((endD - startD)/86400000) + 1);
   const totalW = totalDays * DAY;
   // 月ヘッダー
@@ -3460,38 +3460,42 @@ function renderStudentGantt(r) {
     const done = ph.steps.filter(Boolean).length;
     const isStagnantPhase = !!r.isStagnant;
     let state, iconHtml;
+    const iconStyle = 'width:18px;height:18px;display:block;flex:none';
     if (done === total) {
+      // 完了：緑チェック
       state = 'done';
-      iconHtml = `<svg viewBox="0 0 24 24" style="width:18px;height:18px" title="完了"><circle cx="12" cy="12" r="11" fill="none" stroke="#16a085" stroke-width="2"/><path d="M7 12.5 L10.5 16 L17 9" fill="none" stroke="#16a085" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      iconHtml = `<svg viewBox="0 0 24 24" style="${iconStyle}" title="完了"><circle cx="12" cy="12" r="11" fill="none" stroke="#16a085" stroke-width="2"/><path d="M7 12.5 L10.5 16 L17 9" fill="none" stroke="#16a085" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     } else if (done === 0 || isStagnantPhase) {
+      // 未着手・停滞：赤警告
       state = 'alert';
-      iconHtml = `<svg viewBox="0 0 24 24" style="width:18px;height:18px" title="${done===0?'未着手':'停滞中'}"><circle cx="12" cy="12" r="11" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/><line x1="12" y1="7" x2="12" y2="13" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="17" r="1.5" fill="#dc2626"/></svg>`;
+      iconHtml = `<svg viewBox="0 0 24 24" style="${iconStyle}" title="${done===0?'未着手':'停滞中'}"><circle cx="12" cy="12" r="11" fill="none" stroke="#dc2626" stroke-width="2"/><line x1="12" y1="7" x2="12" y2="13" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="17" r="1.5" fill="#dc2626"/></svg>`;
     } else {
+      // 進行中：完了マークのグレーアウト版（同じデザインで色だけグレー）
       state = 'progress';
-      iconHtml = `<svg viewBox="0 0 24 24" style="width:18px;height:18px" title="進行中"><circle cx="12" cy="12" r="11" fill="none" stroke="#e7d44c" stroke-width="2"/><path d="M12 6 v6 l4 2" fill="none" stroke="#d4a300" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      iconHtml = `<svg viewBox="0 0 24 24" style="${iconStyle}" title="進行中"><circle cx="12" cy="12" r="11" fill="none" stroke="#9ca3af" stroke-width="2"/><path d="M7 12.5 L10.5 16 L17 9" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     }
+    const nameCellHtml = `<div class="tl-rowname" style="width:88px;min-width:88px;padding:4px 8px;justify-content:center">
+      <div class="tl-rowname-main" style="font-size:12px;display:grid;grid-template-columns:18px 22px auto;align-items:center;gap:6px;justify-items:start">
+        ${iconHtml}<span>${ph.name}</span><span style="font-size:12px;font-weight:700">${done}<span style="font-size:9px;color:var(--faint);font-weight:500">/${total}</span></span>
+      </div>
+    </div>`;
     if (!ph.start || !ph.end) {
-      // バー描画は無い場合でも、進捗とアイコンは出す
       return `<div class="tl-row" style="height:${RH}px">
-        <div class="tl-rowname" style="width:88px;min-width:88px;padding:4px 8px;justify-content:center">
-          <div class="tl-rowname-main" style="font-size:12px;display:flex;align-items:center;gap:6px;justify-content:center">${iconHtml}<span>${ph.name}</span><span style="font-size:11px;font-weight:600">${done}<span style="font-size:9px;color:var(--faint)">/${total}</span></span></div>
-        </div>
+        ${nameCellHtml}
         <div class="tl-row-track" style="width:${totalW}px"></div>
       </div>`;
     }
     const x1 = dateToX(ph.start);
     const x2 = dateToX(ph.end) + DAY - 2;
     const w = Math.max(DAY - 2, x2 - x1);
-    const bar = `<div class="tl-bar" style="left:${x1}px;width:${w}px;background:${ph.color};height:18px;font-size:10px" title="${ph.name} ${fmt(ph.start)} 〜 ${fmt(ph.end)}"><span>${ph.name}</span></div>`;
+    const bar = `<div class="tl-bar" style="left:${x1}px;width:${w}px;background:${ph.color};height:30px;font-size:11px" title="${ph.name} ${fmt(ph.start)} 〜 ${fmt(ph.end)}"><span>${ph.name}</span></div>`;
     const dots = ph.steps.map((d, i) => {
       if (!d) return '';
       const x = dateToX(d);
       return `<div class="tl-dot" style="left:${x + DAY/2 - 4}px" title="${ph.labelFn(i)} 完了: ${fmt(d)}"></div>`;
     }).join('');
     return `<div class="tl-row" style="height:${RH}px">
-      <div class="tl-rowname" style="width:88px;min-width:88px;padding:4px 8px;justify-content:center">
-        <div class="tl-rowname-main" style="font-size:12px;display:flex;align-items:center;gap:6px;justify-content:center">${iconHtml}<span>${ph.name}</span><span style="font-size:11px;font-weight:600">${done}<span style="font-size:9px;color:var(--faint)">/${total}</span></span></div>
-      </div>
+      ${nameCellHtml}
       <div class="tl-row-track" style="width:${totalW}px">${bar}${dots}</div>
     </div>`;
   }).join('');
