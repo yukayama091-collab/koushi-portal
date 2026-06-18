@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2266,21 +2266,30 @@ function renderSearch(){
   if (!allRows.length) { $('#page-search').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const all = viewStudents();
   const classes = [...new Set(all.map(s => s.cls).filter(Boolean))].sort();
-  // 「進行中」は inprog + expired を含む（停滞・つまずき・完了・卒業を除く受講中の生徒すべて）
-  const INPROG_STATUSES = ['inprog','expired'];
-  const matchesChipStatus = (s, k) => {
-    if (!k) return true;
-    if (k === 'inprog') return INPROG_STATUSES.includes(s.status);
-    return s.status === k;
+  // クラス単位の状態判定: 全員卒業 → 卒業クラス、それ以外（在校生1人以上）→ 在学クラス
+  const classByName = new Map();
+  all.forEach(s => {
+    if (!s.cls) return;
+    if (!classByName.has(s.cls)) classByName.set(s.cls, []);
+    classByName.get(s.cls).push(s);
+  });
+  const isGraduatedClass = (cls) => {
+    const list = classByName.get(cls) || [];
+    if (!list.length) return false;
+    return list.every(s => s.status === 'grad' || s.grad);
   };
+  const allClsCnt = classByName.size;
+  const gradClsCnt = [...classByName.keys()].filter(isGraduatedClass).length;
+  const enrolledClsCnt = allClsCnt - gradClsCnt;
   const chips = [
-    {k:'', label:'全員'},
-    {k:'stagnant', label:'停滞中'}, {k:'stuck', label:'つまずき'},
-    {k:'inprog', label:'進行中'}, {k:'ok50', label:'50日達成'}, {k:'grad', label:'卒業'},
+    {k:'', label:'全クラス', n: allClsCnt},
+    {k:'enrolled', label:'在学クラス', n: enrolledClsCnt},
+    {k:'graduated', label:'卒業クラス', n: gradClsCnt},
   ];
   const q = state.search.trim();
   let rows = all.filter(s => {
-    if (state.searchStatus && !matchesChipStatus(s, state.searchStatus)) return false;
+    if (state.searchStatus === 'graduated' && !isGraduatedClass(s.cls)) return false;
+    if (state.searchStatus === 'enrolled' && isGraduatedClass(s.cls)) return false;
     if (state.searchClass && s.cls!==state.searchClass) return false;
     if (state.searchCurr && s.curr!==state.searchCurr) return false;
     if (q && !((s.name||'').includes(q) || (s.cls||'').includes(q) || (s.teacher||'').includes(q))) return false;
@@ -2308,10 +2317,7 @@ function renderSearch(){
           <span class="card-meta" style="margin-left:auto">${rows.length} 名</span>
         </div>
         <div class="chips">
-          ${chips.map(c => {
-            const n = c.k ? all.filter(s => matchesChipStatus(s, c.k)).length : all.length;
-            return `<button class="fchip ${c.k==='stagnant'?'danger ':''}${state.searchStatus===c.k?'active':''}" onclick="state.searchStatus='${c.k}';renderSearch()">${c.label} <span class="n">${n}</span></button>`;
-          }).join('')}
+          ${chips.map(c => `<button class="fchip ${state.searchStatus===c.k?'active':''}" onclick="state.searchStatus='${c.k}';renderSearch()">${c.label} <span class="n">${c.n}</span></button>`).join('')}
         </div>
       </div>
       ${(() => {
@@ -3450,7 +3456,29 @@ function renderStudentGantt(r) {
   }
 
   const rowsHtml = phases.map(ph => {
-    if (!ph.start || !ph.end) return '';
+    const total = ph.steps.length;
+    const done = ph.steps.filter(Boolean).length;
+    const isStagnantPhase = !!r.isStagnant;
+    let state, iconHtml;
+    if (done === total) {
+      state = 'done';
+      iconHtml = `<svg viewBox="0 0 24 24" style="width:18px;height:18px" title="完了"><circle cx="12" cy="12" r="11" fill="none" stroke="#16a085" stroke-width="2"/><path d="M7 12.5 L10.5 16 L17 9" fill="none" stroke="#16a085" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    } else if (done === 0 || isStagnantPhase) {
+      state = 'alert';
+      iconHtml = `<svg viewBox="0 0 24 24" style="width:18px;height:18px" title="${done===0?'未着手':'停滞中'}"><circle cx="12" cy="12" r="11" fill="#fef2f2" stroke="#dc2626" stroke-width="2"/><line x1="12" y1="7" x2="12" y2="13" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"/><circle cx="12" cy="17" r="1.5" fill="#dc2626"/></svg>`;
+    } else {
+      state = 'progress';
+      iconHtml = `<svg viewBox="0 0 24 24" style="width:18px;height:18px" title="進行中"><circle cx="12" cy="12" r="11" fill="none" stroke="#e7d44c" stroke-width="2"/><path d="M12 6 v6 l4 2" fill="none" stroke="#d4a300" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+    if (!ph.start || !ph.end) {
+      // バー描画は無い場合でも、進捗とアイコンは出す
+      return `<div class="tl-row" style="height:${RH}px">
+        <div class="tl-rowname" style="width:88px;min-width:88px;padding:4px 8px;justify-content:center">
+          <div class="tl-rowname-main" style="font-size:12px;display:flex;align-items:center;gap:6px;justify-content:center">${iconHtml}<span>${ph.name}</span><span style="font-size:11px;font-weight:600">${done}<span style="font-size:9px;color:var(--faint)">/${total}</span></span></div>
+        </div>
+        <div class="tl-row-track" style="width:${totalW}px"></div>
+      </div>`;
+    }
     const x1 = dateToX(ph.start);
     const x2 = dateToX(ph.end) + DAY - 2;
     const w = Math.max(DAY - 2, x2 - x1);
@@ -3461,14 +3489,16 @@ function renderStudentGantt(r) {
       return `<div class="tl-dot" style="left:${x + DAY/2 - 4}px" title="${ph.labelFn(i)} 完了: ${fmt(d)}"></div>`;
     }).join('');
     return `<div class="tl-row" style="height:${RH}px">
-      <div class="tl-rowname" style="width:60px;min-width:60px;padding:4px 8px;justify-content:center"><div class="tl-rowname-main" style="font-size:12px">${ph.name}</div></div>
+      <div class="tl-rowname" style="width:88px;min-width:88px;padding:4px 8px;justify-content:center">
+        <div class="tl-rowname-main" style="font-size:12px;display:flex;align-items:center;gap:6px;justify-content:center">${iconHtml}<span>${ph.name}</span><span style="font-size:11px;font-weight:600">${done}<span style="font-size:9px;color:var(--faint)">/${total}</span></span></div>
+      </div>
       <div class="tl-row-track" style="width:${totalW}px">${bar}${dots}</div>
     </div>`;
   }).join('');
   const todayX = dateToX(TODAY);
   return `<div class="tl-wrap" style="max-height:360px">
     <div class="tl-headRow">
-      <div class="tl-rowname tl-headFix" style="width:60px;min-width:60px;padding:6px 8px;font-size:11px">フェーズ</div>
+      <div class="tl-rowname tl-headFix" style="width:88px;min-width:88px;padding:6px 8px;font-size:11px">フェーズ</div>
       <div class="tl-headTrack" style="width:${totalW}px">
         <div class="tl-mo-row">${monthHeader}</div>
         <div class="tl-dy-row">${dayHeader}</div>
@@ -3476,7 +3506,7 @@ function renderStudentGantt(r) {
     </div>
     <div class="tl-body">
       ${rowsHtml || '<div class="empty" style="padding:14px">対象のステップ完了日がありません</div>'}
-      <div class="tl-today-line" style="left:${60 + todayX}px"></div>
+      <div class="tl-today-line" style="left:${88 + todayX}px"></div>
     </div>
   </div>`;
 }
