@@ -641,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2824,9 +2824,14 @@ async function revokeToken(token) {
     renderUsers();
   } catch(e) { alert('取消エラー: ' + e.message); }
 }
+window.__issueTokenSelectedManaged = [];   // 選択中の担当講師ID配列
+
 function openIssueTokenModal() {
   const opts = [...(teacherMasterMap||new Map()).values()].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ja'));
-  const teacherOptionsHtml = opts.map(t => `<option value="${t.tid}">${t.tid} ${(t.name||'').replace(/[<>]/g,'')}</option>`).join('');
+  window.__issueTokenAllTeachers = opts;
+  window.__issueTokenSelectedManaged = [];
+  // datalist 用（単体選択）
+  const datalistOpts = opts.map(t => `<option value="${t.tid} ${(t.name||'').replace(/"/g,'&quot;')}">`).join('');
   const html = `<div style="padding:20px">
     <h3 style="margin:0 0 16px;font-size:16px">新規トークン発行</h3>
     <div class="field"><label>ロール</label>
@@ -2837,15 +2842,16 @@ function openIssueTokenModal() {
       </select>
     </div>
     <div class="field" id="newTokTeacherWrap"><label>講師（instructor のみ）</label>
-      <select id="newTokTeacherId" style="font:inherit;padding:8px;width:100%">
-        ${teacherOptionsHtml}
-      </select>
+      <input type="text" id="newTokTeacherInput" list="newTokTeacherList" placeholder="講師ID・名前で検索…" style="font:inherit;padding:8px;width:100%" autocomplete="off">
+      <datalist id="newTokTeacherList">${datalistOpts}</datalist>
+      <div class="hint">講師ID または 名前で絞り込めます</div>
     </div>
-    <div class="field" id="newTokManagedWrap" style="display:none"><label>担当講師（MG: 複数選択可・Ctrl/Cmd でも可）</label>
-      <select id="newTokManagedIds" multiple size="8" style="font:inherit;padding:8px;width:100%;min-height:160px">
-        ${teacherOptionsHtml}
-      </select>
-      <div class="hint">担当する講師を選択してください。複数選択可。</div>
+    <div class="field" id="newTokManagedWrap" style="display:none"><label>担当講師（MG: 検索して追加）</label>
+      <div id="newTokManagedChips" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:1px solid var(--line);border-radius:8px;min-height:42px;background:#fff;cursor:text" onclick="document.getElementById('newTokManagedInput').focus()">
+        <input type="text" id="newTokManagedInput" list="newTokManagedList" placeholder="講師ID・名前で検索して追加…" style="border:none;outline:none;font:inherit;flex:1;min-width:200px;padding:4px" autocomplete="off">
+      </div>
+      <datalist id="newTokManagedList">${datalistOpts}</datalist>
+      <div class="hint">講師ID・名前で検索 → Enter または候補から選んで追加。タグの×で削除。</div>
     </div>
     <div class="field"><label>表示名</label>
       <input type="text" id="newTokName" placeholder="例: 山田太郎" style="font:inherit;padding:8px;width:100%">
@@ -2866,13 +2872,65 @@ function openIssueTokenModal() {
     m.onclick = (e) => { if (e.target === m) closeIssueTokenModal(); };
     document.body.appendChild(m);
   }
-  m.innerHTML = `<div class="modal" style="max-width:520px">${html}</div>`;
+  m.innerHTML = `<div class="modal" style="max-width:560px">${html}</div>`;
   m.classList.add('open');
   document.getElementById('newTokRole').onchange = e => {
     const v = e.target.value;
     document.getElementById('newTokTeacherWrap').style.display = v === 'instructor' ? 'block' : 'none';
     document.getElementById('newTokManagedWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
   };
+  // 担当講師タグ入力のハンドラ
+  const mInput = document.getElementById('newTokManagedInput');
+  if (mInput) {
+    const tryAdd = (val) => {
+      if (!val) return;
+      // "0042 名前" 形式から ID 抽出
+      const m = val.match(/^(\d+)/);
+      const tid = m ? m[1] : val.trim();
+      const found = (window.__issueTokenAllTeachers||[]).find(t => t.tid === tid);
+      if (!found) return;
+      if (window.__issueTokenSelectedManaged.includes(found.tid)) return;
+      window.__issueTokenSelectedManaged.push(found.tid);
+      renderManagedChips();
+      mInput.value = '';
+    };
+    mInput.addEventListener('input', e => {
+      // datalist で候補選択された場合（値が "0042 名前" になる）
+      if (e.target.value && (window.__issueTokenAllTeachers||[]).some(t => `${t.tid} ${t.name||''}` === e.target.value)) {
+        tryAdd(e.target.value);
+      }
+    });
+    mInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        tryAdd(mInput.value);
+      }
+      if (e.key === 'Backspace' && !mInput.value && window.__issueTokenSelectedManaged.length) {
+        window.__issueTokenSelectedManaged.pop();
+        renderManagedChips();
+      }
+    });
+  }
+}
+function renderManagedChips() {
+  const wrap = document.getElementById('newTokManagedChips');
+  if (!wrap) return;
+  const input = document.getElementById('newTokManagedInput');
+  // 既存チップを削除（input は残す）
+  wrap.querySelectorAll('.mg-chip').forEach(el => el.remove());
+  const all = window.__issueTokenAllTeachers || [];
+  window.__issueTokenSelectedManaged.forEach(tid => {
+    const t = all.find(x => x.tid === tid);
+    const chip = document.createElement('span');
+    chip.className = 'mg-chip';
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--brand-soft);color:var(--brand);border-radius:6px;font-size:12px;font-weight:700';
+    chip.innerHTML = `${tid} ${(t&&t.name||'').replace(/[<>]/g,'')} <span style="cursor:pointer;font-weight:900;font-size:14px" onclick="removeManagedChip('${tid}')">×</span>`;
+    wrap.insertBefore(chip, input);
+  });
+}
+function removeManagedChip(tid) {
+  window.__issueTokenSelectedManaged = window.__issueTokenSelectedManaged.filter(x => x !== tid);
+  renderManagedChips();
 }
 function closeIssueTokenModal() {
   const m = document.getElementById('issueTokenModal');
@@ -2880,10 +2938,16 @@ function closeIssueTokenModal() {
 }
 async function submitIssueToken() {
   const role = document.getElementById('newTokRole').value;
-  const teacherId = role === 'instructor' ? document.getElementById('newTokTeacherId').value : '';
+  let teacherId = '';
+  if (role === 'instructor') {
+    const raw = (document.getElementById('newTokTeacherInput').value || '').trim();
+    const m = raw.match(/^(\d+)/);
+    teacherId = m ? m[1] : raw;
+    if (!teacherId) { alert('講師を選択してください'); return; }
+  }
   let managedIds = [];
   if (role === 'lecturer_mg' || role === 'support_mg') {
-    managedIds = [...document.getElementById('newTokManagedIds').selectedOptions].map(o => o.value);
+    managedIds = (window.__issueTokenSelectedManaged || []).slice();
     if (!managedIds.length) { alert('担当する講師を1名以上選択してください'); return; }
   }
   const name = document.getElementById('newTokName').value.trim();
