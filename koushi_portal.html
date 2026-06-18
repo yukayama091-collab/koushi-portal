@@ -641,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3766,19 +3766,23 @@ function applyRoleUi() {
   badge.textContent = roleLabel + (u.name ? ' / ' + u.name : '');
 }
 
-if (CFG.webAppUrl && CFG.token) { fetchWhoami(); loadData(); }
-else fetchWhoami();
-else $('#page-dashboard').innerHTML = `
-  <div class="page-head"><div><div class="page-title">講師ポータル</div><div class="page-sub">データ受付窓口の設定が必要です</div></div></div>
-  <div class="card card-pad" style="text-align:center;padding:48px 26px">
-    <svg class="ic ic-l" style="width:48px;height:48px;color:var(--brand);margin-bottom:14px"><use href="#i-settings"/></svg>
-    <div style="font-size:16px;font-weight:700;margin-bottom:8px">初期設定</div>
-    <p style="color:var(--muted);font-size:13.5px;line-height:1.7;margin-bottom:18px">
-      右上の<b style="color:var(--ink)">「設定」</b>ボタンから、GAS Web App の URL とアクセストークンを入力してください。<br>
-      （URL・トークンはブラウザに保存され、次回以降は自動で読み込まれます）
-    </p>
-    <button class="btn btn-primary" onclick="openSettings()">設定を開く</button>
-  </div>`;
+if (CFG.webAppUrl && CFG.token) {
+  fetchWhoami();
+  loadData();
+} else {
+  fetchWhoami();
+  $('#page-dashboard').innerHTML = `
+    <div class="page-head"><div><div class="page-title">講師ポータル</div><div class="page-sub">データ受付窓口の設定が必要です</div></div></div>
+    <div class="card card-pad" style="text-align:center;padding:48px 26px">
+      <svg class="ic ic-l" style="width:48px;height:48px;color:var(--brand);margin-bottom:14px"><use href="#i-settings"/></svg>
+      <div style="font-size:16px;font-weight:700;margin-bottom:8px">初期設定</div>
+      <p style="color:var(--muted);font-size:13.5px;line-height:1.7;margin-bottom:18px">
+        右上の<b style="color:var(--ink)">「設定」</b>ボタンから、GAS Web App の URL とアクセストークンを入力してください。<br>
+        （URL・トークンはブラウザに保存され、次回以降は自動で読み込まれます）
+      </p>
+      <button class="btn btn-primary" onclick="openSettings()">設定を開く</button>
+    </div>`;
+}
 
 /* ════════════════════════════════════════════════════════════
    講師マスタ (teacherMaster) — 講師情報の閲覧・編集
