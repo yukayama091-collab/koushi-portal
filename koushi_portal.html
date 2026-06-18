@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-n</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -667,7 +667,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
   <aside class="sidebar" id="sidebar">
     <button class="nav active" data-page="dashboard" onclick="go('dashboard')" title="全体サマリ・今日の講義スケジュール"><svg class="ic"><use href="#i-chart"/></svg> ダッシュボード</button>
     <button class="nav" data-page="todo" onclick="go('todo')" title="優先度別の対応リスト"><svg class="ic"><use href="#i-clipboard"/></svg> やること <span class="nav-badge hot" id="navTodoCount" style="display:none">0</span></button>
-    <button class="nav" data-page="search" onclick="go('search')" title="生徒名・クラス・状態で検索"><svg class="ic"><use href="#i-search"/></svg> 生徒検索</button>
+    <button class="nav" data-page="search" onclick="go('search')" title="生徒の検索・管理"><svg class="ic"><use href="#i-search"/></svg> 生徒管理</button>
     <button class="nav" data-page="classes" onclick="go('classes')" title="開始月別のクラス集計"><svg class="ic"><use href="#i-book"/></svg> クラス一覧</button>
     <button class="nav" data-page="progress" onclick="go('progress')" title="状況別の生徒詳細"><svg class="ic"><use href="#i-trending"/></svg> 進捗キャッチアップ</button>
     <button class="nav" data-page="timeline" onclick="go('timeline')" title="生徒ごとの進捗タイムライン（ガント）"><svg class="ic"><use href="#i-calendar"/></svg> 進捗タイムライン</button>
@@ -2289,7 +2289,7 @@ function renderSearch(){
 
   $('#page-search').innerHTML = `
     <div class="page-head">
-      <div><div class="page-title">生徒検索</div><div class="page-sub">${scopeLabel()} ／ 名前・クラス・ステータスで絞り込み</div></div>
+      <div><div class="page-title">生徒管理</div><div class="page-sub">${scopeLabel()} ／ 名前・クラス・ステータスで絞り込み</div></div>
     </div>
     <div class="stack">
       <div class="card card-pad" style="padding:18px 22px">
