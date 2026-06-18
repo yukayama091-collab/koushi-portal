@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-m</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-n</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2266,6 +2266,13 @@ function renderSearch(){
   if (!allRows.length) { $('#page-search').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const all = viewStudents();
   const classes = [...new Set(all.map(s => s.cls).filter(Boolean))].sort();
+  // 「進行中」は inprog + expired を含む（停滞・つまずき・完了・卒業を除く受講中の生徒すべて）
+  const INPROG_STATUSES = ['inprog','expired'];
+  const matchesChipStatus = (s, k) => {
+    if (!k) return true;
+    if (k === 'inprog') return INPROG_STATUSES.includes(s.status);
+    return s.status === k;
+  };
   const chips = [
     {k:'', label:'全員'},
     {k:'stagnant', label:'停滞中'}, {k:'stuck', label:'つまずき'},
@@ -2273,7 +2280,7 @@ function renderSearch(){
   ];
   const q = state.search.trim();
   let rows = all.filter(s => {
-    if (state.searchStatus && s.status!==state.searchStatus) return false;
+    if (state.searchStatus && !matchesChipStatus(s, state.searchStatus)) return false;
     if (state.searchClass && s.cls!==state.searchClass) return false;
     if (state.searchCurr && s.curr!==state.searchCurr) return false;
     if (q && !((s.name||'').includes(q) || (s.cls||'').includes(q) || (s.teacher||'').includes(q))) return false;
@@ -2301,7 +2308,8 @@ function renderSearch(){
           <span class="card-meta" style="margin-left:auto">${rows.length} 名</span>
         </div>
         <div class="chips">
-          ${chips.map(c => { const n = c.k ? all.filter(s => s.status===c.k).length : all.length;
+          ${chips.map(c => {
+            const n = c.k ? all.filter(s => matchesChipStatus(s, c.k)).length : all.length;
             return `<button class="fchip ${c.k==='stagnant'?'danger ':''}${state.searchStatus===c.k?'active':''}" onclick="state.searchStatus='${c.k}';renderSearch()">${c.label} <span class="n">${n}</span></button>`;
           }).join('')}
         </div>
