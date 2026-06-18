@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-i</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-j</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1996,7 +1996,7 @@ function renderDashboard(){
 
   // KPI
   const kpis = [
-    {ico:'i-book',  cls:'ic-brand', label:'進行中のクラス', val:active, sub:'受講中（卒業・未開始除く）', act:()=>{state.searchStatus='inprog';go('search');}},
+    {ico:'i-book',  cls:'ic-brand', label:'進行中のクラス', val:active, sub:'受講中（卒業・未開始除く）', act:()=>{state.searchStatus='';go('search');}},
     {ico:'i-check', cls:'ic-ok',    label:'50日達成率',   val:st.rate50, unit:'%', sub:`${st.ok50} / ${st.total} 名が達成`, act:()=>{state.searchStatus='ok50';go('search');}},
     {ico:'i-grad',  cls:'ic-gray',  label:'卒業済みの生徒', val:st.grad, sub:'プログラム修了', act:()=>{state.searchStatus='grad';go('search');}},
     {ico:'i-alert', cls:'ic-warn',  label:'要フォロー', val:need, sub:'停滞・つまずきの合計', danger:true, act:()=>go('todo')},
