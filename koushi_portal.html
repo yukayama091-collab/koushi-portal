@@ -641,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -671,6 +671,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-staff"/></svg> 従業員・MG<span class="soon-tag">今後</span></button>
     <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-layers"/></svg> クラス<span class="soon-tag">今後</span></button>
     <div class="side-section">サポート</div>
+    <button class="nav" data-page="users" onclick="go('users')" title="ユーザー権限管理（マネージャー専用）"><svg class="ic"><use href="#i-teacher"/></svg> ユーザー管理</button>
     <button class="nav" data-page="history" onclick="go('history')" title="編集履歴の一覧"><svg class="ic"><use href="#i-clock"/></svg> 編集履歴</button>
     <button class="nav" data-page="help" onclick="go('help')" title="マーク・色・使い方の説明"><svg class="ic"><use href="#i-help"/></svg> ヘルプ・凡例</button>
     <div class="side-foot">講師ポータル v3.0 ・ LeVela</div>
@@ -685,6 +686,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-progress" class="page"></div>
       <div id="page-timeline" class="page"></div>
       <div id="page-history" class="page"></div>
+      <div id="page-users" class="page"></div>
       <div id="page-teacherMaster" class="page"></div>
       <div id="page-help" class="page"></div>
     </div>
@@ -1715,7 +1717,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, history:renderHistory, help:renderHelp };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, history:renderHistory, users:renderUsers, help:renderHelp };
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -2753,6 +2755,132 @@ async function renderHistory(){
   renderShell(tbl);
 }
 
+/* ═════════════ USER MANAGEMENT ═════════════ */
+async function renderUsers(){
+  const page = $('#page-users');
+  const u = window.CURRENT_USER || {};
+  if (u.role !== 'admin' && u.role !== 'manager') {
+    page.innerHTML = `<div class="page-head"><div><div class="page-title">ユーザー管理</div></div></div>
+      <div class="card card-pad"><div class="empty">このページはマネージャー以上のみアクセスできます</div></div>`;
+    return;
+  }
+  page.innerHTML = `<div class="page-head"><div><div class="page-title">ユーザー管理</div><div class="page-sub">講師ポータルへのアクセス権限を発行・管理</div></div>
+    <div class="page-actions"><button class="btn btn-primary" onclick="openIssueTokenModal()" type="button">+ 新規発行</button></div></div>
+    <div id="userListCard" class="card card-pad"><div class="empty">読み込み中…</div></div>`;
+  try {
+    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=list_tokens`);
+    const d = await r.json();
+    const users = (d && d.users) || [];
+    if (!users.length) {
+      $('#userListCard').innerHTML = '<div class="empty">まだユーザーが登録されていません。「+ 新規発行」から作成してください。</div>';
+      return;
+    }
+    $('#userListCard').innerHTML = `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>名前</th><th>ロール</th><th>講師ID</th><th>発行日</th><th>状態</th><th>共有URL</th><th></th></tr></thead>
+      <tbody>${users.map(u => {
+        const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(u.token)}`;
+        return `<tr>
+          <td style="font-weight:600">${(u.name||'<span class="faint">—</span>').replace(/[<>]/g,'')}</td>
+          <td><span class="badge ${u.role==='manager'||u.role==='admin'?'badge-red':'badge-line'}">${u.role}</span></td>
+          <td class="num">${(u.teacherId||'').replace(/[<>]/g,'') || '<span class="faint">—</span>'}</td>
+          <td class="muted nowrap" style="font-size:12px">${(u.createdAt||'').replace(/[<>]/g,'')}</td>
+          <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">無効</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${shareUrl.replace(/'/g,"\\'")}', this)" type="button" ${u.active?'':'disabled'}>📋 URLコピー</button></td>
+          <td>${u.active ? `<button class="btn btn-ghost btn-sm" onclick="revokeToken('${u.token}')" type="button">取消</button>` : ''}</td>
+        </tr>`;
+      }).join('')}</tbody></table></div>`;
+  } catch(e) {
+    $('#userListCard').innerHTML = `<div class="empty">読み込みエラー: ${e.message}</div>`;
+  }
+}
+function copyToClipboard(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ コピー済';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+async function revokeToken(token) {
+  if (!confirm('このトークンを無効化します。よろしいですか？\n（このURLでのアクセスができなくなります）')) return;
+  try {
+    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=revoke_token`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ token: token })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.message || d.error || '失敗');
+    renderUsers();
+  } catch(e) { alert('取消エラー: ' + e.message); }
+}
+function openIssueTokenModal() {
+  // 講師リストから選択（CURRENT_TEACHER は使わず teacherMasterMap から）
+  const opts = [...(teacherMasterMap||new Map()).values()].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ja'));
+  const html = `<div style="padding:20px">
+    <h3 style="margin:0 0 16px;font-size:16px">新規トークン発行</h3>
+    <div class="field"><label>ロール</label>
+      <select id="newTokRole" style="font:inherit;padding:8px;width:100%">
+        <option value="instructor">通常講師</option>
+        <option value="manager">マネージャー</option>
+      </select>
+    </div>
+    <div class="field" id="newTokTeacherWrap"><label>講師</label>
+      <select id="newTokTeacherId" style="font:inherit;padding:8px;width:100%">
+        ${opts.map(t => `<option value="${t.tid}">${t.tid} ${(t.name||'').replace(/[<>]/g,'')}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field"><label>表示名</label>
+      <input type="text" id="newTokName" placeholder="例: 山田太郎" style="font:inherit;padding:8px;width:100%">
+    </div>
+    <div class="field"><label>メモ</label>
+      <input type="text" id="newTokMemo" placeholder="例: 2026年6月入社" style="font:inherit;padding:8px;width:100%">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeIssueTokenModal()" type="button">キャンセル</button>
+      <button class="btn btn-primary" onclick="submitIssueToken()" type="button">発行</button>
+    </div>
+  </div>`;
+  let m = document.getElementById('issueTokenModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'issueTokenModal';
+    m.className = 'overlay';
+    m.onclick = (e) => { if (e.target === m) closeIssueTokenModal(); };
+    document.body.appendChild(m);
+  }
+  m.innerHTML = `<div class="modal" style="max-width:480px">${html}</div>`;
+  m.classList.add('open');
+  // ロール切替時に講師選択を表示/非表示
+  document.getElementById('newTokRole').onchange = e => {
+    document.getElementById('newTokTeacherWrap').style.display = e.target.value === 'instructor' ? 'block' : 'none';
+  };
+}
+function closeIssueTokenModal() {
+  const m = document.getElementById('issueTokenModal');
+  if (m) m.classList.remove('open');
+}
+async function submitIssueToken() {
+  const role = document.getElementById('newTokRole').value;
+  const teacherId = role === 'instructor' ? document.getElementById('newTokTeacherId').value : '';
+  const name = document.getElementById('newTokName').value.trim();
+  const memo = document.getElementById('newTokMemo').value.trim();
+  try {
+    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ role, teacherId, name, memo })
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.message || d.error || '失敗');
+    closeIssueTokenModal();
+    const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(d.user.token)}`;
+    const msg = d.reused
+      ? `この講師には既に有効なトークンがあったため、それを再表示します。\n\n${shareUrl}`
+      : `✓ トークンを発行しました。\n\n${shareUrl}\n\nこのURLを対象者に送ってください。`;
+    if (navigator.clipboard) await navigator.clipboard.writeText(shareUrl);
+    alert(msg + '\n\n（URLはクリップボードにもコピーしました）');
+    renderUsers();
+  } catch(e) { alert('発行エラー: ' + e.message); }
+}
+
 /* ═════════════ HELP ═════════════ */
 function renderHelp(){
   $('#page-help').innerHTML = `
@@ -3593,7 +3721,53 @@ if (_gs) _gs.addEventListener('input', e => {
 
 // 初期描画
 go('dashboard');
-if (CFG.webAppUrl && CFG.token) loadData();
+// 現在のユーザー情報（ロール・所属講師ID）— whoami で取得して role-based UI 制限
+window.CURRENT_USER = { role:'unknown', active:false, teacherId:null, name:'' };
+async function fetchWhoami() {
+  if (!CFG.webAppUrl || !CFG.token) return;
+  try {
+    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=whoami`);
+    const d = await r.json();
+    if (d && d.user) {
+      window.CURRENT_USER = d.user;
+      applyRoleUi();
+    }
+  } catch(e) { console.warn('whoami failed', e); }
+}
+function applyRoleUi() {
+  const u = window.CURRENT_USER || {};
+  const isInstructor = u.role === 'instructor';
+  const isManager = u.role === 'manager' || u.role === 'admin';
+  // 通常講師: 講師フィルタを自分にロック、管理系メニュー非表示
+  if (isInstructor && u.teacherId) {
+    CURRENT_TEACHER = u.teacherId;
+    try { localStorage.setItem('koushi_teacher', u.teacherId); } catch(e){}
+    // 講師フィルタ入力を無効化
+    const f = document.getElementById('teacherFilter');
+    if (f) { f.disabled = true; f.title = '通常講師は自分のページのみ表示できます'; f.style.background = '#f3f4f6'; }
+    const cl = document.getElementById('teacherFilterClear');
+    if (cl) cl.style.display = 'none';
+  }
+  // 管理系のサイドバー項目を通常講師には隠す
+  if (isInstructor) {
+    document.querySelectorAll('[data-page="teacherMaster"]').forEach(b => b.style.display = 'none');
+    document.querySelectorAll('[data-page="history"]').forEach(b => b.style.display = 'none');
+  }
+  // 現在のユーザー名をヘッダーに表示
+  let badge = document.getElementById('userRoleBadge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'userRoleBadge';
+    badge.style.cssText = 'padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid var(--line)';
+    const lu = document.getElementById('lastUpdated');
+    if (lu && lu.parentNode) lu.parentNode.insertBefore(badge, lu);
+  }
+  const roleLabel = isManager ? '👑 ' + (u.role==='admin'?'管理者':'マネージャー') : isInstructor ? '👤 講師' : u.role === 'demo' ? '👁 デモ' : '未認証';
+  badge.textContent = roleLabel + (u.name ? ' / ' + u.name : '');
+}
+
+if (CFG.webAppUrl && CFG.token) { fetchWhoami(); loadData(); }
+else fetchWhoami();
 else $('#page-dashboard').innerHTML = `
   <div class="page-head"><div><div class="page-title">講師ポータル</div><div class="page-sub">データ受付窓口の設定が必要です</div></div></div>
   <div class="card card-pad" style="text-align:center;padding:48px 26px">
