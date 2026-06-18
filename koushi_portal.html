@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3476,7 +3476,7 @@ function renderStudentGantt(r) {
     }
     const nameCellHtml = `<div class="tl-rowname" style="width:100px;min-width:100px;padding:4px 8px;justify-content:center">
       <div class="tl-rowname-main" style="display:grid;grid-template-columns:18px 24px 1fr;align-items:center;gap:6px">
-        ${iconHtml}<span style="font-size:12px">${ph.name}</span><span style="font-size:12pt;font-weight:700;text-align:right;justify-self:end">${done}<span style="font-size:9pt;color:var(--faint);font-weight:500">/${total}</span></span>
+        ${iconHtml}<span style="font-size:12px">${ph.name}</span><span style="justify-self:end;display:inline-flex;align-items:baseline"><span style="font-size:12pt;font-weight:700;min-width:18px;text-align:right;font-variant-numeric:tabular-nums">${done}</span><span style="font-size:5pt;color:var(--faint);font-weight:500;font-variant-numeric:tabular-nums">/${total}</span></span>
       </div>
     </div>`;
     if (!ph.start || !ph.end) {
