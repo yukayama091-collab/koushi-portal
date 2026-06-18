@@ -264,6 +264,23 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .sline:hover{ background:var(--tint); border-color:#d9dadd; }
 .sline-name{ font-size:13.5px; font-weight:600; color:var(--ink); min-width:120px; }
 .sline-meta{ font-size:11.5px; color:var(--muted); }
+
+/* 進捗キャッチアップ - 生徒カード */
+.prog-card{ display:flex; flex-direction:column; gap:10px; padding:14px 14px; background:#fff; border:1px solid var(--line); border-radius:var(--r-box); cursor:pointer; transition:.1s; }
+.prog-card:hover{ background:var(--tint); border-color:#d9dadd; }
+.prog-card-head{ display:flex; align-items:center; gap:10px; }
+.prog-card-av{ width:38px; height:38px; border-radius:10px; background:var(--soft); color:var(--ink2); font-weight:700; font-size:13px; display:inline-flex; align-items:center; justify-content:center; flex:none; }
+.prog-card-name{ font-size:13.5px; font-weight:700; color:var(--ink); line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prog-card-cls{ font-size:11.5px; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.prog-card-steps{ display:flex; flex-direction:column; gap:5px; padding:6px 0; }
+.prog-card-steps .steps-row{ display:grid; grid-template-columns:30px 1fr; align-items:center; gap:6px; }
+.prog-card-steps .steps-label{ font-size:10px; font-weight:700; color:var(--muted); }
+.prog-card-steps .steps{ display:grid; grid-template-columns:repeat(10,1fr); gap:3px; }
+.prog-card-steps .steps .sq{ width:100%; aspect-ratio:1; border-radius:3px; min-height:14px; }
+.prog-card-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding-top:8px; border-top:1px solid var(--line2); }
+.prog-card-stats > div{ text-align:center; }
+.prog-card-stats .v{ font-size:14px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+.prog-card-stats .l{ font-size:10px; color:var(--faint); margin-top:1px; }
 .steps{ display:flex; gap:3px; flex-wrap:wrap; }
 .sq{ width:14px; height:14px; border-radius:3px; flex:none; }
 .sq.sp-done{ background:var(--ok); } .sq.sp-todo{ background:#dcefe2; }
@@ -641,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-f</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-g</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2493,15 +2510,25 @@ function renderProgress(){
               <span class="badge ${STATUS[o.k].badge}">${items.length}名</span>
               <span class="count">投稿 平均 ${items.length ? Math.round(items.reduce((a,s) => a+s.posts, 0)/items.length) : 0}件</span>
             </summary>
-            <div class="acc-body">
-              ${items.map(s => `<div class="sline" onclick="openStudent('${s.id}')">
-                <span class="sline-name">${s.name}</span>
-                <span class="sline-meta" style="min-width:120px">${s.cls}・${s.teacher}</span>
-                <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:200px">
+            <div class="acc-body" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px">
+              ${items.map(s => `<div class="prog-card" onclick="openStudent('${s.id}')">
+                <div class="prog-card-head">
+                  <span class="prog-card-av">${ini(s.name)}</span>
+                  <div style="min-width:0;flex:1">
+                    <div class="prog-card-name">${s.name}</div>
+                    <div class="prog-card-cls">${s.cls||'—'}</div>
+                  </div>
+                  ${statusBadge(s.status)}
+                </div>
+                <div class="prog-card-steps">
                   ${stepRow('SP',s.sp,'sp')}${stepRow('AP',s.ap,'ap')}${stepRow('PP',s.pp,'pp')}
                 </div>
-                <div style="text-align:right;min-width:70px"><div style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums">${s.posts}</div><div style="font-size:10.5px;color:var(--faint)">投稿数</div></div>
-                <div style="text-align:right;min-width:56px"><div style="font-size:13px;font-weight:600">${s.grad?'—':s.days+'日'}</div><div style="font-size:10.5px;color:var(--faint)">開始から</div></div>
+                <div class="prog-card-stats">
+                  <div><div class="v">${s.posts}</div><div class="l">投稿</div></div>
+                  <div><div class="v">${s.grad?'—':s.days+'日'}</div><div class="l">開始から</div></div>
+                  <div><div class="v">${s.prog}<span style="font-size:10px;color:var(--faint)">%</span></div><div class="l">進捗</div></div>
+                  <div><div class="v">${s.sp+s.ap+s.pp}<span style="font-size:10px;color:var(--faint)">/30</span></div><div class="l">完了</div></div>
+                </div>
               </div>`).join('')}
             </div></details>`;
         }).join('')}
@@ -3256,7 +3283,7 @@ function openStudent(id){
       <div style="flex:1">
         <div style="font-size:18px;font-weight:700">${s.name}</div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:7px;flex-wrap:wrap">
-          ${statusBadge(s.status)}<span class="badge badge-line">${CURR[s.curr]||s.curr}カリキュラム</span><span class="muted" style="font-size:13px">${s.cls}・${s.teacher}</span>
+          ${statusBadge(s.status)}<span class="badge badge-line">${CURR[s.curr]||s.curr}カリキュラム</span><span class="muted" style="font-size:13px">${s.cls}・<a href="javascript:void(0)" onclick="event.stopPropagation();openTeacherById('${r.teacherId||''}')" style="color:var(--brand);text-decoration:none;font-weight:600">${s.teacher}</a></span>
         </div>
         ${accountLine}
       </div>
@@ -4401,6 +4428,19 @@ async function setStudentGradFromUi(studentId, kind, selectEl) {
 function tmRenderDrawerBody(){
   document.getElementById('tm-dr-body').innerHTML = tmTabContent(tmCurRec, tmCurTab);
   document.querySelectorAll('#tmDrawer .dr-tab').forEach((b,i)=>b.classList.toggle('on', i===tmCurTab));
+}
+
+// 生徒詳細から講師ドロワーへ遷移するためのヘルパー
+async function openTeacherById(tid) {
+  if (!tid) { alert('講師IDが取得できません'); return; }
+  // 講師マスタデータが未取得なら取得
+  if (typeof tmFetchIfNeeded === 'function' && !window.tmLoaded) {
+    try { await tmFetchIfNeeded(true); } catch(e){}
+  }
+  // 生徒モーダルを閉じてから開く
+  _studentBack = null;
+  closeModal('studentModal');
+  setTimeout(() => openTeacherDrawer(tid, false), 100);
 }
 
 function openTeacherDrawer(id, isNew){
