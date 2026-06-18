@@ -641,7 +641,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-c</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-d</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2759,9 +2759,9 @@ async function renderHistory(){
 async function renderUsers(){
   const page = $('#page-users');
   const u = window.CURRENT_USER || {};
-  if (u.role !== 'admin' && u.role !== 'manager') {
+  if (u.role !== 'admin') {
     page.innerHTML = `<div class="page-head"><div><div class="page-title">ユーザー管理</div></div></div>
-      <div class="card card-pad"><div class="empty">このページはマネージャー以上のみアクセスできます</div></div>`;
+      <div class="card card-pad"><div class="empty">このページは管理者のみアクセスできます</div></div>`;
     return;
   }
   page.innerHTML = `<div class="page-head"><div><div class="page-title">ユーザー管理</div><div class="page-sub">講師ポータルへのアクセス権限を発行・管理</div></div>
@@ -2775,14 +2775,26 @@ async function renderUsers(){
       $('#userListCard').innerHTML = '<div class="empty">まだユーザーが登録されていません。「+ 新規発行」から作成してください。</div>';
       return;
     }
+    const ROLE_BADGE = {
+      admin: ['badge-red', '管理者'],
+      lecturer_mg: ['badge-red', '講師MG'],
+      support_mg: ['badge-info', 'サポートMG'],
+      manager: ['badge-red', '講師MG'],
+      instructor: ['badge-line', '講師'],
+      demo: ['badge-line', 'デモ']
+    };
     $('#userListCard').innerHTML = `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>名前</th><th>ロール</th><th>講師ID</th><th>発行日</th><th>状態</th><th>共有URL</th><th></th></tr></thead>
+      <thead><tr><th>名前</th><th>ロール</th><th>講師ID / 担当講師</th><th>発行日</th><th>状態</th><th>共有URL</th><th></th></tr></thead>
       <tbody>${users.map(u => {
         const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(u.token)}`;
+        const b = ROLE_BADGE[u.role] || ['badge-line', u.role];
+        const teacherCol = u.role === 'instructor'
+          ? (u.teacherId || '<span class="faint">—</span>')
+          : (u.managedIds && u.managedIds.length ? u.managedIds.join(', ') : '<span class="faint">—</span>');
         return `<tr>
           <td style="font-weight:600">${(u.name||'<span class="faint">—</span>').replace(/[<>]/g,'')}</td>
-          <td><span class="badge ${u.role==='manager'||u.role==='admin'?'badge-red':'badge-line'}">${u.role}</span></td>
-          <td class="num">${(u.teacherId||'').replace(/[<>]/g,'') || '<span class="faint">—</span>'}</td>
+          <td><span class="badge ${b[0]}">${b[1]}</span></td>
+          <td class="muted" style="font-size:12px;word-break:break-all;max-width:240px">${teacherCol.toString().replace(/[<>]/g,'')}</td>
           <td class="muted nowrap" style="font-size:12px">${(u.createdAt||'').replace(/[<>]/g,'')}</td>
           <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">無効</span>'}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${shareUrl.replace(/'/g,"\\'")}', this)" type="button" ${u.active?'':'disabled'}>📋 URLコピー</button></td>
@@ -2813,20 +2825,27 @@ async function revokeToken(token) {
   } catch(e) { alert('取消エラー: ' + e.message); }
 }
 function openIssueTokenModal() {
-  // 講師リストから選択（CURRENT_TEACHER は使わず teacherMasterMap から）
   const opts = [...(teacherMasterMap||new Map()).values()].sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ja'));
+  const teacherOptionsHtml = opts.map(t => `<option value="${t.tid}">${t.tid} ${(t.name||'').replace(/[<>]/g,'')}</option>`).join('');
   const html = `<div style="padding:20px">
     <h3 style="margin:0 0 16px;font-size:16px">新規トークン発行</h3>
     <div class="field"><label>ロール</label>
       <select id="newTokRole" style="font:inherit;padding:8px;width:100%">
-        <option value="instructor">通常講師</option>
-        <option value="manager">マネージャー</option>
+        <option value="instructor">講師（自分のページのみ）</option>
+        <option value="lecturer_mg">講師MG（担当講師のすべて）</option>
+        <option value="support_mg">サポートMG（担当講師のすべて）</option>
       </select>
     </div>
-    <div class="field" id="newTokTeacherWrap"><label>講師</label>
+    <div class="field" id="newTokTeacherWrap"><label>講師（instructor のみ）</label>
       <select id="newTokTeacherId" style="font:inherit;padding:8px;width:100%">
-        ${opts.map(t => `<option value="${t.tid}">${t.tid} ${(t.name||'').replace(/[<>]/g,'')}</option>`).join('')}
+        ${teacherOptionsHtml}
       </select>
+    </div>
+    <div class="field" id="newTokManagedWrap" style="display:none"><label>担当講師（MG: 複数選択可・Ctrl/Cmd でも可）</label>
+      <select id="newTokManagedIds" multiple size="8" style="font:inherit;padding:8px;width:100%;min-height:160px">
+        ${teacherOptionsHtml}
+      </select>
+      <div class="hint">担当する講師を選択してください。複数選択可。</div>
     </div>
     <div class="field"><label>表示名</label>
       <input type="text" id="newTokName" placeholder="例: 山田太郎" style="font:inherit;padding:8px;width:100%">
@@ -2847,11 +2866,12 @@ function openIssueTokenModal() {
     m.onclick = (e) => { if (e.target === m) closeIssueTokenModal(); };
     document.body.appendChild(m);
   }
-  m.innerHTML = `<div class="modal" style="max-width:480px">${html}</div>`;
+  m.innerHTML = `<div class="modal" style="max-width:520px">${html}</div>`;
   m.classList.add('open');
-  // ロール切替時に講師選択を表示/非表示
   document.getElementById('newTokRole').onchange = e => {
-    document.getElementById('newTokTeacherWrap').style.display = e.target.value === 'instructor' ? 'block' : 'none';
+    const v = e.target.value;
+    document.getElementById('newTokTeacherWrap').style.display = v === 'instructor' ? 'block' : 'none';
+    document.getElementById('newTokManagedWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
   };
 }
 function closeIssueTokenModal() {
@@ -2861,12 +2881,17 @@ function closeIssueTokenModal() {
 async function submitIssueToken() {
   const role = document.getElementById('newTokRole').value;
   const teacherId = role === 'instructor' ? document.getElementById('newTokTeacherId').value : '';
+  let managedIds = [];
+  if (role === 'lecturer_mg' || role === 'support_mg') {
+    managedIds = [...document.getElementById('newTokManagedIds').selectedOptions].map(o => o.value);
+    if (!managedIds.length) { alert('担当する講師を1名以上選択してください'); return; }
+  }
   const name = document.getElementById('newTokName').value.trim();
   const memo = document.getElementById('newTokMemo').value.trim();
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ role, teacherId, name, memo })
+      body: JSON.stringify({ role, teacherId, managedIds, name, memo })
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.message || d.error || '失敗');
@@ -3737,23 +3762,30 @@ async function fetchWhoami() {
 function applyRoleUi() {
   const u = window.CURRENT_USER || {};
   const isInstructor = u.role === 'instructor';
-  const isManager = u.role === 'manager' || u.role === 'admin';
-  // 通常講師: 講師フィルタを自分にロック、管理系メニュー非表示
+  const isLectMg = u.role === 'lecturer_mg' || u.role === 'manager';  // manager は後方互換
+  const isSupMg = u.role === 'support_mg';
+  const isAdmin = u.role === 'admin';
+  const isMgOrAdmin = isAdmin || isLectMg || isSupMg;
+  // 通常講師: 講師フィルタを自分にロック
   if (isInstructor && u.teacherId) {
     CURRENT_TEACHER = u.teacherId;
     try { localStorage.setItem('koushi_teacher', u.teacherId); } catch(e){}
-    // 講師フィルタ入力を無効化
     const f = document.getElementById('teacherFilter');
-    if (f) { f.disabled = true; f.title = '通常講師は自分のページのみ表示できます'; f.style.background = '#f3f4f6'; }
+    if (f) { f.disabled = true; f.title = '講師は自分のページのみ表示できます'; f.style.background = '#f3f4f6'; }
     const cl = document.getElementById('teacherFilterClear');
     if (cl) cl.style.display = 'none';
   }
-  // 管理系のサイドバー項目を通常講師には隠す
+  // 講師: 講師マスタ・ユーザー管理・編集履歴を非表示
   if (isInstructor) {
     document.querySelectorAll('[data-page="teacherMaster"]').forEach(b => b.style.display = 'none');
     document.querySelectorAll('[data-page="history"]').forEach(b => b.style.display = 'none');
+    document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
   }
-  // 現在のユーザー名をヘッダーに表示
+  // MG（lecturer_mg / support_mg）: ユーザー管理は非表示（admin のみ発行可能）
+  if (isLectMg || isSupMg) {
+    document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
+  }
+  // ヘッダーにロールバッジ
   let badge = document.getElementById('userRoleBadge');
   if (!badge) {
     badge = document.createElement('span');
@@ -3762,8 +3794,15 @@ function applyRoleUi() {
     const lu = document.getElementById('lastUpdated');
     if (lu && lu.parentNode) lu.parentNode.insertBefore(badge, lu);
   }
-  const roleLabel = isManager ? '👑 ' + (u.role==='admin'?'管理者':'マネージャー') : isInstructor ? '👤 講師' : u.role === 'demo' ? '👁 デモ' : '未認証';
-  badge.textContent = roleLabel + (u.name ? ' / ' + u.name : '');
+  const ROLE_LABEL = {
+    admin: '👑 管理者',
+    lecturer_mg: '🎓 講師MG',
+    support_mg: '🤝 サポートMG',
+    manager: '🎓 講師MG',
+    instructor: '👤 講師',
+    demo: '👁 デモ'
+  };
+  badge.textContent = (ROLE_LABEL[u.role] || '未認証') + (u.name ? ' / ' + u.name : '');
 }
 
 if (CFG.webAppUrl && CFG.token) {
