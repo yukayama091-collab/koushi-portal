@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-g</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.18-h</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2536,9 +2536,11 @@ function renderProgress(){
     </div>`;
 }
 function stepRow(label, done, cls) {
+  // SP=10, AP=5, PP=10
+  const max = cls === 'ap' ? 5 : 10;
   let sq = '';
-  for (let i = 0; i < 10; i++) sq += `<span class="sq ${cls}-${i<done?'done':'todo'}"></span>`;
-  return `<div class="steps-row"><span class="steps-label">${label}</span><div class="steps">${sq}</div></div>`;
+  for (let i = 0; i < max; i++) sq += `<span class="sq ${cls}-${i<done?'done':'todo'}"></span>`;
+  return `<div class="steps-row"><span class="steps-label">${label}</span><div class="steps" style="grid-template-columns:repeat(${max},1fr)">${sq}</div></div>`;
 }
 
 /* ═════════════ TIMELINE (Gantt) ═════════════ */
