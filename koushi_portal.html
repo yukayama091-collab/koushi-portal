@@ -64,6 +64,9 @@ a{ color:inherit; text-decoration:none; }
 .top-filter{ height:38px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 12px;
   font:inherit; font-size:13px; color:var(--ink); min-width:200px; }
 .top-filter:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+.recent-teacher-chip{ padding:3px 9px; font:inherit; font-size:11px; font-weight:600; color:var(--ink2); background:#fff; border:1px solid var(--line); border-radius:999px; cursor:pointer; white-space:nowrap; transition:.12s; }
+.recent-teacher-chip:hover{ background:var(--brand-soft); border-color:var(--brand); color:var(--brand); }
+.recent-teacher-chip.active{ background:var(--brand); border-color:var(--brand); color:#fff; }
 .top-user{ display:flex; align-items:center; gap:8px; color:var(--ink2); font-size:13.5px; white-space:nowrap; }
 .top-user .ic{ color:var(--muted); }
 .hamburger{ display:none; }
@@ -651,14 +654,17 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <input id="globalSearch" placeholder="生徒名・クラスで検索…" autocomplete="off">
     </div>
     <div class="topbar-right">
-      <div class="teacher-filter-wrap" style="position:relative;display:inline-flex;align-items:center">
-        <input class="top-filter" id="teacherFilter" list="teacherList" onchange="onTeacherChange()" oninput="updateTeacherClearBtn()" placeholder="全校（全講師）" autocomplete="off" title="講師名を入力 or 選択（空欄で全校）" style="padding-right:34px" />
-        <button type="button" id="teacherFilterClear" onclick="clearTeacherSelection()" title="講師選択を解除" aria-label="クリア" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:16px;line-height:1">×</button>
+      <div class="teacher-filter-wrap" style="position:relative;display:inline-flex;align-items:center;flex-direction:column;gap:4px;align-items:flex-end">
+        <div style="position:relative;display:inline-flex;align-items:center">
+          <input class="top-filter" id="teacherFilter" list="teacherList" onchange="onTeacherChange()" oninput="updateTeacherClearBtn()" placeholder="全校（全講師）" autocomplete="off" title="講師名を入力 or 選択（空欄で全校）" style="padding-right:34px" />
+          <button type="button" id="teacherFilterClear" onclick="clearTeacherSelection()" title="講師選択を解除" aria-label="クリア" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);width:24px;height:24px;border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:16px;line-height:1">×</button>
+        </div>
+        <div id="recentTeacherChips" style="display:none;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:380px"></div>
       </div>
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1570,6 +1576,7 @@ async function loadData() {
     (data.teacherMaster || []).forEach(t => { if (t && t.tid) teacherMasterMap.set(t.tid, t); });
 
     populateTeacherFilter();
+    renderRecentTeacherChips();
     $('#lastUpdated').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
     if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
     refreshCounts();
@@ -1606,6 +1613,33 @@ function resolveTeacher(v) {
   if (hits.length === 1) return hits[0][1];
   return null;
 }
+// 最近見た講師 (直近5件、localStorageに保存)
+function getRecentTeachers() {
+  try { return JSON.parse(localStorage.getItem('koushi_recent_teachers') || '[]'); } catch(e) { return []; }
+}
+function pushRecentTeacher(tid) {
+  if (!tid) return;
+  let list = getRecentTeachers().filter(x => x !== tid);
+  list.unshift(tid);
+  list = list.slice(0, 5);
+  try { localStorage.setItem('koushi_recent_teachers', JSON.stringify(list)); } catch(e){}
+}
+function renderRecentTeacherChips() {
+  const wrap = document.getElementById('recentTeacherChips');
+  if (!wrap) return;
+  // 通常講師はロックされているので非表示
+  if (window.CURRENT_USER && window.CURRENT_USER.role === 'instructor') { wrap.style.display = 'none'; return; }
+  const ids = getRecentTeachers().filter(tid => teacherIdToLabel.get(tid));
+  if (!ids.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'flex';
+  wrap.innerHTML = `<span style="font-size:11px;color:var(--faint);font-weight:600;align-self:center;margin-right:2px">最近:</span>` +
+    ids.map(tid => {
+      const label = teacherIdToLabel.get(tid) || tid;
+      const isActive = CURRENT_TEACHER === tid;
+      return `<button class="recent-teacher-chip ${isActive?'active':''}" onclick="selectTeacher('${tid}')" type="button">${label}</button>`;
+    }).join('');
+}
+
 function onTeacherChange() {
   const input = $('#teacherFilter');
   const resolved = resolveTeacher(input.value);
@@ -1616,6 +1650,8 @@ function onTeacherChange() {
   CURRENT_TEACHER = resolved;
   try { CURRENT_TEACHER ? localStorage.setItem('koushi_teacher', CURRENT_TEACHER) : localStorage.removeItem('koushi_teacher'); } catch(e){}
   if (input) input.value = CURRENT_TEACHER ? (teacherIdToLabel.get(CURRENT_TEACHER)||'') : '';
+  if (CURRENT_TEACHER) pushRecentTeacher(CURRENT_TEACHER);
+  renderRecentTeacherChips();
   refreshCounts();
   if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
   go(state.page);
@@ -1626,6 +1662,8 @@ function selectTeacher(tid) {
   const input = $('#teacherFilter');
   if (input) input.value = teacherIdToLabel.get(tid) || '';
   updateTeacherClearBtn();
+  pushRecentTeacher(tid);
+  renderRecentTeacherChips();
   refreshCounts();
   if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
   go('dashboard');
@@ -3074,8 +3112,9 @@ async function submitIssueToken() {
 /* ═════════════ HELP ═════════════ */
 function renderHelp(){
   $('#page-help').innerHTML = `
-    <div class="page-head">
+    <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
       <div><div class="page-title">ヘルプ・凡例</div><div class="page-sub">マーク・色・各ページの使い方</div></div>
+      <div class="page-actions"><button class="btn btn-ghost btn-sm" onclick="restartTour()" type="button">使い方ツアーを再開</button></div>
     </div>
     <div class="stack">
       <div class="card card-pad">
@@ -3083,6 +3122,9 @@ function renderHelp(){
         <p style="font-size:13.5px;line-height:1.8;color:var(--ink2);margin-top:10px">
           担当している生徒の<b style="color:var(--ink)">進捗・卒業状況・講義スケジュール</b>をひと目で把握するための画面です。
           上部の講師フィルタで「自分の担当」に絞り込めます。まずは<b style="color:var(--ink)">「やること」</b>で今日対応すべき生徒を確認してください。
+        </p>
+        <p style="font-size:12.5px;line-height:1.7;color:var(--muted);margin-top:10px">
+          ご不明な点・エラーは Discord で <code style="background:var(--soft);padding:2px 6px;border-radius:4px">@${SUPPORT_DISCORD.userId.slice(-6)}</code> までメンションしてください。
         </p>
       </div>
       <div class="card card-pad">
@@ -3978,9 +4020,144 @@ async function fetchWhoami() {
     if (d && d.user) {
       window.CURRENT_USER = d.user;
       applyRoleUi();
+      maybeShowTour();
     }
   } catch(e) { console.warn('whoami failed', e); }
 }
+// ====== 3分ツアー ======
+// 初回ログイン時に1度だけ表示。「次から表示しない」または完了で localStorage 保存。
+const TOUR_VERSION = 'v1';   // ツアー内容を更新した場合は版を上げると再度表示される
+function tourDone() {
+  try { return localStorage.getItem('koushi_tour_done') === TOUR_VERSION; } catch(e) { return false; }
+}
+function markTourDone() {
+  try { localStorage.setItem('koushi_tour_done', TOUR_VERSION); } catch(e) {}
+}
+function maybeShowTour() {
+  if (tourDone()) return;
+  const u = window.CURRENT_USER || {};
+  if (!u.role || u.role === 'unknown') return;
+  setTimeout(() => startTour(), 800);  // ページ描画後に出す
+}
+function startTour() {
+  const u = window.CURRENT_USER || {};
+  const isInstructor = u.role === 'instructor';
+  const isMg = u.role === 'lecturer_mg' || u.role === 'support_mg' || u.role === 'manager';
+  const isAdmin = u.role === 'admin';
+  const ROLE_LABEL_MAP = {admin:'管理者', lecturer_mg:'講師MG', support_mg:'サポートMG', manager:'講師MG', instructor:'講師'};
+
+  // ロールに応じたステップ構成
+  const commonSteps = [
+    {
+      title: 'ようこそ、講師ポータルへ',
+      body: `<p>このポータルは <b>SNS伸ばすスクール（Levela）</b> の生徒・クラス・講師情報を一元管理するためのツールです。</p>
+        <p>あなたのロールは <b style="color:var(--brand)">${ROLE_LABEL_MAP[u.role]||u.role}</b>${u.name?` / ${u.name}`:''} です。</p>
+        <p style="margin-top:10px;color:var(--muted)">この案内は約3分でポータルの主な機能をご紹介します。スキップしてもいつでも「ヘルプ・凡例」から再開できます。</p>`,
+    },
+    {
+      title: 'ダッシュボード — 全体把握',
+      body: `<p><b>サイドバー上の「ダッシュボード」</b>では以下が確認できます。</p>
+        <ul style="margin-top:8px;padding-left:18px;line-height:1.9">
+          <li>在学中のクラス数・50日達成率・卒業済み生徒数・要フォロー</li>
+          <li>本日〜直近3日間の講義予定</li>
+          <li>${isInstructor?'自分の':'担当の'}講師基本情報カード</li>
+          <li>要対応（停滞中／つまずき）の生徒トップ5</li>
+        </ul>`,
+    },
+    {
+      title: 'やること — 優先対応リスト',
+      body: `<p><b>サイドバー「やること」</b>では、対応が必要な生徒が優先度順に並びます。</p>
+        <ul style="margin-top:8px;padding-left:18px;line-height:1.9">
+          <li><b style="color:var(--danger)">停滞中</b>（15日以上進捗なし）</li>
+          <li><b style="color:var(--warn)">つまずき</b>（3〜14日進捗なし）</li>
+          <li>卒業対応・未開始</li>
+        </ul>
+        <p style="margin-top:10px;color:var(--muted)">クリックで生徒詳細が開き、停滞ステップが赤マーカーで明示されます。</p>`,
+    },
+    {
+      title: '生徒管理・進捗キャッチアップ',
+      body: `<p><b>生徒管理</b>はクラス単位で生徒を絞り込み、検索する画面です。</p>
+        <p><b>進捗キャッチアップ</b>では生徒1人1カード形式で SP/AP/PP の進捗を可視化します。</p>
+        <p style="margin-top:10px;color:var(--muted)">生徒名クリックでカルテ（詳細）が開き、ガントチャートで停滞箇所が一目で把握できます。</p>`,
+    },
+  ];
+  const mgrSteps = isMg || isAdmin ? [
+    {
+      title: 'クラス一覧・講師マスタ',
+      body: `<p><b>クラス一覧</b>：開始月別／クラスごと／講師ごとに切替表示可能。</p>
+        <p><b>講師マスタ</b>：${isAdmin?'全講師':'担当講師'}の基本情報・契約・クラス運営・ローンチ情報を一覧／個別編集。</p>
+        <p style="margin-top:6px;color:var(--muted)">各列の見出し下のプルダウンで絞り込みできます。</p>`,
+    },
+  ] : [];
+  const adminSteps = isAdmin ? [
+    {
+      title: 'ユーザー管理（管理者専用）',
+      body: `<p>サイドバー「ユーザー管理」から、講師・講師MG・サポートMG・管理者の<b>共有URLを発行</b>できます。</p>
+        <p>発行したURLを各ユーザーに送れば、初期設定なしで該当ロールのアクセス権でログインできます。</p>
+        <p style="margin-top:6px;color:var(--muted)">編集履歴ページで誰が何を変更したかも追跡可能です。</p>`,
+    },
+  ] : [];
+  const lastStep = {
+    title: 'お困りのときは',
+    body: `<p>分からないこと・エラーが出た時は、<b>Discord</b> で <code style="background:var(--soft);padding:2px 6px;border-radius:4px">@${SUPPORT_DISCORD.userId.slice(-6)}</code> までメンションしてください。</p>
+      <p style="margin-top:10px">右上の <b>「設定」</b>でログイン情報の確認・共有URLの再発行ができます。</p>
+      <p style="margin-top:10px;color:var(--muted)">それでは業務にお役立てください。</p>`,
+  };
+  const steps = [...commonSteps, ...mgrSteps, ...adminSteps, lastStep];
+
+  // モーダル DOM
+  let overlay = document.getElementById('tourOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'tourOverlay';
+    overlay.className = 'overlay';
+    document.body.appendChild(overlay);
+  }
+  let idx = 0;
+  const render = () => {
+    const s = steps[idx];
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:520px">
+        <div class="modal-head">
+          <div>
+            <div class="modal-eyebrow">使い方ツアー (${idx+1} / ${steps.length})</div>
+            <div class="modal-title">${s.title}</div>
+          </div>
+          <button class="modal-x" onclick="closeTour()" title="閉じる"><svg class="ic"><use href="#i-x"/></svg></button>
+        </div>
+        <div class="modal-body" style="font-size:13.5px;line-height:1.7;color:var(--ink2)">${s.body}</div>
+        <div class="modal-foot" style="justify-content:space-between;align-items:center">
+          <label style="font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" id="tourNoMore"> 次から表示しない
+          </label>
+          <div style="display:flex;gap:8px">
+            ${idx>0 ? `<button class="btn btn-ghost" onclick="tourStep(-1)">戻る</button>` : ''}
+            ${idx<steps.length-1
+              ? `<button class="btn btn-primary" onclick="tourStep(1)">次へ</button>`
+              : `<button class="btn btn-primary" onclick="closeTour(true)">完了</button>`}
+          </div>
+        </div>
+      </div>`;
+  };
+  window.tourStep = (delta) => {
+    const cb = document.getElementById('tourNoMore');
+    if (cb && cb.checked) markTourDone();
+    idx = Math.max(0, Math.min(steps.length-1, idx+delta));
+    render();
+  };
+  window.closeTour = (finished) => {
+    const cb = document.getElementById('tourNoMore');
+    if (finished || (cb && cb.checked)) markTourDone();
+    overlay.classList.remove('open');
+  };
+  render();
+  overlay.classList.add('open');
+}
+function restartTour() {
+  try { localStorage.removeItem('koushi_tour_done'); } catch(e){}
+  startTour();
+}
+
 function applyRoleUi() {
   const u = window.CURRENT_USER || {};
   const isInstructor = u.role === 'instructor';
