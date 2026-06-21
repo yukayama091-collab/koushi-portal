@@ -664,7 +664,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-c</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-d</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1068,6 +1068,12 @@ const SP_STEPS = Array.from({length:10}, (_,i) => `【SP】Step${i+1}完了日`)
 const AP_STEPS = Array.from({length:5},  (_,i) => `【AP】Step${i+1}完了日`);
 const PP_STEPS = Array.from({length:10}, (_,i) => `【PP】Step${i+1}完了日`);
 const ALL_STEPS = [...SP_STEPS, ...AP_STEPS, ...PP_STEPS];
+// 投稿プログラムの正式名（ツアー・ツールチップで使用）
+const PHASE_FULL_NAME = {
+  SP: 'スタータープログラム',
+  AP: 'アカウント設計プログラム',
+  PP: '投稿スタータープログラム'
+};
 const NEW_STEPS = Array.from({length:19}, (_,i) => `STEP${i+1}完了日`);
 
 /* ── isGraduated / gradDateOf ── */
@@ -3154,11 +3160,11 @@ function renderHelp(){
         <div class="card-title"><svg class="ic"><use href="#i-send"/></svg> 投稿プログラム（SP / AP / PP）</div>
         <div class="help-grid" style="margin-top:14px">
           <div class="help-item"><span class="help-ico ic-ok"><span class="sq sp-done" style="width:18px;height:18px"></span></span>
-            <div><div class="nm">SP — スタートプログラム</div><div class="ds">投稿の型を習得する最初の10ステップ。</div></div></div>
+            <div><div class="nm">SP — スタータープログラム</div><div class="ds">受講開始の最初の10ステップ。</div></div></div>
           <div class="help-item"><span class="help-ico ic-warn"><span class="sq ap-done" style="width:18px;height:18px"></span></span>
-            <div><div class="nm">AP — アドバンスプログラム</div><div class="ds">フォロワー獲得・運用の応用10ステップ。</div></div></div>
+            <div><div class="nm">AP — アカウント設計プログラム</div><div class="ds">アカウント設計の5ステップ。</div></div></div>
           <div class="help-item"><span class="help-ico ic-info"><span class="sq pp-done" style="width:18px;height:18px"></span></span>
-            <div><div class="nm">PP — プロフェッショナル</div><div class="ds">収益化・自走に向けた仕上げ10ステップ。</div></div></div>
+            <div><div class="nm">PP — 投稿スタータープログラム</div><div class="ds">投稿開始・運用の10ステップ。</div></div></div>
         </div>
       </div>
       <div class="card card-pad">
@@ -3559,7 +3565,7 @@ function renderStudentGantt(r) {
       state = 'progress';
       iconHtml = `<svg viewBox="0 0 24 24" style="${iconStyle}" title="進行中"><circle cx="12" cy="12" r="11" fill="none" stroke="#9ca3af" stroke-width="2"/><path d="M7 12.5 L10.5 16 L17 9" fill="none" stroke="#9ca3af" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
     }
-    const nameCellHtml = `<div class="tl-rowname" style="width:100px;min-width:100px;padding:4px 8px;justify-content:center">
+    const nameCellHtml = `<div class="tl-rowname" style="width:100px;min-width:100px;padding:4px 8px;justify-content:center" title="${ph.name}（${PHASE_FULL_NAME[ph.name]||''}）">
       <div class="tl-rowname-main" style="display:grid;grid-template-columns:18px 24px 1fr;align-items:center;gap:6px">
         ${iconHtml}<span style="font-size:12px">${ph.name}</span><span style="justify-self:end;display:inline-flex;align-items:baseline"><span style="font-size:12pt;font-weight:700;min-width:18px;text-align:right;font-variant-numeric:tabular-nums">${done}</span><span style="font-size:5pt;color:var(--faint);font-weight:500;font-variant-numeric:tabular-nums">/${total}</span></span>
       </div>
@@ -3574,7 +3580,7 @@ function renderStudentGantt(r) {
     const x1 = dateToX(ph.start);
     const x2 = dateToX(ph.end) + DAY - 2;
     const w = Math.max(DAY - 2, x2 - x1);
-    const bar = `<div class="tl-bar" style="left:${x1}px;width:${w}px;background:${ph.color};height:30px;font-size:11px" title="${ph.name} ${fmt(ph.start)} 〜 ${fmt(ph.end)}"><span>${ph.name}</span></div>`;
+    const bar = `<div class="tl-bar" style="left:${x1}px;width:${w}px;background:${ph.color};height:30px;font-size:11px" title="${ph.name}（${PHASE_FULL_NAME[ph.name]||''}） ${fmt(ph.start)} 〜 ${fmt(ph.end)}"><span>${ph.name}</span></div>`;
     const dots = ph.steps.map((d, i) => {
       if (!d) return '';
       const x = dateToX(d);
