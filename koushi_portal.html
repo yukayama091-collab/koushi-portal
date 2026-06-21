@@ -658,7 +658,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.19-f</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4063,7 +4063,11 @@ const TM_CHIPS = [["全員",t=>true],["稼働中",t=>t.active==="稼働中"],["�
 let tmView = 'table';
 let tmChipIdx = 0;
 let tmTableMode = 'basic';  // basic | contract | class | launch | students
-let tmFilter = { q:"", genre:"", rank:"", type:"" };
+let tmFilter = { q:"", genre:"", rank:"", type:"", mg:"", sup:"", active:"" };
+function tmClearAllFilters() {
+  tmFilter = { q:"", genre:"", rank:"", type:"", mg:"", sup:"", active:"" };
+  renderTeacherMaster();
+}
 let tmCurRec = null, tmCurTab = 0;
 let tmLoaded = false;
 let tmLoading = false;
@@ -4185,6 +4189,9 @@ function tmFiltered(){
     if(tmFilter.genre && r.genre!==tmFilter.genre) return false;
     if(tmFilter.rank && r.rank!==tmFilter.rank) return false;
     if(tmFilter.type && r.type!==tmFilter.type) return false;
+    if(tmFilter.mg && r.mg!==tmFilter.mg) return false;
+    if(tmFilter.sup && r.sup!==tmFilter.sup) return false;
+    if(tmFilter.active && r.active!==tmFilter.active) return false;
     return true;
   });
 }
@@ -4218,9 +4225,15 @@ async function renderTeacherMaster(){
           <select class="top-filter" id="tm-fGenre" style="min-width:150px"><option value="">全ジャンル</option>${[...new Set(TM_DATA.map(t=>t.genre).filter(Boolean))].sort().map(g=>`<option ${tmFilter.genre===g?'selected':''}>${tmEsc(g)}</option>`).join('')}</select>
           <select class="top-filter" id="tm-fRank" style="min-width:140px"><option value="">全ランク</option>${["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>`<option ${tmFilter.rank===r?'selected':''}>${tmEsc(r)}</option>`).join('')}</select>
           <select class="top-filter" id="tm-fType" style="min-width:130px"><option value="">全区分</option><option ${tmFilter.type==='通常'?'selected':''}>通常</option><option ${tmFilter.type==='専属'?'selected':''}>専属</option></select>
+          <select class="top-filter" id="tm-fActive" style="min-width:120px"><option value="">稼働状況</option>${["稼働中","未稼働"].map(a=>`<option ${tmFilter.active===a?'selected':''}>${a}</option>`).join('')}</select>
           <select class="top-filter" id="tm-fMode" style="min-width:150px" title="表示する情報シートを切替">
             ${TM_TABLE_TABS.map(t=>`<option value="${t.key}" ${t.key===tmTableMode?'selected':''}>${t.label}</option>`).join('')}
           </select>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+          <select class="top-filter" id="tm-fMG" style="min-width:170px"><option value="">全 講師MG</option>${[...new Set(TM_DATA.map(t=>t.mg).filter(Boolean))].sort().map(m=>`<option ${tmFilter.mg===m?'selected':''}>${tmEsc(m)}</option>`).join('')}</select>
+          <select class="top-filter" id="tm-fSup" style="min-width:170px"><option value="">全 サポMG</option>${[...new Set(TM_DATA.map(t=>t.sup).filter(Boolean))].sort().map(m=>`<option ${tmFilter.sup===m?'selected':''}>${tmEsc(m)}</option>`).join('')}</select>
+          ${(tmFilter.q||tmFilter.genre||tmFilter.rank||tmFilter.type||tmFilter.active||tmFilter.mg||tmFilter.sup) ? `<button class="btn btn-ghost btn-sm" type="button" onclick="tmClearAllFilters()">絞り込みをクリア</button>` : ''}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
           <div class="chips" id="tm-chips">${TM_CHIPS.map((c,i)=>`<button class="chip ${i===tmChipIdx?'active':''}" data-i="${i}">${c[0]} <span class="c">${TM_DATA.filter(c[1]).length}</span></button>`).join('')}</div>
@@ -4240,6 +4253,9 @@ async function renderTeacherMaster(){
   document.getElementById('tm-fGenre').onchange = e=>{ tmFilter.genre=e.target.value; renderTeacherList(); };
   document.getElementById('tm-fRank').onchange = e=>{ tmFilter.rank=e.target.value; renderTeacherList(); };
   document.getElementById('tm-fType').onchange = e=>{ tmFilter.type=e.target.value; renderTeacherList(); };
+  const tmActiveSel = document.getElementById('tm-fActive'); if (tmActiveSel) tmActiveSel.onchange = e=>{ tmFilter.active=e.target.value; renderTeacherList(); };
+  const tmMGSel = document.getElementById('tm-fMG'); if (tmMGSel) tmMGSel.onchange = e=>{ tmFilter.mg=e.target.value; renderTeacherList(); };
+  const tmSupSel = document.getElementById('tm-fSup'); if (tmSupSel) tmSupSel.onchange = e=>{ tmFilter.sup=e.target.value; renderTeacherList(); };
   const tmModeSel = document.getElementById('tm-fMode');
   if (tmModeSel) tmModeSel.onchange = e=>{ tmTableMode=e.target.value; renderTeacherList(); };
   document.getElementById('tm-newbtn').onclick = ()=>openTeacherDrawer(null, true);
