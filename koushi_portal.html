@@ -664,7 +664,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -862,13 +862,23 @@ const DEMO_TOKEN = 'Demo7vXkqWmRtNbZcAyJpFsHd2';
 
 // 問い合わせ窓口（Discord）
 const SUPPORT_DISCORD = {
+  serverName: '株式会社Levela',
   serverId: '1172020927047942154',
+  serverUrl: 'https://discord.com/channels/1172020927047942154',
   userId: '1315616470339682304',
-  serverUrl: 'https://discord.com/channels/1172020927047942154'
+  contactName: '山下優花（ゆうか）',
+  contactRole: 'CS顧客対応/CTO室'
 };
+// 問い合わせ案内HTML（モーダル・ヘルプ用）
+function supportInfoHtml() {
+  return `<b>${SUPPORT_DISCORD.serverName}</b> サーバーの <b>【${SUPPORT_DISCORD.contactRole}】${SUPPORT_DISCORD.contactName}</b> までご連絡ください。`;
+}
+function supportInfoText() {
+  return `${SUPPORT_DISCORD.serverName} サーバーの 【${SUPPORT_DISCORD.contactRole}】${SUPPORT_DISCORD.contactName} までご連絡ください。`;
+}
 // エラー表示ヘルパー: アラート文言を業務的な定型に統一
 function errorMsg(detail) {
-  return `エラーの確認\n\n${detail||''}\n\nDiscord で <@${SUPPORT_DISCORD.userId}> 宛にエラー内容をメンションしてください。`;
+  return `エラーの確認\n\n${detail||''}\n\n${supportInfoText()}`;
 }
 function showError(detail) {
   alert(errorMsg(detail));
@@ -3124,7 +3134,7 @@ function renderHelp(){
           上部の講師フィルタで「自分の担当」に絞り込めます。まずは<b style="color:var(--ink)">「やること」</b>で今日対応すべき生徒を確認してください。
         </p>
         <p style="font-size:12.5px;line-height:1.7;color:var(--muted);margin-top:10px">
-          ご不明な点・エラーは Discord で <code style="background:var(--soft);padding:2px 6px;border-radius:4px">@${SUPPORT_DISCORD.userId.slice(-6)}</code> までメンションしてください。
+          ご不明な点・エラーは ${supportInfoHtml()}
         </p>
       </div>
       <div class="card card-pad">
@@ -4099,7 +4109,7 @@ function startTour() {
   ] : [];
   const lastStep = {
     title: 'お困りのときは',
-    body: `<p>分からないこと・エラーが出た時は、<b>Discord</b> で <code style="background:var(--soft);padding:2px 6px;border-radius:4px">@${SUPPORT_DISCORD.userId.slice(-6)}</code> までメンションしてください。</p>
+    body: `<p>分からないこと・エラーが出た時は、${supportInfoHtml()}</p>
       <p style="margin-top:10px">右上の <b>「設定」</b>でログイン情報の確認・共有URLの再発行ができます。</p>
       <p style="margin-top:10px;color:var(--muted)">それでは業務にお役立てください。</p>`,
   };
@@ -4225,7 +4235,7 @@ if (CFG.webAppUrl && CFG.token) {
       </div>
       <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-bottom:18px">
         共有URLが手元にない場合は、右上の<b style="color:var(--ink)">「設定」</b>ボタンから手動で URL・合言葉を入力することもできます。<br>
-        ご不明な点は Discord で <code style="background:var(--soft);padding:2px 6px;border-radius:4px">@${SUPPORT_DISCORD.userId.slice(-6)}</code> までお問い合わせください。
+        ご不明な点は ${supportInfoHtml()}
       </p>
       <button class="btn btn-primary" onclick="openSettings()">設定を開く</button>
     </div>`;
