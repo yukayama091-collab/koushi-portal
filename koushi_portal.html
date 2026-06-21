@@ -664,7 +664,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3391,10 +3391,13 @@ function studentModalBack() {
     setTimeout(() => openClass(back.cls), 50);
   }
 }
+// 編集モード用コンテキスト
+let _studentEditCtx = null;
 function openStudent(id){
   const list = viewStudents();
   const s = list.find(x => x.id === id);
   if (!s) return;
+  _studentEditCtx = { id: s.id, mid: s.id, name: s.name }; // 編集中フラグ
   $('#smTitle').textContent = s.name;
   // 戻るボタンの表示/非表示
   const backBtn = $('#smBack');
@@ -3419,6 +3422,7 @@ function openStudent(id){
         </div>
         ${accountLine}
       </div>
+      <button class="btn" onclick="openStudentEdit('${s.id}')" style="padding:8px 14px;font-size:12.5px;background:var(--soft);border:1px solid var(--line2);color:var(--ink);align-self:flex-start;white-space:nowrap" title="生徒情報を編集">✏️ 編集</button>
     </div>
     <div class="dm-info">
       <div><div class="k">開始から</div><div class="v">${s.grad?'修了':s.days+'日'}</div></div>
@@ -3624,6 +3628,8 @@ function openClass(clsName){
   const cl = list.filter(s => s.cls === clsName);
   if (!cl.length) return;
   const teacher = cl[0]?.teacher || '';
+  // クラス内の代表 teacherId（「シート作成」ボタン等で使う）
+  const classTeacherId = (cl.map(s => s.__row && s.__row.teacherId).filter(Boolean)[0]) || '';
   // 講師シートの講義データ
   const sampleRow = cl.map(s => s.__row).find(r => r && r.lecturesData);
   const lectures = sampleRow ? sampleRow.lecturesData : [];
@@ -3702,7 +3708,10 @@ function openClass(clsName){
       <svg class="ic"><use href="#i-calendar"/></svg> 全12回カリキュラム
       <span class="muted" style="font-weight:500;font-size:11.5px">（日付をクリックして編集）</span>
     </div>
-    ${!writable && lectures.length ? '' : (!writable ? `<div style="padding:10px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:12.5px">⚠ 講師の生徒管理シート未登録のため、入力しても保存されません。${_diagMsg ? '<br>' + _diagMsg : ''}</div>` : '')}
+    ${!writable && lectures.length ? '' : (!writable ? `<div style="padding:12px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:12.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">⚠ 講師の生徒管理シートが反映されていません。${_diagMsg ? '<br>' + _diagMsg : ''}</div>
+      ${classTeacherId ? `<button class="btn btn-primary" id="btnCreateSheet" data-tid="${classTeacherId}" data-cls="${clsName.replace(/"/g,'&quot;')}" onclick="createStudentSheet(this.dataset.tid, this.dataset.cls, this)" style="padding:8px 16px;font-size:12.5px;white-space:nowrap">＋ 作成する</button>` : ''}
+    </div>` : '')}
     <div class="lec-tl">
       ${CURRICULUM.map((cu, i) => {
         const lec = lectures[i] || {};
@@ -3861,6 +3870,187 @@ function openClass(clsName){
     })()}
   `;
   openModal('classModal');
+}
+
+// ============== 生徒情報 編集モーダル ==============
+// 生徒情報シートの「列名（GASの header と一致）」と表示ラベル＋型を定義
+const STUDENT_EDIT_FIELDS = [
+  { key:'表示名',         label:'表示名',          type:'text' },
+  { key:'アカウントURL',  label:'アカウントURL',   type:'url',  placeholder:'https://www.instagram.com/...' },
+  { key:'ジャンル',       label:'ジャンル',        type:'text' },
+  { key:'契約コース',     label:'契約コース',      type:'text' },
+  { key:'卒業予定日',     label:'卒業予定日',      type:'date' },
+  { key:'卒業日',         label:'卒業日',          type:'date' },
+  { key:'初回HR日',       label:'初回HR日',        type:'date' },
+  { key:'入会日',         label:'入会日',          type:'date' },
+  { key:'契約期間',       label:'契約期間（月）',  type:'text' },
+  { key:'備考',           label:'備考',            type:'textarea' },
+  { key:'返金対象',       label:'返金対象',        type:'text' },
+];
+
+async function openStudentEdit(mid) {
+  if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは編集できません。'); return; }
+  const body = $('#smBody');
+  if (!body) return;
+  const previousHtml = body.innerHTML;
+  body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">⏳ 読み込み中…</div>';
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_student_full&mid=${encodeURIComponent(mid)}`;
+    const resp = await fetch(url);
+    const result = await resp.json();
+    if (!result || result.error) {
+      alert('読み込みに失敗しました: ' + (result && (result.message || result.error) || '不明なエラー'));
+      body.innerHTML = previousHtml;
+      return;
+    }
+    const data = result.data || {};
+    _studentEditCtx = { mid: mid, originalData: data, headerList: result.header || [] };
+    // 既知フィールド + その他フィールドも編集可（基本は STUDENT_EDIT_FIELDS、それ以外は折り畳みで全列表示）
+    const knownKeys = new Set(STUDENT_EDIT_FIELDS.map(f => f.key));
+    const otherKeys = (result.header || []).filter(h => h && h !== '管理ID' && !knownKeys.has(h));
+    const renderField = (f) => {
+      const val = data[f.key] != null ? data[f.key] : '';
+      const id = 'sedit-' + f.key.replace(/[^A-Za-z0-9]/g,'_');
+      const safe = String(val).replace(/"/g,'&quot;');
+      if (f.type === 'date') {
+        // ISO化（YYYY-MM-DD）
+        let v = '';
+        const m = String(val).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+        if (m) v = `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+        return `<div class="sedit-row" style="display:grid;grid-template-columns:160px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2)">
+          <label style="font-size:12.5px;color:var(--muted);font-weight:600">${f.label}</label>
+          <input id="${id}" type="date" value="${v}" data-key="${f.key}" style="padding:7px 10px;border:1px solid var(--line2);border-radius:6px;font-size:13px;background:#fff">
+        </div>`;
+      }
+      if (f.type === 'textarea') {
+        return `<div class="sedit-row" style="display:grid;grid-template-columns:160px 1fr;gap:10px;align-items:start;padding:6px 0;border-bottom:1px solid var(--line2)">
+          <label style="font-size:12.5px;color:var(--muted);font-weight:600;padding-top:8px">${f.label}</label>
+          <textarea id="${id}" data-key="${f.key}" rows="3" style="padding:7px 10px;border:1px solid var(--line2);border-radius:6px;font-size:13px;font-family:inherit;background:#fff;resize:vertical">${String(val).replace(/</g,'&lt;')}</textarea>
+        </div>`;
+      }
+      return `<div class="sedit-row" style="display:grid;grid-template-columns:160px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2)">
+        <label style="font-size:12.5px;color:var(--muted);font-weight:600">${f.label}</label>
+        <input id="${id}" type="${f.type === 'url' ? 'url' : 'text'}" value="${safe}" data-key="${f.key}" ${f.placeholder?`placeholder="${f.placeholder}"`:''} style="padding:7px 10px;border:1px solid var(--line2);border-radius:6px;font-size:13px;background:#fff">
+      </div>`;
+    };
+    const otherFieldsHtml = otherKeys.map(k => renderField({ key:k, label:k, type:'text' })).join('');
+    body.innerHTML = `
+      <div style="padding:8px 0 16px 0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;color:var(--faint);letter-spacing:.08em">EDITING — 管理ID: ${mid}</div>
+            <div style="font-size:16px;font-weight:700">${_studentEditCtx && _studentEditCtx.name || data['表示名'] || ''}</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn" onclick="closeStudentEdit()" style="padding:8px 14px;font-size:12.5px;background:var(--soft);border:1px solid var(--line2);color:var(--muted)">キャンセル</button>
+            <button class="btn btn-primary" id="sedit-save" onclick="saveStudentEdit()" style="padding:8px 16px;font-size:12.5px">💾 保存</button>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid var(--line2);border-radius:10px;padding:14px 18px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--ink)">基本情報</div>
+          ${STUDENT_EDIT_FIELDS.map(renderField).join('')}
+        </div>
+        ${otherFieldsHtml ? `
+        <details style="background:#fff;border:1px solid var(--line2);border-radius:10px;margin-top:12px">
+          <summary style="cursor:pointer;padding:12px 18px;font-size:13px;font-weight:700;color:var(--muted)">▶ その他フィールド (${otherKeys.length} 項目)</summary>
+          <div style="padding:0 18px 14px 18px">${otherFieldsHtml}</div>
+        </details>` : ''}
+        <div style="margin-top:14px;font-size:11.5px;color:var(--faint);text-align:right">変更内容は保存ボタンを押すまで反映されません。スプレッドシートには直接反映されます。</div>
+      </div>
+    `;
+  } catch (e) {
+    console.error(e);
+    alert('通信エラー: ' + (e && e.message || e));
+    body.innerHTML = previousHtml;
+  }
+}
+
+function closeStudentEdit() {
+  if (_studentEditCtx && _studentEditCtx.mid) {
+    openStudent(_studentEditCtx.mid);
+  } else {
+    closeModal('studentModal');
+  }
+}
+
+async function saveStudentEdit() {
+  if (!_studentEditCtx || !_studentEditCtx.mid) return;
+  const mid = _studentEditCtx.mid;
+  const original = _studentEditCtx.originalData || {};
+  const inputs = document.querySelectorAll('#smBody [data-key]');
+  const updates = {};
+  inputs.forEach(el => {
+    const key = el.dataset.key;
+    const newVal = (el.value == null ? '' : String(el.value)).trim();
+    const oldVal = original[key] != null ? String(original[key]).trim() : '';
+    // 日付は ISO 比較（GAS側で正規化される）
+    if (newVal !== oldVal) updates[key] = newVal;
+  });
+  if (!Object.keys(updates).length) {
+    alert('変更はありません。');
+    return;
+  }
+  const btn = $('#sedit-save');
+  const oldHtml = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 保存中…'; }
+  try {
+    const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_student`);
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ mid: mid, updates: updates }),
+    });
+    const result = await resp.json();
+    if (!result || result.error) {
+      alert('保存に失敗しました: ' + (result && (result.message || result.error) || '不明なエラー'));
+      if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+      return;
+    }
+    const applied = result.applied || [];
+    alert(`保存しました。\n更新フィールド: ${applied.length} 件\n${applied.map(a => '・' + a.field).join('\n')}`);
+    try { await loadData(); } catch (e) { console.warn(e); }
+    // 表示モードへ
+    setTimeout(() => openStudent(mid), 80);
+  } catch (e) {
+    console.error(e);
+    alert('通信エラー: ' + (e && e.message || e));
+    if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
+  }
+}
+
+// 「生徒管理シートが反映されていません」警告から押された時：
+//  講師DB「クラス情報管理」K列が空欄の講師について、テンプレを複製してリンクを書き戻す
+async function createStudentSheet(tid, clsName, btnEl) {
+  if (!tid) { alert('講師IDを特定できません。'); return; }
+  if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは作成できません。'); return; }
+  if (!confirm(`このクラスの講師（ID: ${tid}）の生徒管理シートを新規作成します。\nテンプレートから複製し、講師DBにリンクを反映します。\n\n実行しますか？`)) return;
+  const original = btnEl ? btnEl.innerHTML : '';
+  if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '⏳ 作成中…'; }
+  try {
+    const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=create_student_sheet_for_teacher&teacherId=${encodeURIComponent(tid)}`);
+    const resp = await fetch(url);
+    const result = await resp.json();
+    if (!result || result.error) {
+      alert('作成に失敗しました: ' + (result && (result.message || result.error) || '不明なエラー'));
+      if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = original; }
+      return;
+    }
+    // クラス情報管理の再読込 → 該当クラスを再オープン
+    alert((result.reused ? '既存のシートURLを再利用しました。' : '生徒管理シートを作成しました。') + '\n\n講師DBへの反映を読み込みます。');
+    try { await loadData(); } catch (e) { console.warn(e); }
+    // 同じクラスを開き直す
+    if (clsName) {
+      closeModal('classModal');
+      setTimeout(() => openClass(clsName), 80);
+    } else if (btnEl) {
+      btnEl.disabled = false;
+      btnEl.innerHTML = original;
+    }
+  } catch (e) {
+    console.error(e);
+    alert('通信エラー: ' + (e && e.message || e));
+    if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = original; }
+  }
 }
 
 // クラス全体の講義日付を保存（第1回, 第3〜12回）
