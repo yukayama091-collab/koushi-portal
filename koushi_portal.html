@@ -446,12 +446,23 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .tbl-wrap{ overflow:visible; }
 #page-teacherMaster .tbl{ width:100%; border-collapse:collapse; font-size:13.5px; }
 #page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; position:relative; }
-/* 列ヘッダー上にカーソルを乗せた時だけ下に出るフィルタ */
-#page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:4px; }
+#page-teacherMaster .tbl th.has-filter{ cursor:default; }
+#page-teacherMaster .tbl th.has-filter:hover{ color:var(--ink); }
+/* 列ヘッダー上にカーソルを乗せた時だけ下に出るフィルタメニュー */
+#page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:6px; }
 #page-teacherMaster .tbl th:hover > .th-filter-wrap,
 #page-teacherMaster .tbl th .th-filter-wrap:hover,
 #page-teacherMaster .tbl th .th-filter-wrap:focus-within{ display:block; }
-#page-teacherMaster .tbl th .th-filter{ display:block !important; margin-top:0 !important; background:#fff; box-shadow:0 6px 18px rgba(15,15,15,.14); border:1px solid var(--line); min-width:120px; }
+#page-teacherMaster .th-menu{ min-width:172px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,15,15,.18), 0 2px 6px rgba(15,15,15,.06); padding:6px; font-family:inherit; }
+#page-teacherMaster .th-menu-head{ font-size:10.5px; font-weight:700; color:var(--faint); padding:6px 10px 4px; letter-spacing:.06em; text-transform:none; }
+#page-teacherMaster .th-menu-item{ display:flex; align-items:center; gap:8px; padding:7px 10px; font-size:13px; font-weight:500; color:var(--ink); border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap; line-height:1.2; }
+#page-teacherMaster .th-menu-item:hover{ background:var(--soft); }
+#page-teacherMaster .th-menu-item.on{ background:var(--brand-soft, #eef2ff); color:var(--brand); font-weight:700; }
+#page-teacherMaster .th-menu-item.on::before{ content:'✓'; color:var(--brand); font-weight:800; margin-right:-2px; }
+#page-teacherMaster .th-menu-item.clear{ color:#dc2626; }
+#page-teacherMaster .th-menu-item.clear:hover{ background:#fef2f2; }
+#page-teacherMaster .th-menu-sep{ height:1px; background:var(--line2); margin:5px 4px; }
+#page-teacherMaster .tbl th.th-active{ color:var(--brand); }
 #page-teacherMaster .tbl th.th-active::after{ content:'●'; color:var(--brand); font-size:8px; margin-left:5px; vertical-align:middle; }
 #page-teacherMaster .tbl td{ padding:13px 16px; color:var(--ink2); border-bottom:1px solid var(--line2); vertical-align:middle; }
 #page-teacherMaster .tbl tr.clickable{ cursor:pointer; transition:background .1s; }
@@ -671,7 +682,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4497,12 +4508,18 @@ function tmColFilterHtml(filter) {
     vals = [...new Set(TM_DATA.map(filter.get).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
   }
   const current = tmFilter[filter.key] || '';
-  // ホバーで下に出るドロップダウン。デフォルトは非表示（CSSで制御）
+  // ホバーで下に出るカスタムメニュー
+  const itemHtml = vals.map(v => {
+    const sel = current === v ? 'on' : '';
+    return `<div class="th-menu-item ${sel}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', ${JSON.stringify(String(v))})">${tmEsc(v)}</div>`;
+  }).join('');
   return `<div class="th-filter-wrap" onclick="event.stopPropagation()">
-    <select class="th-filter" onchange="tmSetColumnFilter('${filter.key}', this.value)" style="font:inherit;font-weight:500;font-size:11.5px;padding:5px 8px;border-radius:6px;cursor:pointer;color:${current?'var(--brand)':'var(--ink2)'}">
-      <option value="">全て</option>
-      ${vals.map(v => `<option value="${tmEsc(v)}" ${current===v?'selected':''}>${tmEsc(v)}</option>`).join('')}
-    </select>
+    <div class="th-menu">
+      <div class="th-menu-head">${filter.key} で絞り込み</div>
+      <div class="th-menu-item ${current===''?'on':''}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', '')">全て</div>
+      ${itemHtml ? '<div class="th-menu-sep"></div>' + itemHtml : ''}
+      ${current ? '<div class="th-menu-sep"></div><div class="th-menu-item clear" onclick="event.stopPropagation();tmSetColumnFilter(\'' + filter.key + '\', \'\')">絞り込みを解除</div>' : ''}
+    </div>
   </div>`;
 }
 let tmCurRec = null, tmCurTab = 0;
@@ -4777,8 +4794,10 @@ function renderTeacherList(){
     card.innerHTML = `<div class="card-head" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title">講師一覧 <span class="faint" style="font-weight:500">（${TM_DATA.length}名中 ${rows.length}名を表示）</span></div>${tmAnyFilterActive()?'<button class="btn btn-ghost btn-sm" type="button" onclick="tmClearAllFilters()">絞り込みをクリア</button>':''}</div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr>
         ${tab.cols.map(c=>{
-          const active = c.filter && (tmFilter[c.filter.key] || '') !== '';
-          return `<th class="${active?'th-active':''}"${c.thStyle?` style="${c.thStyle}"`:''}>${c.h}${tmColFilterHtml(c.filter)}</th>`;
+          const hasF = !!c.filter;
+          const active = hasF && (tmFilter[c.filter.key] || '') !== '';
+          const cls = [hasF?'has-filter':'', active?'th-active':''].filter(Boolean).join(' ');
+          return `<th${cls?` class="${cls}"`:''}${c.thStyle?` style="${c.thStyle}"`:''}>${c.h}${tmColFilterHtml(c.filter)}</th>`;
         }).join('')}<th></th>
       </tr></thead><tbody>${rows.map(r=>`
         <tr class="clickable ${r.active==='未稼働'?'flag':''}" data-id="${r.id}">
