@@ -453,6 +453,16 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .tbl th.th-active .th-caret{ opacity:1; }
 /* 列ヘッダー上にカーソルを乗せた時だけ下に出るフィルタメニュー */
 #page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:6px; }
+/* トップフィルタ（クリック式・Notion風メニュー） */
+.tm-topfilter{ position:relative; }
+.tm-topfilter-btn{ display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 12px; min-width:140px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; font:inherit; font-size:13px; color:var(--ink); cursor:pointer; line-height:1; transition:border-color .12s, box-shadow .12s; }
+.tm-topfilter-btn:hover{ border-color:var(--ink2); }
+.tm-topfilter-btn[data-open="1"]{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+.tm-topfilter-btn .label{ flex:1; text-align:left; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tm-topfilter-btn.placeholder .label{ color:var(--muted); font-weight:500; }
+.tm-topfilter-btn .caret{ width:11px; height:11px; opacity:.6; }
+.tm-topfilter-pop{ position:absolute; top:calc(100% + 6px); left:0; z-index:100; display:none; }
+.tm-topfilter-pop[data-open="1"]{ display:block; }
 #page-teacherMaster .tbl th:hover > .th-filter-wrap,
 #page-teacherMaster .tbl th .th-filter-wrap:hover,
 #page-teacherMaster .tbl th .th-filter-wrap:focus-within{ display:block; }
@@ -688,7 +698,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-e</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-f</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4505,6 +4515,78 @@ function tmAnyFilterActive() {
   return ['genre','rank','type','mg','sup','active','extraRank','gender','retire','one','slot','launch'].some(k => tmFilter[k]);
 }
 // 列ヘッダー用の絞り込みプルダウンHTML
+// トップフィルタ（クリック式・Notion風）
+// opts: { key, placeholder, current, options:[{value,label}], searchable?, clearable? (default true) }
+function tmTopFilterHtml(opts) {
+  const key = opts.key;
+  const cur = opts.current == null ? '' : String(opts.current);
+  const clearable = opts.clearable !== false;
+  const sel = opts.options.find(o => String(o.value) === cur);
+  const labelText = sel ? sel.label : opts.placeholder;
+  const isPlaceholder = !sel;
+  const headLabel = opts.head || opts.placeholder.replace(/^全/,'').replace(/\/.*$/,'') || key;
+  const itemHtml = opts.options.map(o => {
+    const on = String(o.value) === cur ? 'on' : '';
+    const lbl = tmEsc(o.label);
+    return `<div class="th-menu-item ${on}" data-text="${lbl}" onclick="event.stopPropagation();tmSetTopFilter('${key}', ${JSON.stringify(String(o.value))})">${lbl}</div>`;
+  }).join('');
+  return `<div class="tm-topfilter" data-key="${key}">
+    <button type="button" class="tm-topfilter-btn ${isPlaceholder?'placeholder':''}" onclick="tmToggleTopFilter('${key}', event)">
+      <span class="label">${tmEsc(labelText || '')}</span>
+      <svg class="caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.5 L6 8.5 L10 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="tm-topfilter-pop" onclick="event.stopPropagation()">
+      <div class="th-menu">
+        <div class="th-menu-head">${tmEsc(headLabel)} で絞り込み</div>
+        ${opts.searchable && opts.options.length > 6 ? `<div class="th-menu-search"><input type="text" placeholder="検索…" oninput="tmFilterMenu(this)" onkeydown="if(event.key==='Escape'){this.value='';tmFilterMenu(this);}" onclick="event.stopPropagation()"></div>` : ''}
+        ${clearable ? `<div class="th-menu-item ${cur===''?'on':''}" data-always="1" onclick="event.stopPropagation();tmSetTopFilter('${key}', '')">全て</div><div class="th-menu-sep" data-always="1"></div>` : ''}
+        ${itemHtml}
+        <div class="th-menu-empty" data-empty="1" style="display:none">該当なし</div>
+        ${clearable && cur ? '<div class="th-menu-sep" data-always="1"></div><div class="th-menu-item clear" data-always="1" onclick="event.stopPropagation();tmSetTopFilter(\'' + key + '\', \'\')">絞り込みを解除</div>' : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function tmToggleTopFilter(key, evt) {
+  if (evt) evt.stopPropagation();
+  // 他のポップを閉じる
+  document.querySelectorAll('.tm-topfilter').forEach(g => {
+    const k = g.dataset.key;
+    const open = (k === key) && !g.querySelector('.tm-topfilter-pop[data-open="1"]');
+    g.querySelector('.tm-topfilter-btn').dataset.open = open ? '1' : '';
+    g.querySelector('.tm-topfilter-pop').dataset.open = open ? '1' : '';
+  });
+}
+
+function tmCloseTopFilters() {
+  document.querySelectorAll('.tm-topfilter-btn[data-open="1"]').forEach(b => b.dataset.open = '');
+  document.querySelectorAll('.tm-topfilter-pop[data-open="1"]').forEach(p => p.dataset.open = '');
+}
+
+function tmSetTopFilter(key, value) {
+  if (key === 'mode') {
+    tmTableMode = value || 'basic';
+  } else {
+    tmFilter[key] = value || '';
+  }
+  tmCloseTopFilters();
+  if (typeof renderTeacherMaster === 'function') renderTeacherMaster();
+}
+
+// ページ外クリックでクローズ
+if (!window.__tmTopFilterOutsideBound) {
+  document.addEventListener('click', (e) => {
+    if (!document.querySelector('.tm-topfilter-pop[data-open="1"]')) return;
+    if (e.target.closest('.tm-topfilter')) return;
+    tmCloseTopFilters();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') tmCloseTopFilters();
+  });
+  window.__tmTopFilterOutsideBound = true;
+}
+
 function tmColFilterHtml(filter) {
   if (!filter) return '';
   let vals;
@@ -4715,12 +4797,24 @@ async function renderTeacherMaster(){
       <div class="card card-pad">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
           <div class="searchbar" style="max-width:300px"><svg class="ic"><use href="#i-search"/></svg><input id="tm-q" value="${tmEsc(tmFilter.q)}" placeholder="講師名・アカウントで絞り込み…"></div>
-          <select class="top-filter" id="tm-fGenre" style="min-width:150px"><option value="">全ジャンル</option>${[...new Set(TM_DATA.map(t=>t.genre).filter(Boolean))].sort().map(g=>`<option ${tmFilter.genre===g?'selected':''}>${tmEsc(g)}</option>`).join('')}</select>
-          <select class="top-filter" id="tm-fRank" style="min-width:140px"><option value="">全ランク</option>${["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>`<option ${tmFilter.rank===r?'selected':''}>${tmEsc(r)}</option>`).join('')}</select>
-          <select class="top-filter" id="tm-fType" style="min-width:130px"><option value="">通常/専属</option><option ${tmFilter.type==='通常'?'selected':''}>通常</option><option ${tmFilter.type==='専属'?'selected':''}>専属</option></select>
-          <select class="top-filter" id="tm-fMode" style="min-width:150px" title="表示する情報シートを切替">
-            ${TM_TABLE_TABS.map(t=>`<option value="${t.key}" ${t.key===tmTableMode?'selected':''}>${t.label}</option>`).join('')}
-          </select>
+          ${tmTopFilterHtml({
+            key:'genre', head:'ジャンル', placeholder:'全ジャンル', current:tmFilter.genre || '',
+            options:[...new Set(TM_DATA.map(t=>t.genre).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja')).map(g=>({value:g,label:g})),
+            searchable:true
+          })}
+          ${tmTopFilterHtml({
+            key:'rank', head:'ランク', placeholder:'全ランク', current:tmFilter.rank || '',
+            options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>({value:r,label:r}))
+          })}
+          ${tmTopFilterHtml({
+            key:'type', head:'区分', placeholder:'通常/専属', current:tmFilter.type || '',
+            options:[{value:'通常',label:'通常'},{value:'専属',label:'専属'}]
+          })}
+          ${tmTopFilterHtml({
+            key:'mode', head:'表示モード', placeholder:'表示モード', current:tmTableMode || 'basic',
+            options:TM_TABLE_TABS.map(t=>({value:t.key,label:t.label})),
+            clearable:false
+          })}
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
           <div class="chips" id="tm-chips">${TM_CHIPS.map((c,i)=>`<button class="chip ${i===tmChipIdx?'active':''}" data-i="${i}">${c[0]} <span class="c">${TM_DATA.filter(c[1]).length}</span></button>`).join('')}</div>
@@ -4737,11 +4831,6 @@ async function renderTeacherMaster(){
   document.querySelectorAll('#tm-viewseg button, #tm-viewseg2 button').forEach(b=>b.onclick=()=>{tmView=b.dataset.v; renderTeacherMaster();});
   document.querySelectorAll('#tm-chips .chip').forEach(b=>b.onclick=()=>{tmChipIdx=+b.dataset.i; renderTeacherMaster();});
   document.getElementById('tm-q').oninput = e=>{ tmFilter.q=e.target.value; renderTeacherList(); };
-  document.getElementById('tm-fGenre').onchange = e=>{ tmFilter.genre=e.target.value; renderTeacherList(); };
-  document.getElementById('tm-fRank').onchange = e=>{ tmFilter.rank=e.target.value; renderTeacherList(); };
-  document.getElementById('tm-fType').onchange = e=>{ tmFilter.type=e.target.value; renderTeacherList(); };
-  const tmModeSel = document.getElementById('tm-fMode');
-  if (tmModeSel) tmModeSel.onchange = e=>{ tmTableMode=e.target.value; renderTeacherList(); };
   document.getElementById('tm-newbtn').onclick = ()=>openTeacherDrawer(null, true);
   document.getElementById('tm-csv').onclick = exportTeachersCSV;
   const tmUploadBtn = document.getElementById('tm-csv-upload');
