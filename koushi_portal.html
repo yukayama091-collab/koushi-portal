@@ -464,6 +464,20 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .tm-topfilter-btn .caret{ width:11px; height:11px; opacity:.6; }
 .tm-topfilter-pop{ position:absolute; top:calc(100% + 6px); left:0; z-index:100; display:none; }
 .tm-topfilter-pop[data-open="1"]{ display:block; }
+/* iOS風 確認/アラート モーダル */
+.ios-alert-overlay{ position:fixed; inset:0; background:rgba(15,15,15,.45); z-index:1000; display:flex; align-items:center; justify-content:center; animation:iosFadeIn .15s ease-out; }
+@keyframes iosFadeIn{ from{ opacity:0 } to{ opacity:1 } }
+.ios-alert{ background:#fff; width:min(320px, 88vw); border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,.25); overflow:hidden; font-family:inherit; animation:iosPopIn .18s ease-out; }
+@keyframes iosPopIn{ from{ transform:scale(.92); opacity:.6 } to{ transform:scale(1); opacity:1 } }
+.ios-alert-body{ padding:22px 20px 20px; font-size:15px; font-weight:600; color:var(--ink); text-align:center; line-height:1.45; white-space:pre-wrap; }
+.ios-alert-actions{ display:flex; gap:10px; padding:0 14px 14px; }
+.ios-alert-actions .ios-btn{ flex:1; height:42px; border-radius:10px; font:inherit; font-size:14.5px; font-weight:700; cursor:pointer; border:none; transition:filter .12s; }
+.ios-alert-actions .ios-btn:hover{ filter:brightness(0.97); }
+.ios-alert-actions .ios-btn-cancel{ background:#fff; border:1px solid var(--line); color:var(--ink2); }
+.ios-alert-actions .ios-btn-primary{ background:var(--danger, #e0405c); color:#fff; }
+.ios-alert-actions .ios-btn-ok{ background:#fff; color:#1f7be7; border:none; font-size:16px; height:46px; border-top:1px solid var(--line2); border-radius:0; flex:1; }
+.ios-alert-actions.single{ padding:0; gap:0; }
+.ios-alert-actions.single .ios-btn-ok{ border-radius:0 0 14px 14px; }
 #page-teacherMaster .tbl th:hover > .th-filter-wrap,
 #page-teacherMaster .tbl th .th-filter-wrap:hover,
 #page-teacherMaster .tbl th .th-filter-wrap:focus-within{ display:block; }
@@ -696,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-l</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-m</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -5122,6 +5136,64 @@ async function setStudentGradFromUi(studentId, kind, selectEl) {
   }
 }
 
+// iOS風 確認ダイアログ
+function iosConfirm(message, opts) {
+  opts = opts || {};
+  const okText = opts.okText || '保存';
+  const cancelText = opts.cancelText || 'キャンセル';
+  const okClass = opts.okClass || 'ios-btn-primary';
+  return new Promise(resolve => {
+    const overlay = document.getElementById('iosAlert');
+    const msg = document.getElementById('iosAlertMsg');
+    const actions = document.getElementById('iosAlertActions');
+    if (!overlay || !msg || !actions) { resolve(window.confirm(message)); return; }
+    msg.textContent = message;
+    actions.className = 'ios-alert-actions';
+    actions.innerHTML = `
+      <button type="button" class="ios-btn ios-btn-cancel">${cancelText}</button>
+      <button type="button" class="ios-btn ${okClass}">${okText}</button>
+    `;
+    const [cancelBtn, okBtn] = actions.querySelectorAll('button');
+    const close = (val) => {
+      overlay.style.display = 'none';
+      cancelBtn.onclick = null; okBtn.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve(val);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(false); else if (e.key === 'Enter') close(true); };
+    cancelBtn.onclick = () => close(false);
+    okBtn.onclick = () => close(true);
+    document.addEventListener('keydown', onKey);
+    overlay.style.display = 'flex';
+    setTimeout(() => okBtn.focus(), 30);
+  });
+}
+
+// iOS風 アラート (OKボタン1つ)
+function iosAlert(message) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('iosAlert');
+    const msg = document.getElementById('iosAlertMsg');
+    const actions = document.getElementById('iosAlertActions');
+    if (!overlay || !msg || !actions) { window.alert(message); resolve(); return; }
+    msg.textContent = message;
+    actions.className = 'ios-alert-actions single';
+    actions.innerHTML = `<button type="button" class="ios-btn ios-btn-ok">OK</button>`;
+    const okBtn = actions.querySelector('button');
+    const close = () => {
+      overlay.style.display = 'none';
+      okBtn.onclick = null;
+      document.removeEventListener('keydown', onKey);
+      resolve();
+    };
+    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter') close(); };
+    okBtn.onclick = close;
+    document.addEventListener('keydown', onKey);
+    overlay.style.display = 'flex';
+    setTimeout(() => okBtn.focus(), 30);
+  });
+}
+
 // 編集中の入力値を tmCurRec に取り込む（タブ切替や保存前に呼ぶ）
 function tmCaptureDrawerEdits() {
   if (!tmCurRec) return;
@@ -5143,14 +5215,17 @@ function tmRenderDrawerBody(){
   document.querySelectorAll('#tmDrawer .dr-tab').forEach((b,i)=>b.classList.toggle('on', i===tmCurTab));
 }
 
-// 講師ドロワーの保存 — import_teachers_bulk (noBackup:true) と同等の単一行更新を呼ぶ
+// 講師ドロワーの保存 — update_teacher を呼んでスプシに書き戻す
 async function tmSaveDrawer(btn) {
   if (!tmCurRec) return;
-  if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
-  if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは保存できません'); return; }
-  if (tmCurRec.id === '（自動採番）') { alert('新規追加は未対応です。スプレッドシートで採番後に編集してください。'); return; }
+  if (!CFG.webAppUrl || !CFG.token) { await iosAlert('受付窓口の設定が必要です'); return; }
+  if (CFG.token === DEMO_TOKEN) { await iosAlert('デモトークンでは保存できません'); return; }
+  if (tmCurRec.id === '（自動採番）') { await iosAlert('新規追加は未対応です。\nスプレッドシートで採番後に編集してください。'); return; }
   // 現在表示中のタブの編集値を tmCurRec に反映
   tmCaptureDrawerEdits();
+  // 確認ダイアログ
+  const ok = await iosConfirm('保存しますか？', { okText:'保存', cancelText:'キャンセル' });
+  if (!ok) return;
   // 送信ペイロード（id + 編集可能フィールドのみ）
   const editKeys = ['name','real','account','gender','birth','genre','rank','type','extraRank',
                     'contract','contractEnd','active','retire','one','launch','slot','good','bad','mg','sup'];
@@ -5166,14 +5241,12 @@ async function tmSaveDrawer(btn) {
     });
     const d = await resp.json();
     if (!d || !d.ok) {
-      alert('保存に失敗しました: ' + (d && (d.message || d.error) || '不明なエラー'));
-      if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
+      await iosAlert('保存に失敗しました\n' + (d && (d.message || d.error) || '不明なエラー'));
       return;
     }
     const cells = d.stats && d.stats.cellsChanged || 0;
     if (cells === 0) {
-      alert('変更はありません。');
-      if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
+      await iosAlert('変更はありません。');
       return;
     }
     // 講師マスタを再取得 → 一覧/ドロワーを再描画
@@ -5182,10 +5255,10 @@ async function tmSaveDrawer(btn) {
     if (refreshed) tmCurRec = refreshed;
     tmRenderDrawerBody();
     if (typeof renderTeacherList === 'function') renderTeacherList();
-    alert(`保存しました（${cells} セル更新）`);
+    await iosAlert('保存が完了しました。');
   } catch (e) {
     console.error(e);
-    alert('通信エラー: ' + (e && e.message || e));
+    await iosAlert('通信エラー\n' + (e && e.message || e));
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
   }
@@ -5357,5 +5430,12 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeTeacherDrawe
 </script>
 <div class="scrim" id="tmScrim"></div>
 <aside class="drawer" id="tmDrawer" aria-label="講師の編集"></aside>
+<!-- iOS風 確認/アラート ダイアログ -->
+<div id="iosAlert" class="ios-alert-overlay" style="display:none">
+  <div class="ios-alert">
+    <div class="ios-alert-body" id="iosAlertMsg"></div>
+    <div class="ios-alert-actions" id="iosAlertActions"></div>
+  </div>
+</div>
 </body>
 </html>
