@@ -508,7 +508,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .rank.gold .dot{ background:var(--tier-gold); }
 #page-teacherMaster .rank.silver .dot{ background:var(--tier-silver); }
 #page-teacherMaster .rank.special .dot{ background:var(--tier-special); }
-#page-teacherMaster .tag{ display:inline-flex; align-items:center; height:22px; padding:0 9px; border:1px solid var(--line2); background:var(--soft); border-radius:7px; font-size:11.5px; color:var(--ink2); }
+#page-teacherMaster .tag{ display:inline-flex; align-items:center; height:22px; padding:0 9px; border:1px solid var(--line2); background:var(--soft); border-radius:7px; font-size:11.5px; color:var(--ink2); white-space:nowrap; }
 #page-teacherMaster .tmbadge{ display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 9px; border-radius:var(--r-pill); font-size:11.5px; font-weight:600; white-space:nowrap; line-height:1; transition:box-shadow .12s, transform .12s; }
 #page-teacherMaster .tmbadge:hover{ box-shadow:0 0 0 2px var(--brand-soft, rgba(0,0,0,.08)); transform:translateY(-0.5px); cursor:default; }
 #page-teacherMaster .tmbadge-red{ background:var(--brand); color:#fff; }
@@ -702,7 +702,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-h</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-i</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4866,7 +4866,7 @@ function tmNameCell(r){
 const TM_TABLE_TABS = [
   { key:'basic', label:'基本情報', cols: [
     {h:'講師', td:r=>tmNameCell(r)},
-    {h:'ジャンル', filter:{key:'genre', get:r=>r.genre}, td:r=>`<td>${tmGenreTag(r.genre)}</td>`},
+    {h:'ジャンル', filter:{key:'genre', get:r=>r.genre}, td:r=>`<td style="white-space:nowrap">${tmGenreTag(r.genre)}</td>`},
     {h:'ランク', filter:{key:'rank', get:r=>r.rank, order:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"]}, td:r=>`<td>${tmRankBadge(r.rank)}</td>`},
     {h:'集客ランク', filter:{key:'extraRank', get:r=>r.extraRank}, td:r=>`<td>${r.extraRank?`<span class="tag">${tmEsc(r.extraRank.replace(/ランク$/,''))}</span>`:'<span class="faint">—</span>'}</td>`},
     {h:'区分', filter:{key:'type', get:r=>r.type, order:["通常","専属"]}, td:r=>`<td>${tmTypeBadge(r.type)}</td>`},
