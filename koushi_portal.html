@@ -456,8 +456,12 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .tbl th:hover > .th-filter-wrap,
 #page-teacherMaster .tbl th .th-filter-wrap:hover,
 #page-teacherMaster .tbl th .th-filter-wrap:focus-within{ display:block; }
-#page-teacherMaster .th-menu{ min-width:172px; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,15,15,.18), 0 2px 6px rgba(15,15,15,.06); padding:6px; font-family:inherit; }
-#page-teacherMaster .th-menu-head{ font-size:10.5px; font-weight:700; color:var(--faint); padding:6px 10px 4px; letter-spacing:.06em; text-transform:none; }
+#page-teacherMaster .th-menu{ min-width:200px; max-width:260px; max-height:380px; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,15,15,.18), 0 2px 6px rgba(15,15,15,.06); padding:6px; font-family:inherit; }
+#page-teacherMaster .th-menu-head{ font-size:10.5px; font-weight:700; color:var(--faint); padding:6px 10px 4px; letter-spacing:.06em; text-transform:none; position:sticky; top:0; background:#fff; z-index:3; }
+#page-teacherMaster .th-menu-search{ position:sticky; top:24px; background:#fff; padding:2px 6px 8px; z-index:2; }
+#page-teacherMaster .th-menu-search input{ width:100%; padding:7px 10px; font:inherit; font-size:12.5px; border:1px solid var(--line); border-radius:7px; background:#fff; box-sizing:border-box; outline:none; }
+#page-teacherMaster .th-menu-search input:focus{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft, rgba(124,92,255,.15)); }
+#page-teacherMaster .th-menu-empty{ padding:10px 12px; font-size:12px; color:var(--faint); text-align:center; }
 #page-teacherMaster .th-menu-item{ display:flex; align-items:center; gap:8px; padding:7px 10px; font-size:13px; font-weight:500; color:var(--ink); border-radius:6px; cursor:pointer; user-select:none; white-space:nowrap; line-height:1.2; }
 #page-teacherMaster .th-menu-item:hover{ background:var(--soft); }
 #page-teacherMaster .th-menu-item.on{ background:var(--brand-soft, #eef2ff); color:var(--brand); font-weight:700; }
@@ -684,7 +688,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-c</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-d</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4510,19 +4514,40 @@ function tmColFilterHtml(filter) {
     vals = [...new Set(TM_DATA.map(filter.get).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
   }
   const current = tmFilter[filter.key] || '';
+  const searchable = vals.length > 6; // 候補が多い列のみ検索ボックスを出す
   // ホバーで下に出るカスタムメニュー
   const itemHtml = vals.map(v => {
     const sel = current === v ? 'on' : '';
-    return `<div class="th-menu-item ${sel}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', ${JSON.stringify(String(v))})">${tmEsc(v)}</div>`;
+    const txt = tmEsc(v);
+    return `<div class="th-menu-item ${sel}" data-text="${txt}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', ${JSON.stringify(String(v))})">${txt}</div>`;
   }).join('');
   return `<div class="th-filter-wrap" onclick="event.stopPropagation()">
     <div class="th-menu">
       <div class="th-menu-head">${filter.key} で絞り込み</div>
-      <div class="th-menu-item ${current===''?'on':''}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', '')">全て</div>
-      ${itemHtml ? '<div class="th-menu-sep"></div>' + itemHtml : ''}
-      ${current ? '<div class="th-menu-sep"></div><div class="th-menu-item clear" onclick="event.stopPropagation();tmSetColumnFilter(\'' + filter.key + '\', \'\')">絞り込みを解除</div>' : ''}
+      ${searchable ? `<div class="th-menu-search"><input type="text" placeholder="検索…" oninput="tmFilterMenu(this)" onkeydown="if(event.key==='Escape'){this.value='';tmFilterMenu(this);}" onclick="event.stopPropagation()"></div>` : ''}
+      <div class="th-menu-item ${current===''?'on':''}" data-always="1" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', '')">全て</div>
+      ${itemHtml ? '<div class="th-menu-sep" data-always="1"></div>' + itemHtml : ''}
+      <div class="th-menu-empty" data-empty="1" style="display:none">該当なし</div>
+      ${current ? '<div class="th-menu-sep" data-always="1"></div><div class="th-menu-item clear" data-always="1" onclick="event.stopPropagation();tmSetColumnFilter(\'' + filter.key + '\', \'\')">絞り込みを解除</div>' : ''}
     </div>
   </div>`;
+}
+
+// 検索ボックス入力で .th-menu-item を絞り込み
+function tmFilterMenu(input) {
+  const q = (input.value || '').trim().toLowerCase();
+  const menu = input.closest('.th-menu');
+  if (!menu) return;
+  let visible = 0;
+  menu.querySelectorAll('.th-menu-item').forEach(el => {
+    if (el.dataset.always === '1') return; // 「全て」「絞り込みを解除」は常に表示
+    const text = (el.dataset.text || el.textContent || '').toLowerCase();
+    const show = !q || text.includes(q);
+    el.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const empty = menu.querySelector('.th-menu-empty');
+  if (empty) empty.style.display = (q && visible === 0) ? '' : 'none';
 }
 let tmCurRec = null, tmCurTab = 0;
 let tmLoaded = false;
