@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-p</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-q</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3403,6 +3403,13 @@ function studentModalBack() {
   closeModal('studentModal');
   if (back && back.type === 'class' && back.cls) {
     setTimeout(() => openClass(back.cls), 50);
+  } else if (back && back.type === 'teacher' && back.tid) {
+    setTimeout(() => {
+      if (typeof openTeacherDrawer === 'function') openTeacherDrawer(back.tid, false);
+      if (typeof back.tab === 'number' && typeof tmRenderDrawerBody === 'function') {
+        setTimeout(() => { tmCurTab = back.tab; tmRenderDrawerBody(); }, 80);
+      }
+    }, 50);
   }
 }
 // 編集モード用コンテキスト
@@ -3415,7 +3422,11 @@ function openStudent(id){
   $('#smTitle').textContent = s.name;
   // 戻るボタンの表示/非表示
   const backBtn = $('#smBack');
-  if (backBtn) backBtn.style.display = (_studentBack && _studentBack.type==='class' && _studentBack.cls) ? 'inline-flex' : 'none';
+  if (backBtn) {
+    const hasBack = !!(_studentBack && ((_studentBack.type==='class' && _studentBack.cls) || (_studentBack.type==='teacher' && _studentBack.tid)));
+    backBtn.style.display = hasBack ? 'inline-flex' : 'none';
+    backBtn.title = (_studentBack && _studentBack.type==='teacher') ? '講師情報に戻る' : '戻る';
+  }
   const r = s.__row;
   const expGrad = expectedGradDate(r);
   const expStr = expGrad ? fmt(expGrad) : '—';
@@ -5124,7 +5135,7 @@ function tmTabContent(r, t){
             ${members.map(s=>{
               const sheetVal = s.__row?.studentSheetGradValue || (s.__row?.isStudentSheetGrad ? '卒業生' : (s.__row?.isStudentSheetCancel ? '解約' : ''));
               const sel = sheetVal === '卒業生' ? 'grad' : sheetVal === '解約' ? 'cancel' : 'inprog';
-              return `<tr><td style="font-weight:600;color:var(--ink);cursor:pointer" onclick="closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)">${tmEsc(s.name)}</td>
+              return `<tr><td style="font-weight:600;color:var(--ink);cursor:pointer" onclick="_studentBack={type:'teacher',tid:'${r.id}',tab:tmCurTab};closeTeacherDrawer();setTimeout(()=>openStudent('${s.id}'),50)">${tmEsc(s.name)}</td>
               <td>${s.__row?.course?`<span class="tag">${tmEsc(s.__row.course)}</span>`:'<span class="faint">—</span>'}</td>
               <td>
                 <select onchange="setStudentGradFromUi('${s.id}', this.value, this)" style="font:inherit;font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer">
