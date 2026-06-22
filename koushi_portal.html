@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-q</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-r</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -792,7 +792,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
         <div class="hint" style="color:#7a5d00;margin-bottom:8px">下のボタンで、現在の URL とトークンを埋め込んだ「共有用URL」をクリップボードにコピーします。受け取った人がそのURLを開くと、初期設定なしで即データが表示されます。</div>
         <button class="btn btn-dark" onclick="copyShareUrl()" type="button" style="width:100%">📋 共有用URLをコピー</button>
         <div id="shareCopiedMsg" class="hint" style="color:var(--ok);display:none;margin-top:6px">✓ コピーしました。このURLを送ってください。</div>
-        <div class="hint" style="color:#9a7a00;margin-top:8px;font-size:11.5px">⚠ URL には合言葉が含まれます。SNS や Public な場所での共有は避け、信頼できる相手のみに送ってください。</div>
+        <div class="hint" style="color:#9a7a00;margin-top:8px;font-size:11.5px">※URL には合言葉が含まれます。SNS や Public な場所での共有は避け、信頼できる相手のみに送ってください。</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -878,7 +878,7 @@ const STATUS = {
 const CURR = { new:'新', old:'旧', roster:'名簿' };
 const LEC_TYPES = ['初回HR', '1on1', '添削会'];
 
-// ⭐ 全12回カリキュラム（仕様: 第1回=初回HR / 第2回=1on1 / 第3〜12回=通常の添削会）
+// 全12回カリキュラム（仕様: 第1回=初回HR / 第2回=1on1 / 第3〜12回=通常の添削会）
 const CURRICULUM = [
   { no:1,  title:'初回HR', type:'初回HR', goal:'受講開始のキックオフ。卒業予定日(初回HR+180日)の起点' },
   { no:2,  title:'1on1',   type:'1on1',   goal:'個別面談による初期設計の確認' },
@@ -1867,7 +1867,7 @@ function renderSnsClubEvents(d){
   const body = document.getElementById('snsClubEventsBody');
   if (!body) return;
   if (d.error) {
-    body.innerHTML = `<div style="padding:24px"><div style="color:var(--danger);margin-bottom:12px">⚠️ カレンダーにアクセスできません: <code>${escapeHtml(String(d.error))}</code></div><div style="color:var(--muted);font-size:13px;line-height:1.7">info@levela.co.jp 側で「設定と共有」→「特定のユーザーまたはグループと共有する」で <b>yuka.yama091@gmail.com</b> を追加してください</div></div>`;
+    body.innerHTML = `<div style="padding:24px"><div style="color:var(--danger);margin-bottom:12px">カレンダーにアクセスできません: <code>${escapeHtml(String(d.error))}</code></div><div style="color:var(--muted);font-size:13px;line-height:1.7">info@levela.co.jp 側で「設定と共有」→「特定のユーザーまたはグループと共有する」で <b>yuka.yama091@gmail.com</b> を追加してください</div></div>`;
     return;
   }
   const events = d.events || [];
@@ -2111,7 +2111,7 @@ function renderDashboard(){
           <div class="todo-right">${statusBadge(s.status)}
             <div class="todo-metric"><div class="v ${urgent?'danger':'warn'}">${s.days}<span style="font-size:11px">日</span></div><div class="l">経過日数</div></div>
           </div></div>`;
-      }).join('') : `<div class="empty">要対応の生徒はいません 🎉</div>`}
+      }).join('') : `<div class="empty">要対応の生徒はいません</div>`}
     </div>`;
 
   const upHtml = `
@@ -2338,7 +2338,7 @@ function renderTodo(){
               <svg class="ic" style="color:var(--faint)"><use href="#i-chevron-right"/></svg>
             </div></div>`).join('')}
         </div>`;
-      }).join('') || `<div class="card card-pad"><div class="empty">${filterActive ? '絞り込み条件に該当する対応生徒はいません' : '対応が必要な生徒はいません 🎉'}</div></div>`}
+      }).join('') || `<div class="card card-pad"><div class="empty">${filterActive ? '絞り込み条件に該当する対応生徒はいません' : '対応が必要な生徒はいません'}</div></div>`}
     </div>`;
 }
 
@@ -2846,7 +2846,7 @@ function renderTimeline(){
         <span class="badge badge-dark">${list.length} 名</span>
       </div>
     </div>
-    ${showWarning ? `<div style="padding:10px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:13px">⚠ 対象生徒が多いため最初の ${TOO_MANY} 名のみ表示しています。「クラス」「講師」で絞り込んでください。</div>` : ''}
+    ${showWarning ? `<div style="padding:10px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:13px">※対象生徒が多いため最初の ${TOO_MANY} 名のみ表示しています。「クラス」「講師」で絞り込んでください。</div>` : ''}
     ${!list.length ? `<div class="card card-pad"><div class="empty">表示する生徒がいません</div></div>` : `
     <div class="tl-wrap">
       <div class="tl-headRow">
@@ -3214,7 +3214,7 @@ function renderHelp(){
           ・講師ID列<br>
           ・講師名列（講師ID→講師マスタで自動解決）<br>
           を一括上書きします。<br>
-          <b style="color:var(--brand)">⚠ 実行前に自動バックアップ</b>（タブ名: 担当生徒詳細_bk_yyyyMMdd_HHmm）が作成されるので、元に戻せます。
+          <b style="color:var(--brand)">※実行前に自動バックアップ</b>（タブ名: 担当生徒詳細_bk_yyyyMMdd_HHmm）が作成されるので、元に戻せます。
         </p>
         <div id="syncTantoStatus" style="display:none;font-size:12.5px;color:var(--muted);margin-bottom:10px"></div>
         <button class="btn btn-dark" onclick="runSyncTanto()"><svg class="ic"><use href="#i-refresh"/></svg> 担当生徒詳細を同期</button>
@@ -3226,7 +3226,7 @@ function renderHelp(){
           <b style="color:var(--ink)">E列「クラス名(講師名)」</b> を CSV の <b>G列「クラス名(講師名)」</b> で更新します。<br>
           ・突合キー: <b>A列（管理ID）</b><br>
           ・検証: CSV の E列「講師ID」と 講師DB「基本情報」を照合し、<b>講師名が一致したものだけ反映</b>（誤データ混入防止）<br>
-          <b style="color:var(--brand)">⚠ 実行前に自動バックアップ</b>（タブ名: データ順番_bk_yyyyMMdd_HHmm）
+          <b style="color:var(--brand)">※実行前に自動バックアップ</b>（タブ名: データ順番_bk_yyyyMMdd_HHmm）
         </p>
         <input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="onCsvSelected(event)">
         <button class="btn btn-ghost" onclick="document.getElementById('csvFileInput').click()"><svg class="ic"><use href="#i-clipboard"/></svg> CSVファイルを選択…</button>
@@ -3447,7 +3447,7 @@ function openStudent(id){
         </div>
         ${accountLine}
       </div>
-      <button class="btn" onclick="openStudentEdit('${s.id}')" style="padding:8px 14px;font-size:12.5px;background:var(--soft);border:1px solid var(--line2);color:var(--ink);align-self:flex-start;white-space:nowrap" title="生徒情報を編集">✏️ 編集</button>
+      <button class="btn" onclick="openStudentEdit('${s.id}')" style="padding:8px 14px;font-size:12.5px;background:var(--soft);border:1px solid var(--line2);color:var(--ink);align-self:flex-start;white-space:nowrap" title="生徒情報を編集">編集</button>
     </div>
     <div class="dm-info">
       <div><div class="k">開始から</div><div class="v">${s.grad?'修了':s.days+'日'}</div></div>
@@ -3457,7 +3457,7 @@ function openStudent(id){
       <div><div class="k">卒業予定日</div><div class="v">${expStr}</div></div>
       <div><div class="k">初回HR日</div><div class="v">${r.grad?.firstHR || '—'}</div></div>
       ${r.isOfficialGraduate ? `<div style="grid-column:1 / -1;border-top:1px solid var(--line2);padding-top:12px;margin-top:4px">
-        <div class="k">🎓 卒業期・組</div>
+        <div class="k">卒業期・組</div>
         <div class="v">${r.officialCohort || '—'} ${r.officialCohortN > 1 ? `<span class="badge badge-info" style="margin-left:6px">該当 ${r.officialCohortN} 期</span>` : ''}</div>
       </div>` : ''}
     </div>
@@ -3734,7 +3734,7 @@ function openClass(clsName){
       <span class="muted" style="font-weight:500;font-size:11.5px">（日付をクリックして編集）</span>
     </div>
     ${!writable && lectures.length ? '' : (!writable ? `<div style="padding:12px 14px;margin-bottom:12px;background:#fff8e1;border:1px solid #f5d76e;border-radius:8px;color:#7a5d00;font-size:12.5px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-      <div style="flex:1;min-width:200px">⚠ 講師の生徒管理シートが反映されていません。${_diagMsg ? '<br>' + _diagMsg : ''}</div>
+      <div style="flex:1;min-width:200px">※講師の生徒管理シートが反映されていません。${_diagMsg ? '<br>' + _diagMsg : ''}</div>
       ${classTeacherId ? `<button class="btn btn-primary" id="btnCreateSheet" data-tid="${classTeacherId}" data-cls="${clsName.replace(/"/g,'&quot;')}" onclick="createStudentSheet(this.dataset.tid, this.dataset.cls, this)" style="padding:8px 16px;font-size:12.5px;white-space:nowrap">＋ 作成する</button>` : ''}
     </div>` : '')}
     <div class="lec-tl">
@@ -3918,7 +3918,7 @@ async function openStudentEdit(mid) {
   const body = $('#smBody');
   if (!body) return;
   const previousHtml = body.innerHTML;
-  body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">⏳ 読み込み中…</div>';
+  body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">読み込み中…</div>';
   try {
     const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_student_full&mid=${encodeURIComponent(mid)}`;
     const resp = await fetch(url);
@@ -3968,7 +3968,7 @@ async function openStudentEdit(mid) {
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn" onclick="closeStudentEdit()" style="padding:8px 14px;font-size:12.5px;background:var(--soft);border:1px solid var(--line2);color:var(--muted)">キャンセル</button>
-            <button class="btn btn-primary" id="sedit-save" onclick="saveStudentEdit()" style="padding:8px 16px;font-size:12.5px">💾 保存</button>
+            <button class="btn btn-primary" id="sedit-save" onclick="saveStudentEdit()" style="padding:8px 16px;font-size:12.5px">保存</button>
           </div>
         </div>
         <div style="background:#fff;border:1px solid var(--line2);border-radius:10px;padding:14px 18px">
@@ -4017,7 +4017,7 @@ async function saveStudentEdit() {
   }
   const btn = $('#sedit-save');
   const oldHtml = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 保存中…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '保存中…'; }
   try {
     const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_student`);
     const resp = await fetch(url, {
@@ -4050,7 +4050,7 @@ async function createStudentSheet(tid, clsName, btnEl) {
   if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは作成できません。'); return; }
   if (!confirm(`このクラスの講師（ID: ${tid}）の生徒管理シートを新規作成します。\nテンプレートから複製し、講師DBにリンクを反映します。\n\n実行しますか？`)) return;
   const original = btnEl ? btnEl.innerHTML : '';
-  if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '⏳ 作成中…'; }
+  if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '作成中…'; }
   try {
     const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=create_student_sheet_for_teacher&teacherId=${encodeURIComponent(tid)}`);
     const resp = await fetch(url);
@@ -4426,9 +4426,9 @@ function applyRoleUi() {
   }
   const ROLE_LABEL = {
     admin: '👑 管理者',
-    lecturer_mg: '🎓 講師MG',
+    lecturer_mg: '講師MG',
     support_mg: '🤝 サポートMG',
-    manager: '🎓 講師MG',
+    manager: '講師MG',
     instructor: '👤 講師',
     demo: '👁 デモ'
   };
@@ -5311,7 +5311,7 @@ async function tmSaveDrawer(btn) {
   const row = { id: tmCurRec.id };
   editKeys.forEach(k => { if (tmCurRec[k] !== undefined) row[k] = tmCurRec[k]; });
   const oldLabel = btn ? btn.innerHTML : '';
-  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 保存中…'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '保存中…'; }
   try {
     const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`, {
       method: 'POST',
