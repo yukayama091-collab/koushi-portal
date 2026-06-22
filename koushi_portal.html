@@ -688,7 +688,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4717,7 +4717,7 @@ async function renderTeacherMaster(){
           <div class="searchbar" style="max-width:300px"><svg class="ic"><use href="#i-search"/></svg><input id="tm-q" value="${tmEsc(tmFilter.q)}" placeholder="講師名・アカウントで絞り込み…"></div>
           <select class="top-filter" id="tm-fGenre" style="min-width:150px"><option value="">全ジャンル</option>${[...new Set(TM_DATA.map(t=>t.genre).filter(Boolean))].sort().map(g=>`<option ${tmFilter.genre===g?'selected':''}>${tmEsc(g)}</option>`).join('')}</select>
           <select class="top-filter" id="tm-fRank" style="min-width:140px"><option value="">全ランク</option>${["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>`<option ${tmFilter.rank===r?'selected':''}>${tmEsc(r)}</option>`).join('')}</select>
-          <select class="top-filter" id="tm-fType" style="min-width:130px"><option value="">全区分</option><option ${tmFilter.type==='通常'?'selected':''}>通常</option><option ${tmFilter.type==='専属'?'selected':''}>専属</option></select>
+          <select class="top-filter" id="tm-fType" style="min-width:130px"><option value="">通常/専属</option><option ${tmFilter.type==='通常'?'selected':''}>通常</option><option ${tmFilter.type==='専属'?'selected':''}>専属</option></select>
           <select class="top-filter" id="tm-fMode" style="min-width:150px" title="表示する情報シートを切替">
             ${TM_TABLE_TABS.map(t=>`<option value="${t.key}" ${t.key===tmTableMode?'selected':''}>${t.label}</option>`).join('')}
           </select>
