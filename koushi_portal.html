@@ -546,7 +546,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 /* ドロワー (グローバル) */
 .scrim{ position:fixed; inset:0; background:rgba(17,18,28,.34); z-index:90; opacity:0; pointer-events:none; transition:opacity .2s; }
 .scrim.open{ opacity:1; pointer-events:auto; }
-.drawer{ position:fixed; top:50%; left:50%; transform:translate(-50%, -48%) scale(.96); width:min(1100px, 94vw); max-height:90vh; background:#fff; border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.28), 0 4px 12px rgba(0,0,0,.08); z-index:100; opacity:0; pointer-events:none; transition:opacity .2s ease-out, transform .2s ease-out; display:flex; flex-direction:column; overflow:hidden; }
+.drawer{ position:fixed; top:50%; left:50%; transform:translate(-50%, -48%) scale(.96); width:min(1100px, 94vw); height:min(840px, 90vh); background:#fff; border-radius:16px; box-shadow:0 30px 80px rgba(0,0,0,.28), 0 4px 12px rgba(0,0,0,.08); z-index:100; opacity:0; pointer-events:none; transition:opacity .2s ease-out, transform .2s ease-out; display:flex; flex-direction:column; overflow:hidden; }
 .drawer.open{ transform:translate(-50%, -50%) scale(1); opacity:1; pointer-events:auto; }
 .drawer .dr-head{ display:flex; align-items:flex-start; gap:14px; padding:22px 24px 18px; border-bottom:1px solid var(--line); }
 .drawer .dr-head h2{ font-size:18px; font-weight:700; line-height:1.3; }
@@ -619,7 +619,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .tl-today-line{ position:absolute; top:0; bottom:0; width:2px; background:var(--brand); opacity:.5; pointer-events:none; z-index:1; }
 
 @media (max-width:860px){
-  .drawer{ width:96vw; max-height:94vh; border-radius:12px; }
+  .drawer{ width:96vw; height:94vh; border-radius:12px; }
 }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-o</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-p</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
