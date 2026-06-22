@@ -446,13 +446,17 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .tbl-wrap{ overflow:visible; }
 #page-teacherMaster .tbl{ width:100%; border-collapse:collapse; font-size:13.5px; }
 #page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; position:relative; }
-#page-teacherMaster .tbl th.has-filter{ cursor:default; }
+#page-teacherMaster .tbl th.has-filter{ cursor:pointer; }
 #page-teacherMaster .tbl th.has-filter:hover{ color:var(--ink); }
 #page-teacherMaster .th-caret{ display:inline-block; width:9px; height:9px; margin-left:5px; vertical-align:1px; opacity:.55; transition:opacity .15s, transform .15s; }
 #page-teacherMaster .tbl th.has-filter:hover .th-caret{ opacity:1; transform:translateY(1px); }
 #page-teacherMaster .tbl th.th-active .th-caret{ opacity:1; }
-/* 列ヘッダー上にカーソルを乗せた時だけ下に出るフィルタメニュー */
-#page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:6px; }
+/* 列ヘッダーのフィルタメニュー: ホバーまたはクリックで表示 */
+#page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:6px; cursor:default; }
+#page-teacherMaster .tbl th:hover > .th-filter-wrap,
+#page-teacherMaster .tbl th .th-filter-wrap:hover,
+#page-teacherMaster .tbl th .th-filter-wrap:focus-within,
+#page-teacherMaster .tbl th .th-filter-wrap[data-open="1"]{ display:block; }
 /* トップフィルタ（クリック式・Notion風メニュー） */
 .tm-topfilter{ position:relative; }
 .tm-topfilter-btn{ display:inline-flex; align-items:center; gap:8px; height:38px; padding:0 12px; min-width:140px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; font:inherit; font-size:13px; color:var(--ink); cursor:pointer; line-height:1; transition:border-color .12s, box-shadow .12s; }
@@ -698,7 +702,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-f</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-g</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4564,6 +4568,20 @@ function tmCloseTopFilters() {
   document.querySelectorAll('.tm-topfilter-pop[data-open="1"]').forEach(p => p.dataset.open = '');
 }
 
+// 列ヘッダーのクリックでメニューを開閉
+function tmToggleColumnFilter(thEl, evt) {
+  if (evt) evt.stopPropagation();
+  const wrap = thEl.querySelector(':scope > .th-filter-wrap');
+  if (!wrap) return;
+  // 他の列メニューを閉じる
+  document.querySelectorAll('#page-teacherMaster .th-filter-wrap[data-open="1"]').forEach(w => { if (w !== wrap) w.dataset.open = ''; });
+  wrap.dataset.open = wrap.dataset.open === '1' ? '' : '1';
+}
+
+function tmCloseColumnFilters() {
+  document.querySelectorAll('#page-teacherMaster .th-filter-wrap[data-open="1"]').forEach(w => w.dataset.open = '');
+}
+
 function tmSetTopFilter(key, value) {
   if (key === 'mode') {
     tmTableMode = value || 'basic';
@@ -4577,12 +4595,11 @@ function tmSetTopFilter(key, value) {
 // ページ外クリックでクローズ
 if (!window.__tmTopFilterOutsideBound) {
   document.addEventListener('click', (e) => {
-    if (!document.querySelector('.tm-topfilter-pop[data-open="1"]')) return;
-    if (e.target.closest('.tm-topfilter')) return;
-    tmCloseTopFilters();
+    if (!e.target.closest('.tm-topfilter')) tmCloseTopFilters();
+    if (!e.target.closest('.has-filter') && !e.target.closest('.th-filter-wrap')) tmCloseColumnFilters();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') tmCloseTopFilters();
+    if (e.key === 'Escape') { tmCloseTopFilters(); tmCloseColumnFilters(); }
   });
   window.__tmTopFilterOutsideBound = true;
 }
@@ -4914,7 +4931,8 @@ function renderTeacherList(){
           const active = hasF && (tmFilter[c.filter.key] || '') !== '';
           const cls = [hasF?'has-filter':'', active?'th-active':''].filter(Boolean).join(' ');
           const caret = hasF ? '<svg class="th-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.5 L6 8.5 L10 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
-          return `<th${cls?` class="${cls}"`:''}${c.thStyle?` style="${c.thStyle}"`:''}>${c.h}${caret}${tmColFilterHtml(c.filter)}</th>`;
+          const click = hasF ? ' onclick="tmToggleColumnFilter(this, event)"' : '';
+          return `<th${cls?` class="${cls}"`:''}${c.thStyle?` style="${c.thStyle}"`:''}${click}>${c.h}${caret}${tmColFilterHtml(c.filter)}</th>`;
         }).join('')}<th></th>
       </tr></thead><tbody>${rows.map(r=>`
         <tr class="clickable ${r.active==='未稼働'?'flag':''}" data-id="${r.id}">
