@@ -702,7 +702,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-g</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-h</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4532,7 +4532,8 @@ function tmTopFilterHtml(opts) {
   const itemHtml = opts.options.map(o => {
     const on = String(o.value) === cur ? 'on' : '';
     const lbl = tmEsc(o.label);
-    return `<div class="th-menu-item ${on}" data-text="${lbl}" onclick="event.stopPropagation();tmSetTopFilter('${key}', ${JSON.stringify(String(o.value))})">${lbl}</div>`;
+    const val = tmEsc(String(o.value));
+    return `<div class="th-menu-item ${on}" data-text="${lbl}" data-value="${val}" onclick="event.stopPropagation();tmSetTopFilter('${key}', this.dataset.value)">${lbl}</div>`;
   }).join('');
   return `<div class="tm-topfilter" data-key="${key}">
     <button type="button" class="tm-topfilter-btn ${isPlaceholder?'placeholder':''}" onclick="tmToggleTopFilter('${key}', event)">
@@ -4604,7 +4605,7 @@ if (!window.__tmTopFilterOutsideBound) {
   window.__tmTopFilterOutsideBound = true;
 }
 
-function tmColFilterHtml(filter) {
+function tmColFilterHtml(filter, headLabel) {
   if (!filter) return '';
   let vals;
   if (filter.order) {
@@ -4613,16 +4614,16 @@ function tmColFilterHtml(filter) {
     vals = [...new Set(TM_DATA.map(filter.get).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
   }
   const current = tmFilter[filter.key] || '';
-  const searchable = vals.length > 6; // 候補が多い列のみ検索ボックスを出す
-  // ホバーで下に出るカスタムメニュー
+  const searchable = vals.length > 6;
+  const head = headLabel || filter.key;
   const itemHtml = vals.map(v => {
     const sel = current === v ? 'on' : '';
     const txt = tmEsc(v);
-    return `<div class="th-menu-item ${sel}" data-text="${txt}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', ${JSON.stringify(String(v))})">${txt}</div>`;
+    return `<div class="th-menu-item ${sel}" data-text="${txt}" data-value="${txt}" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', this.dataset.value)">${txt}</div>`;
   }).join('');
   return `<div class="th-filter-wrap" onclick="event.stopPropagation()">
     <div class="th-menu">
-      <div class="th-menu-head">${filter.key} で絞り込み</div>
+      <div class="th-menu-head">${tmEsc(head)} で絞り込み</div>
       ${searchable ? `<div class="th-menu-search"><input type="text" placeholder="検索…" oninput="tmFilterMenu(this)" onkeydown="if(event.key==='Escape'){this.value='';tmFilterMenu(this);}" onclick="event.stopPropagation()"></div>` : ''}
       <div class="th-menu-item ${current===''?'on':''}" data-always="1" onclick="event.stopPropagation();tmSetColumnFilter('${filter.key}', '')">全て</div>
       ${itemHtml ? '<div class="th-menu-sep" data-always="1"></div>' + itemHtml : ''}
@@ -4932,7 +4933,9 @@ function renderTeacherList(){
           const cls = [hasF?'has-filter':'', active?'th-active':''].filter(Boolean).join(' ');
           const caret = hasF ? '<svg class="th-caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.5 L6 8.5 L10 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '';
           const click = hasF ? ' onclick="tmToggleColumnFilter(this, event)"' : '';
-          return `<th${cls?` class="${cls}"`:''}${c.thStyle?` style="${c.thStyle}"`:''}${click}>${c.h}${caret}${tmColFilterHtml(c.filter)}</th>`;
+          // メニュー先頭ラベル: 列見出しのプレーンテキスト部分（HTMLタグは除去）
+          const headLabel = (typeof c.h === 'string') ? c.h.replace(/<[^>]*>/g,'').trim() : '';
+          return `<th${cls?` class="${cls}"`:''}${c.thStyle?` style="${c.thStyle}"`:''}${click}>${c.h}${caret}${tmColFilterHtml(c.filter, headLabel)}</th>`;
         }).join('')}<th></th>
       </tr></thead><tbody>${rows.map(r=>`
         <tr class="clickable ${r.active==='未稼働'?'flag':''}" data-id="${r.id}">
