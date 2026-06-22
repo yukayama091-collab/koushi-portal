@@ -443,9 +443,16 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .chip:hover{ border-color:#d9dadd; }
 #page-teacherMaster .chip.active{ background:var(--pill); color:#fff; border-color:var(--pill); }
 #page-teacherMaster .chip.active .c{ color:rgba(255,255,255,.7); }
-#page-teacherMaster .tbl-wrap{ overflow-x:auto; }
+#page-teacherMaster .tbl-wrap{ overflow:visible; }
 #page-teacherMaster .tbl{ width:100%; border-collapse:collapse; font-size:13.5px; }
-#page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; }
+#page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 16px; border-bottom:1px solid var(--line); white-space:nowrap; position:relative; }
+/* 列ヘッダー上にカーソルを乗せた時だけ下に出るフィルタ */
+#page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:4px; }
+#page-teacherMaster .tbl th:hover > .th-filter-wrap,
+#page-teacherMaster .tbl th .th-filter-wrap:hover,
+#page-teacherMaster .tbl th .th-filter-wrap:focus-within{ display:block; }
+#page-teacherMaster .tbl th .th-filter{ display:block !important; margin-top:0 !important; background:#fff; box-shadow:0 6px 18px rgba(15,15,15,.14); border:1px solid var(--line); min-width:120px; }
+#page-teacherMaster .tbl th.th-active::after{ content:'●'; color:var(--brand); font-size:8px; margin-left:5px; vertical-align:middle; }
 #page-teacherMaster .tbl td{ padding:13px 16px; color:var(--ink2); border-bottom:1px solid var(--line2); vertical-align:middle; }
 #page-teacherMaster .tbl tr.clickable{ cursor:pointer; transition:background .1s; }
 #page-teacherMaster .tbl tr.clickable:hover{ background:var(--tint); }
@@ -664,7 +671,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.21-e</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4490,10 +4497,13 @@ function tmColFilterHtml(filter) {
     vals = [...new Set(TM_DATA.map(filter.get).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
   }
   const current = tmFilter[filter.key] || '';
-  return `<select class="th-filter" onchange="tmSetColumnFilter('${filter.key}', this.value)" onclick="event.stopPropagation()" style="display:block;margin-top:3px;font:inherit;font-weight:500;font-size:10.5px;padding:2px 4px;width:100%;max-width:120px;border:1px solid var(--line);border-radius:4px;background:#fff;cursor:pointer;color:${current?'var(--brand)':'var(--muted)'}">
-    <option value="">全て</option>
-    ${vals.map(v => `<option value="${tmEsc(v)}" ${current===v?'selected':''}>${tmEsc(v)}</option>`).join('')}
-  </select>`;
+  // ホバーで下に出るドロップダウン。デフォルトは非表示（CSSで制御）
+  return `<div class="th-filter-wrap" onclick="event.stopPropagation()">
+    <select class="th-filter" onchange="tmSetColumnFilter('${filter.key}', this.value)" style="font:inherit;font-weight:500;font-size:11.5px;padding:5px 8px;border-radius:6px;cursor:pointer;color:${current?'var(--brand)':'var(--ink2)'}">
+      <option value="">全て</option>
+      ${vals.map(v => `<option value="${tmEsc(v)}" ${current===v?'selected':''}>${tmEsc(v)}</option>`).join('')}
+    </select>
+  </div>`;
 }
 let tmCurRec = null, tmCurTab = 0;
 let tmLoaded = false;
@@ -4766,7 +4776,10 @@ function renderTeacherList(){
     const tab = TM_TABLE_TABS.find(t=>t.key===tmTableMode) || TM_TABLE_TABS[0];
     card.innerHTML = `<div class="card-head" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><div class="card-title">講師一覧 <span class="faint" style="font-weight:500">（${TM_DATA.length}名中 ${rows.length}名を表示）</span></div>${tmAnyFilterActive()?'<button class="btn btn-ghost btn-sm" type="button" onclick="tmClearAllFilters()">絞り込みをクリア</button>':''}</div>
       <div class="tbl-wrap"><table class="tbl"><thead><tr>
-        ${tab.cols.map(c=>`<th${c.thStyle?` style="${c.thStyle}"`:''}>${c.h}${tmColFilterHtml(c.filter)}</th>`).join('')}<th></th>
+        ${tab.cols.map(c=>{
+          const active = c.filter && (tmFilter[c.filter.key] || '') !== '';
+          return `<th class="${active?'th-active':''}"${c.thStyle?` style="${c.thStyle}"`:''}>${c.h}${tmColFilterHtml(c.filter)}</th>`;
+        }).join('')}<th></th>
       </tr></thead><tbody>${rows.map(r=>`
         <tr class="clickable ${r.active==='未稼働'?'flag':''}" data-id="${r.id}">
           ${tab.cols.map(c=>c.td(r)).join('')}
