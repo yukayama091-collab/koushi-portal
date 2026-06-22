@@ -696,7 +696,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-k</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-l</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4925,34 +4925,35 @@ function renderTeacherList(){
 function tmField(label,val,opts){
   opts=opts||{};
   const req = opts.req?'<span class="req">必須</span>':'';
+  const dk = (opts.key && !opts.ro) ? ` data-key="${opts.key}"` : '';
   if(opts.link!==undefined){
     return `<div class="field"><label>${label}</label>${opts.link?`<div class="linkfield"><a href="${tmEsc(opts.linkurl||'#')}" target="_blank">${tmIcon('ext',14)} ${tmEsc(opts.linktext||'リンクを開く')}</a></div>`:`<div class="linkfield empty">未設定</div>`}</div>`;
   }
   if(opts.sel){
     const options = opts.options || [val||'—'];
-    return `<div class="field"><label>${label}${req}</label><select>${options.map(o=>`<option ${o===val?'selected':''}>${tmEsc(o)}</option>`).join('')}</select></div>`;
+    return `<div class="field"><label>${label}${req}</label><select${dk}>${options.map(o=>`<option ${o===val?'selected':''}>${tmEsc(o)}</option>`).join('')}</select></div>`;
   }
-  if(opts.area) return `<div class="field"><label>${label}</label><textarea>${tmEsc(val)}</textarea></div>`;
-  return `<div class="field"><label>${label}${req}</label><input value="${tmEsc(val)}" ${opts.ro?'readonly':''}></div>`;
+  if(opts.area) return `<div class="field"><label>${label}</label><textarea${dk}>${tmEsc(val)}</textarea></div>`;
+  return `<div class="field"><label>${label}${req}</label><input value="${tmEsc(val)}"${dk} ${opts.ro?'readonly':''}></div>`;
 }
 
 function tmTabContent(r, t){
   if(t===0) return `
-    <div class="field-row">${tmField("講師名（表示名）",r.name,{req:true})}${tmField("本名",r.real||"")}</div>
-    ${tmField("アカウント名",r.account,{area:true})}
+    <div class="field-row">${tmField("講師名（表示名）",r.name,{req:true,key:'name'})}${tmField("本名",r.real||"",{key:'real'})}</div>
+    ${tmField("アカウント名",r.account,{area:true,key:'account'})}
     <div class="field"><label>アカウントリンク</label>${r.ig?`<div class="linkfield"><a href="${tmEsc(r.ig)}" target="_blank">${tmIcon('ext',14)} ${tmEsc(r.ig)}</a></div>`:'<div class="linkfield empty">未設定</div>'}</div>
-    <div class="field-row three">${tmField("性別",r.gender,{sel:true,options:["","男性","女性"]})}${tmField("生年月日",r.birth)}${tmField("講師ID",r.id,{ro:true})}</div>
-    <div class="field-row three">${tmField("ジャンル",r.genre,{sel:true,req:true,options:["","暮らし","レシピ","ダイエット","スポット","Excel","美容","育児・教育","お金","ガジェット","エンタメ","筋トレ","健康"]})}
-      ${tmField("ランク",r.rank,{sel:true,req:true,options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"]})}
-      ${tmField("通常 / 専属",r.type,{sel:true,options:["通常","専属"]})}</div>
-    <div class="field-row">${tmField("集客ランク",r.extraRank||"",{sel:true,options:["","Aランク","Bランク","Cランク","Dランク","Eランク"]})}<div></div></div>`;
+    <div class="field-row three">${tmField("性別",r.gender,{sel:true,options:["","男性","女性"],key:'gender'})}${tmField("生年月日",r.birth,{key:'birth'})}${tmField("講師ID",r.id,{ro:true})}</div>
+    <div class="field-row three">${tmField("ジャンル",r.genre,{sel:true,req:true,options:["","暮らし","レシピ","ダイエット","スポット","Excel","美容","育児・教育","お金","ガジェット","エンタメ","筋トレ","健康"],key:'genre'})}
+      ${tmField("ランク",r.rank,{sel:true,req:true,options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"],key:'rank'})}
+      ${tmField("通常 / 専属",r.type,{sel:true,options:["通常","専属"],key:'type'})}</div>
+    <div class="field-row">${tmField("集客ランク",r.extraRank||"",{sel:true,options:["","Aランク","Bランク","Cランク","Dランク","Eランク"],key:'extraRank'})}<div></div></div>`;
   if(t===1) return `
-    <div class="field-row">${tmField("契約日",r.contract)}${tmField("契約終了日","")}</div>
-    <div class="field-row">${tmField("稼働状況",r.active,{sel:true,req:true,options:["稼働中","未稼働"]})}${tmField("退職",r.retire?"退職済":"—",{sel:true,options:["—","退職済"]})}</div>
+    <div class="field-row">${tmField("契約日",r.contract,{key:'contract'})}${tmField("契約終了日",r.contractEnd||"",{key:'contractEnd'})}</div>
+    <div class="field-row">${tmField("稼働状況",r.active,{sel:true,req:true,options:["稼働中","未稼働"],key:'active'})}${tmField("退職",r.retire?"退職済":"—",{sel:true,options:["—","退職済"],key:'retire'})}</div>
     <div class="sec-label">メモ</div>${tmField("契約に関する備考","",{area:true})}`;
   if(t===2) return `
     <div class="field-row three">
-      ${tmField("1on1対応可否",r.one?"可":"不可",{sel:true,options:["可","不可"]})}
+      ${tmField("1on1対応可否",r.one?"可":"不可",{sel:true,options:["可","不可"],key:'one'})}
       <div class="field"><label>卒業クラス</label><div class="linkfield" style="border:none;background:none;padding:0">${tmClsChips(r.grad,"")}</div></div>
       <div class="field"><label>進行クラス</label><div class="linkfield" style="border:none;background:none;padding:0">${tmClsChips("",r.ongoing)}</div></div>
     </div>
@@ -4960,10 +4961,10 @@ function tmTabContent(r, t){
     ${tmField("講師紹介シート","",{link:!!r.introSheet,linkurl:r.introSheet,linktext:"講師紹介シートを開く"})}
     ${tmField("紹介画像（Canva）","",{link:!!r.introImage,linkurl:r.introImage,linktext:"デザインを開く"})}`;
   if(t===3) return `
-    <div class="field-row">${tmField("講師MG",r.mg,{sel:true,options:["こうし","こうき","うちこ","しゅうへい","かりん","未定","担当なし"]})}${tmField("サポMG",r.sup,{sel:true,options:["kenta","ゆん","おはな","次回ローンチ時","未定","担当なし"]})}</div>
-    <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス")}${tmField("1クラスの人数",r.perClass+" 名")}${tmField("当月ローンチ時期",r.launch)}</div>
-    ${tmField("受け持ち可能な時間帯",r.slot)}
-    <div class="field-row">${tmField("得意ジャンル",r.good)}${tmField("苦手ジャンル",r.bad)}</div>`;
+    <div class="field-row">${tmField("講師MG",r.mg,{sel:true,options:["こうし","こうき","うちこ","しゅうへい","かりん","未定","担当なし"],key:'mg'})}${tmField("サポMG",r.sup,{sel:true,options:["kenta","ゆん","おはな","次回ローンチ時","未定","担当なし"],key:'sup'})}</div>
+    <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス",{ro:true})}${tmField("1クラスの人数",r.perClass+" 名",{ro:true})}${tmField("当月ローンチ時期",r.launch,{key:'launch'})}</div>
+    ${tmField("受け持ち可能な時間帯",r.slot,{key:'slot'})}
+    <div class="field-row">${tmField("得意ジャンル",r.good,{key:'good'})}${tmField("苦手ジャンル",r.bad,{key:'bad'})}</div>`;
   if(t===4){
     // 講師ID(r.id) に紐づく生徒を allRows / viewStudents から動的に抽出
     const baseList = (typeof viewStudents === 'function' ? viewStudents() : []).filter(s => s.__row && s.__row.teacherId === r.id);
@@ -5121,9 +5122,73 @@ async function setStudentGradFromUi(studentId, kind, selectEl) {
   }
 }
 
+// 編集中の入力値を tmCurRec に取り込む（タブ切替や保存前に呼ぶ）
+function tmCaptureDrawerEdits() {
+  if (!tmCurRec) return;
+  const body = document.getElementById('tm-dr-body');
+  if (!body) return;
+  body.querySelectorAll('[data-key]').forEach(el => {
+    const k = el.dataset.key;
+    if (!k) return;
+    let v = (el.value == null ? '' : String(el.value)).trim();
+    // 型変換
+    if (k === 'one') v = (v === '可');
+    else if (k === 'retire') v = (v === '退職済');
+    tmCurRec[k] = v;
+  });
+}
+
 function tmRenderDrawerBody(){
   document.getElementById('tm-dr-body').innerHTML = tmTabContent(tmCurRec, tmCurTab);
   document.querySelectorAll('#tmDrawer .dr-tab').forEach((b,i)=>b.classList.toggle('on', i===tmCurTab));
+}
+
+// 講師ドロワーの保存 — import_teachers_bulk (noBackup:true) と同等の単一行更新を呼ぶ
+async function tmSaveDrawer(btn) {
+  if (!tmCurRec) return;
+  if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
+  if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは保存できません'); return; }
+  if (tmCurRec.id === '（自動採番）') { alert('新規追加は未対応です。スプレッドシートで採番後に編集してください。'); return; }
+  // 現在表示中のタブの編集値を tmCurRec に反映
+  tmCaptureDrawerEdits();
+  // 送信ペイロード（id + 編集可能フィールドのみ）
+  const editKeys = ['name','real','account','gender','birth','genre','rank','type','extraRank',
+                    'contract','contractEnd','active','retire','one','launch','slot','good','bad','mg','sup'];
+  const row = { id: tmCurRec.id };
+  editKeys.forEach(k => { if (tmCurRec[k] !== undefined) row[k] = tmCurRec[k]; });
+  const oldLabel = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 保存中…'; }
+  try {
+    const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(withActor({ rows: [row], noBackup: true })),
+    });
+    const d = await resp.json();
+    if (!d || !d.ok) {
+      alert('保存に失敗しました: ' + (d && (d.message || d.error) || '不明なエラー'));
+      if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
+      return;
+    }
+    const cells = d.stats && d.stats.cellsChanged || 0;
+    if (cells === 0) {
+      alert('変更はありません。');
+      if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
+      return;
+    }
+    // 講師マスタを再取得 → 一覧/ドロワーを再描画
+    try { await tmFetchIfNeeded(true); } catch(e) { console.warn(e); }
+    const refreshed = TM_DATA.find(t => t.id === tmCurRec.id);
+    if (refreshed) tmCurRec = refreshed;
+    tmRenderDrawerBody();
+    if (typeof renderTeacherList === 'function') renderTeacherList();
+    alert(`保存しました（${cells} セル更新）`);
+  } catch (e) {
+    console.error(e);
+    alert('通信エラー: ' + (e && e.message || e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
+  }
 }
 
 // 生徒詳細から講師ドロワーへ遷移するためのヘルパー
@@ -5159,13 +5224,15 @@ function openTeacherDrawer(id, isNew){
     <div class="dr-tabs">${TM_TABS.map((t,ti)=>`<button class="dr-tab ${ti===0?'on':''}">${t}${ti===4?`<span class="cnt">${tmStudentCountFor(r.id)}</span>`:''}</button>`).join('')}</div>
     <div class="dr-body" id="tm-dr-body"></div>
     <div class="dr-foot">
-      <button class="btn btn-primary">保存する</button>
+      <button class="btn btn-primary" id="tm-dr-save">保存する</button>
       <button class="btn btn-ghost" id="tm-dr-cancel">キャンセル</button>
       ${isNew?'':`<span class="hist">最終更新: — ／ 変更履歴</span>`}
     </div>`;
-  drawer.querySelectorAll('.dr-tab').forEach((b,ti)=>b.onclick=()=>{tmCurTab=ti; tmRenderDrawerBody();});
+  drawer.querySelectorAll('.dr-tab').forEach((b,ti)=>b.onclick=()=>{ tmCaptureDrawerEdits(); tmCurTab=ti; tmRenderDrawerBody(); });
   document.getElementById('tm-dr-close').onclick = closeTeacherDrawer;
   document.getElementById('tm-dr-cancel').onclick = closeTeacherDrawer;
+  const tmSaveBtn = document.getElementById('tm-dr-save');
+  if (tmSaveBtn) tmSaveBtn.onclick = () => tmSaveDrawer(tmSaveBtn);
   const tmPortalBtn = document.getElementById('tm-dr-portal');
   if (tmPortalBtn) tmPortalBtn.onclick = () => {
     closeTeacherDrawer();
