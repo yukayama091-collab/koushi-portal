@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-m</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.22-n</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4682,11 +4682,70 @@ async function tmFetchIfNeeded(force){
 const tmEsc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const tmInitials = n => (n||"？").slice(0,2);
 // Instagram URL からアバター画像URLを生成 (unavatar.io 経由)
-function tmInstaAvatar(ig){
+function tmIgUsername(ig){
   if (!ig) return null;
   const m = String(ig).match(/instagram\.com\/([A-Za-z0-9._]+)/);
-  if (!m) return null;
-  return `https://unavatar.io/instagram/${m[1]}?fallback=false`;
+  return m ? m[1] : null;
+}
+function tmInstaAvatar(ig){
+  const u = tmIgUsername(ig);
+  return u ? `https://unavatar.io/instagram/${u}?fallback=false` : null;
+}
+
+// Instagram Graph API でプロフィール画像を取得して localStorage にキャッシュし、
+// 取得後に対応する <img data-ig="..."> の src を差し替える
+const IG_CACHE_KEY = 'koushi_ig_avatar_v1';
+const IG_CACHE_TTL_MS = 12 * 3600 * 1000;
+function igGetCached(username) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(IG_CACHE_KEY) || '{}');
+    const e = cache[username];
+    if (!e) return undefined;
+    if (Date.now() - e.ts > IG_CACHE_TTL_MS) return undefined;
+    return e.url || '';
+  } catch (e) { return undefined; }
+}
+function igSetCached(username, url) {
+  try {
+    const cache = JSON.parse(localStorage.getItem(IG_CACHE_KEY) || '{}');
+    cache[username] = { url: url || '', ts: Date.now() };
+    localStorage.setItem(IG_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) {}
+}
+let _igFetchPending = new Set();
+let _igFetchTimer = null;
+function igEnqueue(username) {
+  if (!username) return;
+  if (igGetCached(username) !== undefined) return;
+  _igFetchPending.add(username);
+  if (_igFetchTimer) return;
+  _igFetchTimer = setTimeout(igFlush, 250);
+}
+async function igFlush() {
+  _igFetchTimer = null;
+  const all = [..._igFetchPending];
+  _igFetchPending.clear();
+  if (!all.length || !CFG.webAppUrl || !CFG.token) return;
+  // Graph API のレート制限を避けるため 20件ずつ
+  for (let i = 0; i < all.length; i += 20) {
+    const chunk = all.slice(i, i + 20);
+    try {
+      const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=ig_profiles_bulk&usernames=${encodeURIComponent(chunk.join(','))}`;
+      const resp = await fetch(url);
+      const d = await resp.json();
+      if (!d || !d.profiles) continue;
+      Object.entries(d.profiles).forEach(([u, info]) => {
+        const imgUrl = (info && info.ok && info.url) ? info.url : '';
+        igSetCached(u, imgUrl);
+        if (!imgUrl) return;
+        document.querySelectorAll(`img[data-ig="${u}"]`).forEach(img => {
+          img.src = imgUrl;
+        });
+      });
+    } catch (e) {
+      console.warn('IG fetch chunk failed', e);
+    }
+  }
 }
 // Google Drive の共有URL を直接画像表示用に変換
 //   https://drive.google.com/file/d/{ID}/view → https://drive.google.com/uc?export=view&id={ID}
@@ -4703,7 +4762,7 @@ function tmNormalizeImageUrl(url){
   return s;
 }
 // アバター HTML を生成
-//   優先順位: (1) profileImage列 (2) Instagramプロフィール (unavatar) (3) イニシャル
+//   優先順位: (1) profileImage列 (2) IG Graph API のキャッシュ画像 (3) unavatar (4) イニシャル
 function tmAvatarHtml(r, sizeClass){
   const cls = sizeClass ? `tm-av ${sizeClass}` : 'tm-av';
   const initials = tmEsc(tmInitials(r.name));
@@ -4712,19 +4771,28 @@ function tmAvatarHtml(r, sizeClass){
   const manual = tmNormalizeImageUrl(r.profileImage);
   if (manual) {
     const safeUrl = manual.replace(/"/g,'&quot;');
-    // 失敗時は Instagram フォールバック → 失敗時は イニシャル
     const insta = tmInstaAvatar(r.ig);
     const onerror = insta
       ? `this.onerror=function(){${initialsFallback}};this.src='${insta.replace(/'/g,"\\'")}'`
       : initialsFallback;
     return `<span class="${cls}" style="overflow:hidden;background:var(--soft)"><img src="${safeUrl}" alt="${tmEsc(r.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block" onerror="${onerror}"></span>`;
   }
-  // (2) Instagram via unavatar
-  const insta = tmInstaAvatar(r.ig);
-  if (insta) {
-    return `<span class="${cls}" style="overflow:hidden;background:var(--soft)"><img src="${insta}" alt="${tmEsc(r.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block" onerror="${initialsFallback}"></span>`;
+  // (2)/(3) Instagram → Graph API のキャッシュ画像があればそれを使い、無ければ unavatar を初期表示。
+  //   キャッシュ無しの場合は裏で Graph API を叩いて、取得できたら data-ig 属性で DOM を差し替える
+  const username = tmIgUsername(r.ig);
+  if (username) {
+    const cached = igGetCached(username);
+    const unavatarUrl = `https://unavatar.io/instagram/${username}?fallback=false`;
+    let initialSrc;
+    if (cached !== undefined) {
+      initialSrc = cached || unavatarUrl;
+    } else {
+      initialSrc = unavatarUrl;
+      igEnqueue(username);
+    }
+    return `<span class="${cls}" style="overflow:hidden;background:var(--soft)"><img data-ig="${tmEsc(username)}" src="${initialSrc.replace(/"/g,'&quot;')}" alt="${tmEsc(r.name)}" referrerpolicy="no-referrer" style="width:100%;height:100%;object-fit:cover;display:block" onerror="${initialsFallback}"></span>`;
   }
-  // (3) Initials
+  // (4) Initials
   return `<span class="${cls}">${initials}</span>`;
 }
 const tmRankBadge = r => `<span class="rank ${TM_RANKMAP[r]||'silver'}"><span class="dot"></span>${tmEsc(r||"—")}</span>`;
