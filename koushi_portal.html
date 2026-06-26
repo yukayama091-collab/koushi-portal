@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.27-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.27-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4648,12 +4648,16 @@ function tmFilterMenu(input) {
 let tmCurRec = null, tmCurTab = 0;
 let tmLoaded = false;
 let tmLoading = false;
+let _tmLoadPromise = null;  // 進行中の取得を共有して二重リクエスト/早期returnを防ぐ
 
 async function tmFetchIfNeeded(force){
-  if(!force && (tmLoaded || tmLoading)) return;
+  if(!force && tmLoaded) return;
+  // 進行中のフェッチが存在する場合は、必ずその完了を待つ（force でも待つことで二重 fetch を防ぐ）
+  if(_tmLoadPromise) { await _tmLoadPromise; if(!force) return; }
   if(!CFG.webAppUrl || !CFG.token){ return; } // 設定無しならサンプルのまま
   tmLoading = true;
-  try {
+  _tmLoadPromise = (async () => {
+   try {
     const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=teachers`;
     const resp = await fetch(url);
     const d = await resp.json();
@@ -4697,6 +4701,8 @@ async function tmFetchIfNeeded(force){
   } finally {
     tmLoading = false;
   }
+  })();
+  try { await _tmLoadPromise; } finally { _tmLoadPromise = null; }
 }
 
 const tmEsc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -4859,9 +4865,11 @@ function tmFiltered(){
 
 async function renderTeacherMaster(){
   const page = document.getElementById('page-teacherMaster');
+  // 取得中なら完了を待つ（別経路で開始済みでも、必ず最新を待ってからレンダー）
   if (!tmLoaded && CFG.webAppUrl && CFG.token) {
     page.innerHTML = `<div class="loading" style="padding:40px;text-align:center;color:var(--muted)">講師データを読み込み中…</div>`;
     await tmFetchIfNeeded();
+    if (!tmLoaded && _tmLoadPromise) await _tmLoadPromise;
   }
   page.innerHTML = `
     <div class="tm-head">
