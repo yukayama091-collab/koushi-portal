@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.24-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.27-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -5086,8 +5086,11 @@ function tmTabContent(r, t){
     ${tmField("受け持ち可能な時間帯",r.slot,{key:'slot'})}
     <div class="field-row">${tmField("得意ジャンル",r.good,{key:'good'})}${tmField("苦手ジャンル",r.bad,{key:'bad'})}</div>`;
   if(t===4){
-    // 講師ID(r.id) に紐づく生徒を allRows / viewStudents から動的に抽出
-    const baseList = (typeof viewStudents === 'function' ? viewStudents() : []).filter(s => s.__row && s.__row.teacherId === r.id);
+    // 講師ID(r.id) に紐づく生徒を抽出（CURRENT_TEACHER スコープに関係なく全 allRows から取得）
+    const allValid = (typeof viewStudents === 'function' && allRows && allRows.length)
+      ? viewStudents(allRows.filter(rr => isValidClassName(rr.className)))
+      : [];
+    const baseList = allValid.filter(s => s.__row && s.__row.teacherId === r.id);
     baseList.sort((a,b) => String(a.cls||'').localeCompare(String(b.cls||''),'ja') || String(a.name||'').localeCompare(String(b.name||''),'ja'));
     if(!baseList.length) return `<div style="font-size:13px;color:var(--muted);padding:8px 2px;line-height:1.7">担当生徒は<b>生徒マスタ</b>と連携して表示されます。<br>現在、講師ID <b>${tmEsc(r.id)}</b> に紐づく生徒はいません。</div>`;
     const progText = s => {
@@ -5206,7 +5209,10 @@ function tmToggleClass(idx) {
 // 講師IDに紐づく担当生徒の実数（viewStudentsから）
 function tmStudentCountFor(teacherId) {
   if (typeof viewStudents !== 'function' || !allRows.length) return 0;
-  return viewStudents().filter(s => s.__row && s.__row.teacherId === teacherId).length;
+  // viewStudents() は CURRENT_TEACHER でスコープされるため、特定講師の担当生徒数を出すには
+  // allRows 全体から filter する必要がある
+  const scoped = viewStudents(allRows.filter(r => isValidClassName(r.className)));
+  return scoped.filter(s => s.__row && s.__row.teacherId === teacherId).length;
 }
 
 // 個別生徒の進捗ステータスを UI から切替
