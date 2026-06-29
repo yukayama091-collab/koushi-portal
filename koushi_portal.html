@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2987,7 +2987,7 @@ async function revokeToken(token) {
   if (!confirm('このトークンを無効化します。よろしいですか？\n（このURLでのアクセスができなくなります）')) return;
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=revoke_token`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ token: token })
     });
     const d = await r.json();
@@ -3136,7 +3136,7 @@ async function submitIssueToken() {
   }
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({ role, teacherId, managedIds, name, memo })
     });
     const d = await r.json();
@@ -5250,7 +5250,7 @@ async function setStudentGradFromUi(studentId, kind, selectEl) {
     const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=set_student_grad`;
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(withActor({ mid: studentId, value: value }))
     });
     const d = await resp.json();
@@ -5529,7 +5529,7 @@ async function importTeachersCSV(){
     try {
       const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=import_teachers_bulk`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(withActor({ rows: entries }))
       });
       const d = await resp.json();
