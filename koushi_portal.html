@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.27-c</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3004,12 +3004,13 @@ function openIssueTokenModal() {
   // datalist 用（単体選択）
   const datalistOpts = opts.map(t => `<option value="${t.tid} ${(t.name||'').replace(/"/g,'&quot;')}">`).join('');
   const html = `<div style="padding:20px">
-    <h3 style="margin:0 0 16px;font-size:16px">新規トークン発行</h3>
+    <h3 style="margin:0 0 16px;font-size:16px">新規アカウント登録</h3>
     <div class="field"><label>ロール</label>
       <select id="newTokRole" style="font:inherit;padding:8px;width:100%">
         <option value="instructor">講師（自分のページのみ）</option>
         <option value="lecturer_mg">講師MG（担当講師のすべて）</option>
         <option value="support_mg">サポートMG（担当講師のすべて）</option>
+        <option value="admin">管理者（全機能アクセス可）</option>
       </select>
     </div>
     <div class="field" id="newTokTeacherWrap"><label>講師</label>
@@ -3032,7 +3033,7 @@ function openIssueTokenModal() {
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-ghost" onclick="closeIssueTokenModal()" type="button">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitIssueToken()" type="button">発行</button>
+      <button class="btn btn-primary" onclick="submitIssueToken()" type="button">登録</button>
     </div>
   </div>`;
   let m = document.getElementById('issueTokenModal');
@@ -3050,6 +3051,8 @@ function openIssueTokenModal() {
     document.getElementById('newTokTeacherWrap').style.display = v === 'instructor' ? 'block' : 'none';
     document.getElementById('newTokManagedWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
   };
+  // 初期表示でも反映
+  document.getElementById('newTokRole').dispatchEvent(new Event('change'));
   // 担当講師タグ入力のハンドラ
   const mInput = document.getElementById('newTokManagedInput');
   if (mInput) {
@@ -3123,6 +3126,14 @@ async function submitIssueToken() {
   }
   const name = document.getElementById('newTokName').value.trim();
   const memo = document.getElementById('newTokMemo').value.trim();
+  // 管理者ロール発行時は最終確認
+  if (role === 'admin') {
+    const nameLine = name ? `表示名: ${name}\n` : '';
+    const ok = (typeof iosConfirm === 'function')
+      ? await iosConfirm(`管理者アカウントを発行します。\n${nameLine}全機能アクセス権を渡すことになりますがよろしいですか？`, { okText:'発行する', cancelText:'キャンセル' })
+      : confirm(`管理者アカウントを発行します。\n${nameLine}全機能アクセス権を渡すことになりますがよろしいですか？`);
+    if (!ok) return;
+  }
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
