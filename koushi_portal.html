@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-c</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-d</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2927,6 +2927,9 @@ async function renderHistory(){
 }
 
 /* ═════════════ USER MANAGEMENT ═════════════ */
+let _usersData = [];
+let _usersFilter = { q:'', role:'', dateFrom:'', dateTo:'', status:'all' };
+
 async function renderUsers(){
   const page = $('#page-users');
   const u = window.CURRENT_USER || {};
@@ -2937,44 +2940,152 @@ async function renderUsers(){
   }
   page.innerHTML = `<div class="page-head"><div><div class="page-title">ユーザー管理</div><div class="page-sub">講師ポータルへのアクセス権限を発行・管理</div></div>
     <div class="page-actions"><button class="btn btn-primary" onclick="openIssueTokenModal()" type="button">+ 新規発行</button></div></div>
+    <div class="card card-pad" style="margin-bottom:14px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div style="flex:1;min-width:200px">
+          <div style="font-size:11.5px;color:var(--faint);font-weight:700;margin-bottom:4px">フリーワード</div>
+          <input type="search" id="usersQ" placeholder="名前・講師ID・メモで検索" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff">
+        </div>
+        <div style="min-width:160px">
+          <div style="font-size:11.5px;color:var(--faint);font-weight:700;margin-bottom:4px">ロール</div>
+          <select id="usersRole" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff">
+            <option value="">全て</option>
+            <option value="admin">管理者</option>
+            <option value="lecturer_mg">講師MG</option>
+            <option value="support_mg">サポートMG</option>
+            <option value="instructor">講師</option>
+          </select>
+        </div>
+        <div style="min-width:130px">
+          <div style="font-size:11.5px;color:var(--faint);font-weight:700;margin-bottom:4px">発行日 (開始)</div>
+          <input type="date" id="usersDateFrom" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff">
+        </div>
+        <div style="min-width:130px">
+          <div style="font-size:11.5px;color:var(--faint);font-weight:700;margin-bottom:4px">発行日 (終了)</div>
+          <input type="date" id="usersDateTo" style="width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff">
+        </div>
+        <div style="min-width:140px">
+          <div style="font-size:11.5px;color:var(--faint);font-weight:700;margin-bottom:4px">状態</div>
+          <select id="usersStatus" style="width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:#fff">
+            <option value="all">すべて表示</option>
+            <option value="active">有効のみ</option>
+            <option value="revoked">取り消し済みのみ</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="usersClearFilter()" type="button" style="height:36px">クリア</button>
+      </div>
+    </div>
     <div id="userListCard" class="card card-pad"><div class="empty">読み込み中…</div></div>`;
+  // フィルタ変更ハンドラ
+  ['usersQ','usersRole','usersDateFrom','usersDateTo','usersStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const ev = el.tagName === 'INPUT' && el.type === 'search' ? 'input' : 'change';
+    el.addEventListener(ev, () => {
+      _usersFilter.q = document.getElementById('usersQ').value.trim();
+      _usersFilter.role = document.getElementById('usersRole').value;
+      _usersFilter.dateFrom = document.getElementById('usersDateFrom').value;
+      _usersFilter.dateTo = document.getElementById('usersDateTo').value;
+      _usersFilter.status = document.getElementById('usersStatus').value;
+      renderUserListTable();
+    });
+  });
+  // 既存フィルタ値を反映
+  document.getElementById('usersQ').value = _usersFilter.q;
+  document.getElementById('usersRole').value = _usersFilter.role;
+  document.getElementById('usersDateFrom').value = _usersFilter.dateFrom;
+  document.getElementById('usersDateTo').value = _usersFilter.dateTo;
+  document.getElementById('usersStatus').value = _usersFilter.status;
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=list_tokens`);
     const d = await r.json();
-    const users = (d && d.users) || [];
-    if (!users.length) {
-      $('#userListCard').innerHTML = '<div class="empty">まだユーザーが登録されていません。「+ 新規発行」から作成してください。</div>';
-      return;
-    }
-    const ROLE_BADGE = {
-      admin: ['badge-red', '管理者'],
-      lecturer_mg: ['badge-red', '講師MG'],
-      support_mg: ['badge-info', 'サポートMG'],
-      manager: ['badge-red', '講師MG'],
-      instructor: ['badge-line', '講師'],
-      demo: ['badge-line', 'デモ']
-    };
-    $('#userListCard').innerHTML = `<div class="tbl-wrap"><table class="tbl">
-      <thead><tr><th>名前</th><th>ロール</th><th>講師ID / 担当講師</th><th>発行日</th><th>状態</th><th>共有URL</th><th></th></tr></thead>
-      <tbody>${users.map(u => {
-        const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(u.token)}`;
-        const b = ROLE_BADGE[u.role] || ['badge-line', u.role];
-        const teacherCol = u.role === 'instructor'
-          ? (u.teacherId || '<span class="faint">—</span>')
-          : (u.managedIds && u.managedIds.length ? u.managedIds.join(', ') : '<span class="faint">—</span>');
-        return `<tr>
-          <td style="font-weight:600">${(u.name||'<span class="faint">—</span>').replace(/[<>]/g,'')}</td>
-          <td><span class="badge ${b[0]}">${b[1]}</span></td>
-          <td class="muted" style="font-size:12px;word-break:break-all;max-width:240px">${teacherCol.toString().replace(/[<>]/g,'')}</td>
-          <td class="muted nowrap" style="font-size:12px">${(u.createdAt||'').replace(/[<>]/g,'')}</td>
-          <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">無効</span>'}</td>
-          <td><button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${shareUrl.replace(/'/g,"\\'")}', this)" type="button" ${u.active?'':'disabled'}>📋 URLコピー</button></td>
-          <td>${u.active ? `<button class="btn btn-ghost btn-sm" onclick="revokeToken('${u.token}')" type="button">取消</button>` : ''}</td>
-        </tr>`;
-      }).join('')}</tbody></table></div>`;
+    _usersData = (d && d.users) || [];
+    renderUserListTable();
   } catch(e) {
     $('#userListCard').innerHTML = `<div class="empty">読み込みエラー: ${e.message}</div>`;
   }
+}
+
+function usersClearFilter() {
+  _usersFilter = { q:'', role:'', dateFrom:'', dateTo:'', status:'all' };
+  const q = document.getElementById('usersQ'); if (q) q.value = '';
+  const r = document.getElementById('usersRole'); if (r) r.value = '';
+  const f = document.getElementById('usersDateFrom'); if (f) f.value = '';
+  const t = document.getElementById('usersDateTo'); if (t) t.value = '';
+  const s = document.getElementById('usersStatus'); if (s) s.value = 'all';
+  renderUserListTable();
+}
+
+function renderUserListTable() {
+  const card = document.getElementById('userListCard');
+  if (!card) return;
+  if (!_usersData.length) {
+    card.innerHTML = '<div class="empty">まだユーザーが登録されていません。「+ 新規発行」から作成してください。</div>';
+    return;
+  }
+  const ROLE_BADGE = {
+    admin: ['badge-red', '管理者'],
+    lecturer_mg: ['badge-red', '講師MG'],
+    support_mg: ['badge-info', 'サポートMG'],
+    manager: ['badge-red', '講師MG'],
+    instructor: ['badge-line', '講師'],
+    demo: ['badge-line', 'デモ']
+  };
+  // 日付パース: 'yyyy/MM/dd HH:mm' → Date
+  const parseCreatedAt = (s) => {
+    if (!s) return null;
+    const m = String(s).match(/(\d{4})\D(\d{1,2})\D(\d{1,2})/);
+    if (!m) return null;
+    return new Date(+m[1], +m[2]-1, +m[3]);
+  };
+  const q = (_usersFilter.q || '').toLowerCase();
+  const df = _usersFilter.dateFrom ? new Date(_usersFilter.dateFrom) : null;
+  const dt = _usersFilter.dateTo ? new Date(_usersFilter.dateTo) : null;
+  const filtered = _usersData.filter(u => {
+    if (_usersFilter.role && u.role !== _usersFilter.role) return false;
+    if (_usersFilter.status === 'active' && !u.active) return false;
+    if (_usersFilter.status === 'revoked' && u.active) return false;
+    if (df || dt) {
+      const d = parseCreatedAt(u.createdAt);
+      if (!d) return false;
+      if (df && d < df) return false;
+      if (dt) {
+        const dtEnd = new Date(dt); dtEnd.setHours(23,59,59,999);
+        if (d > dtEnd) return false;
+      }
+    }
+    if (q) {
+      const blob = `${u.name||''}|${u.teacherId||''}|${(u.managedIds||[]).join(',')}|${u.memo||''}`.toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  });
+  const escTxt = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12.5px;color:var(--muted)">
+      <span>全 <b style="color:var(--ink)">${_usersData.length}</b> 件 ／ 表示 <b style="color:var(--ink)">${filtered.length}</b> 件</span>
+    </div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>名前</th><th>ロール</th><th>講師ID / 担当講師</th><th>発行日</th><th>状態</th><th>共有URL</th><th></th></tr></thead>
+      <tbody>${filtered.length ? filtered.map(u => {
+        const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(u.token)}`;
+        const b = ROLE_BADGE[u.role] || ['badge-line', u.role];
+        const teacherTxt = u.role === 'instructor'
+          ? (u.teacherId || '')
+          : ((u.managedIds && u.managedIds.length) ? u.managedIds.join(', ') : '');
+        const teacherCol = teacherTxt ? escTxt(teacherTxt) : '<span class="faint">—</span>';
+        const nameCol = u.name ? escTxt(u.name) : '<span class="faint">—</span>';
+        const rowStyle = u.active ? '' : 'opacity:.45;background:#fafafa';
+        return `<tr style="${rowStyle}">
+          <td style="font-weight:600">${nameCol}</td>
+          <td><span class="badge ${b[0]}">${b[1]}</span></td>
+          <td class="muted" style="font-size:12px;word-break:break-all;max-width:240px">${teacherCol}</td>
+          <td class="muted nowrap" style="font-size:12px">${escTxt(u.createdAt||'')}</td>
+          <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">取り消し済み</span>'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${shareUrl.replace(/'/g,"\\'")}', this)" type="button" ${u.active?'':'disabled'} title="共有URLをコピー">URLコピー</button></td>
+          <td>${u.active ? `<button class="btn btn-ghost btn-sm" onclick="revokeToken('${u.token}')" type="button">取消</button>` : '<span class="faint" style="font-size:11px">—</span>'}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">該当するユーザーがいません</td></tr>'}</tbody></table></div>`;
 }
 function copyToClipboard(text, btn) {
   navigator.clipboard.writeText(text).then(() => {
@@ -3033,7 +3144,7 @@ function openIssueTokenModal() {
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
       <button class="btn btn-ghost" onclick="closeIssueTokenModal()" type="button">キャンセル</button>
-      <button class="btn btn-primary" onclick="submitIssueToken()" type="button">登録</button>
+      <button class="btn btn-primary" id="submitIssueTokenBtn" onclick="submitIssueToken(this)" type="button">登録</button>
     </div>
   </div>`;
   let m = document.getElementById('issueTokenModal');
@@ -3110,7 +3221,9 @@ function closeIssueTokenModal() {
   const m = document.getElementById('issueTokenModal');
   if (m) m.classList.remove('open');
 }
-async function submitIssueToken() {
+async function submitIssueToken(btnEl) {
+  // 多重クリック防止: 既に処理中なら何もしない
+  if (btnEl && btnEl.dataset.busy === '1') return;
   const role = document.getElementById('newTokRole').value;
   let teacherId = '';
   if (role === 'instructor') {
@@ -3134,6 +3247,15 @@ async function submitIssueToken() {
       : confirm(`管理者アカウントを発行します。\n${nameLine}全機能アクセス権を渡すことになりますがよろしいですか？`);
     if (!ok) return;
   }
+  // 発行中状態へ: ボタンを無効化+ラベル切替
+  const cancelBtn = document.querySelector('#issueTokenModal .btn-ghost');
+  const origLabel = btnEl ? btnEl.innerHTML : '';
+  if (btnEl) {
+    btnEl.dataset.busy = '1';
+    btnEl.disabled = true;
+    btnEl.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" style="width:14px;height:14px;animation:spin 1s linear infinite"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.5" stroke-dasharray="14 28" stroke-linecap="round"/></svg>発行中…</span>';
+  }
+  if (cancelBtn) cancelBtn.disabled = true;
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
       method: 'POST', headers: {'Content-Type':'text/plain;charset=utf-8'},
@@ -3145,7 +3267,16 @@ async function submitIssueToken() {
     const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(d.user.token)}`;
     showIssuedTokenModal(shareUrl, !!d.reused);
     renderUsers();
-  } catch(e) { alert('発行エラー: ' + e.message); }
+  } catch(e) {
+    alert('発行エラー: ' + e.message);
+  } finally {
+    if (btnEl) {
+      btnEl.dataset.busy = '';
+      btnEl.disabled = false;
+      btnEl.innerHTML = origLabel;
+    }
+    if (cancelBtn) cancelBtn.disabled = false;
+  }
 }
 
 // 発行完了モーダル（フォームと同じ白カード+暗背景のスタイル）
