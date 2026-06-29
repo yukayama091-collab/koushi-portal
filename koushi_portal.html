@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3143,13 +3143,68 @@ async function submitIssueToken() {
     if (!d.ok) throw new Error(d.message || d.error || '失敗');
     closeIssueTokenModal();
     const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(d.user.token)}`;
-    const msg = d.reused
-      ? `この講師には既に有効なトークンがあったため、それを再表示します。\n\n${shareUrl}`
-      : `✓ トークンを発行しました。\n\n${shareUrl}\n\nこのURLを対象者に送ってください。`;
-    if (navigator.clipboard) await navigator.clipboard.writeText(shareUrl);
-    alert(msg + '\n\n（URLはクリップボードにもコピーしました）');
+    showIssuedTokenModal(shareUrl, !!d.reused);
     renderUsers();
   } catch(e) { alert('発行エラー: ' + e.message); }
+}
+
+// 発行完了モーダル（フォームと同じ白カード+暗背景のスタイル）
+function showIssuedTokenModal(shareUrl, reused) {
+  let m = document.getElementById('issuedTokenModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'issuedTokenModal';
+    m.className = 'overlay';
+    m.onclick = (e) => { if (e.target === m) closeIssuedTokenModal(); };
+    document.body.appendChild(m);
+  }
+  const safeUrl = String(shareUrl).replace(/"/g, '&quot;');
+  const title = reused ? 'この対象には既存のアカウントがあります' : 'アカウントを発行しました';
+  const sub = reused
+    ? '既に有効なトークンがあったため、既存のURLを再表示しています。'
+    : 'このURLを対象者に送ってください。受け取った人は開くだけでログイン状態になります。';
+  m.innerHTML = `<div class="modal" style="max-width:560px">
+    <div style="padding:24px">
+      <h3 style="margin:0 0 6px;font-size:17px;color:var(--ink)">${title}</h3>
+      <div style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:16px">${sub}</div>
+      <div style="font-size:11.5px;font-weight:700;color:var(--faint);letter-spacing:.04em;margin-bottom:6px">共有URL</div>
+      <div style="display:flex;align-items:stretch;gap:0;border:1px solid var(--line);border-radius:8px;background:#fafbfc;overflow:hidden;margin-bottom:18px">
+        <code id="issuedTokenUrl" style="flex:1;padding:10px 12px;font-size:12px;color:var(--ink2);word-break:break-all;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${safeUrl}</code>
+        <button type="button" id="issuedTokenCopyBtn" onclick="copyIssuedTokenUrl(this)" title="URLをコピー" style="flex:none;width:46px;border:none;border-left:1px solid var(--line);background:#fff;color:var(--ink2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s">
+          <svg viewBox="0 0 24 24" style="width:18px;height:18px"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></g></svg>
+        </button>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-primary" onclick="closeIssuedTokenModal()" type="button">OK</button>
+      </div>
+    </div>
+  </div>`;
+  m.classList.add('open');
+}
+function closeIssuedTokenModal() {
+  const m = document.getElementById('issuedTokenModal');
+  if (m) m.classList.remove('open');
+}
+async function copyIssuedTokenUrl(btnEl) {
+  const url = document.getElementById('issuedTokenUrl')?.textContent || '';
+  if (!url) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      // フォールバック (古い環境)
+      const ta = document.createElement('textarea');
+      ta.value = url; ta.style.position='fixed'; ta.style.left='-9999px';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    const orig = btnEl.innerHTML;
+    btnEl.innerHTML = '<svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M5 12.5l5 5 9-11" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    btnEl.style.background = '#ecfdf5';
+    setTimeout(() => { btnEl.innerHTML = orig; btnEl.style.background = '#fff'; }, 1400);
+  } catch (e) {
+    alert('コピーに失敗しました: ' + e.message);
+  }
 }
 
 /* ═════════════ HELP ═════════════ */
