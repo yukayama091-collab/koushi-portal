@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-e</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-f</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -5233,12 +5233,45 @@ function renderTeacherList(){
   card.querySelectorAll('[data-id]').forEach(el=>el.onclick=()=>openTeacherDrawer(el.dataset.id, false));
 }
 
+// 講師詳細ドロワーのリンクフィールド (講師紹介シート 等) を編集モードに切り替える
+function tmToggleLinkEdit(panelId, btn) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (btn) btn.textContent = opening ? '閉じる' : '編集';
+  if (opening) {
+    const inp = panel.querySelector('input');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+}
+
 function tmField(label,val,opts){
   opts=opts||{};
   const req = opts.req?'<span class="req">必須</span>':'';
   const dk = (opts.key && !opts.ro) ? ` data-key="${opts.key}"` : '';
   if(opts.link!==undefined){
-    return `<div class="field"><label>${label}</label>${opts.link?`<div class="linkfield"><a href="${tmEsc(opts.linkurl||'#')}" target="_blank">${tmIcon('ext',14)} ${tmEsc(opts.linktext||'リンクを開く')}</a></div>`:`<div class="linkfield empty">未設定</div>`}</div>`;
+    const editable = !!opts.key;
+    const editId = editable ? 'sheetEdit-' + opts.key + '-' + Math.random().toString(36).slice(2,7) : '';
+    const linkBody = opts.link
+      ? `<a href="${tmEsc(opts.linkurl||'#')}" target="_blank" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${tmIcon('ext',14)} ${tmEsc(opts.linktext||'リンクを開く')}</a>`
+      : `<span class="empty" style="flex:1;text-align:center;color:var(--faint)">未設定</span>`;
+    const editBtn = editable
+      ? `<button type="button" class="btn btn-ghost btn-sm" style="padding:4px 12px;font-size:11.5px;flex:none;white-space:nowrap" onclick="tmToggleLinkEdit('${editId}', this)">${opts.link?'編集':'URLを設定'}</button>`
+      : '';
+    const editPanel = editable
+      ? `<div id="${editId}" style="display:none;margin-top:8px">
+          <input type="url" data-key="${opts.key}" value="${tmEsc(opts.linkurl||'')}" placeholder="https://docs.google.com/..." style="width:100%;padding:8px 10px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;background:#fff;box-sizing:border-box">
+          <div class="hint" style="margin-top:4px;font-size:11.5px;color:var(--faint)">URLを入力後、画面下の「保存する」を押すと講師DBに反映されます。</div>
+        </div>`
+      : '';
+    return `<div class="field"><label>${label}</label>
+      <div class="linkfield" style="display:flex;align-items:center;gap:8px">
+        ${linkBody}
+        ${editBtn}
+      </div>
+      ${editPanel}
+    </div>`;
   }
   if(opts.sel){
     const options = opts.options || [val||'—'];
@@ -5287,8 +5320,8 @@ function tmTabContent(r, t){
         </div>
       </div>`;
     })()}
-    ${tmField("講師紹介シート","",{link:!!r.introSheet,linkurl:r.introSheet,linktext:"講師紹介シートを開く"})}
-    ${tmField("紹介画像（Canva）","",{link:!!r.introImage,linkurl:r.introImage,linktext:"デザインを開く"})}`;
+    ${tmField("講師紹介シート","",{link:!!r.introSheet,linkurl:r.introSheet,linktext:"講師紹介シートを開く",key:'introSheet'})}
+    ${tmField("紹介画像（Canva）","",{link:!!r.introImage,linkurl:r.introImage,linktext:"デザインを開く",key:'introImage'})}`;
   if(t===3) return `
     <div class="field-row">${tmField("講師MG",r.mg,{sel:true,options:["こうし","こうき","うちこ","しゅうへい","かりん","未定","担当なし"],key:'mg'})}${tmField("サポMG",r.sup,{sel:true,options:["kenta","ゆん","おはな","次回ローンチ時","未定","担当なし"],key:'sup'})}</div>
     <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス",{ro:true})}${tmField("1クラスの人数",r.perClass+" 名",{ro:true})}${tmField("当月ローンチ時期",r.launch,{key:'launch'})}</div>
@@ -5549,7 +5582,8 @@ async function tmSaveDrawer(btn) {
   if (!ok) return;
   // 送信ペイロード（id + 編集可能フィールドのみ）
   const editKeys = ['name','real','account','gender','birth','genre','rank','type','extraRank',
-                    'contract','contractEnd','active','retire','one','launch','slot','good','bad','mg','sup'];
+                    'contract','contractEnd','active','retire','one','launch','slot','good','bad','mg','sup',
+                    'introSheet','introImage'];
   const row = { id: tmCurRec.id };
   editKeys.forEach(k => { if (tmCurRec[k] !== undefined) row[k] = tmCurRec[k]; });
   const oldLabel = btn ? btn.innerHTML : '';
