@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-d</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.29-e</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3081,9 +3081,9 @@ function renderUserListTable() {
           <td><span class="badge ${b[0]}">${b[1]}</span></td>
           <td class="muted" style="font-size:12px;word-break:break-all;max-width:240px">${teacherCol}</td>
           <td class="muted nowrap" style="font-size:12px">${escTxt(u.createdAt||'')}</td>
-          <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">取り消し済み</span>'}</td>
+          <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">無効</span>'}</td>
           <td><button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${shareUrl.replace(/'/g,"\\'")}', this)" type="button" ${u.active?'':'disabled'} title="共有URLをコピー">URLコピー</button></td>
-          <td>${u.active ? `<button class="btn btn-ghost btn-sm" onclick="revokeToken('${u.token}')" type="button">取消</button>` : '<span class="faint" style="font-size:11px">—</span>'}</td>
+          <td>${u.active ? `<button class="btn btn-ghost btn-sm" onclick="revokeToken('${u.token}')" type="button">取消</button>` : '<span class="muted" style="font-size:11.5px;font-weight:600">取消済</span>'}</td>
         </tr>`;
       }).join('') : '<tr><td colspan="7" class="muted" style="text-align:center;padding:30px">該当するユーザーがいません</td></tr>'}</tbody></table></div>`;
 }
