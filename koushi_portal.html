@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-f</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-g</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2172,39 +2172,56 @@ function renderDashboard(){
   if (!CURRENT_TEACHER) {
     const tlist = [...teacherMeta.entries()].sort((a,b) => b[1].count - a[1].count);
     // フィルタ状態を保持（再レンダー時に維持）
-    window._dashTeacherFilter = window._dashTeacherFilter || { q:'', chip:'all' };
+    window._dashTeacherFilter = window._dashTeacherFilter || { q:'', genre:'', rank:'', type:'', chip:'all' };
     const TF = window._dashTeacherFilter;
-    // チップ件数を事前計算
+    // teacherMasterMap から各講師の属性を取得
+    const tmGet = (tid) => teacherMasterMap.get(tid) || {};
+    // チップ件数を事前計算 (フィルタ無視で全体から)
     const chipCounts = {
       all: tlist.length,
+      active: tlist.filter(([tid]) => tmGet(tid).active === '稼働中').length,
+      inactive: tlist.filter(([tid]) => tmGet(tid).active === '未稼働').length,
+      exclusive: tlist.filter(([tid]) => tmGet(tid).type === '専属').length,
       need: tlist.filter(([tid,tm]) => teacherStats(tm.label).need > 0).length,
-      ok50: tlist.filter(([tid,tm]) => teacherStats(tm.label).rate50 >= 50).length,
-      under50: tlist.filter(([tid,tm]) => teacherStats(tm.label).rate50 < 50).length,
     };
+    // ジャンル/ランク オプション
+    const genreOpts = [...new Set(tlist.map(([tid]) => tmGet(tid).genre).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja')).map(v => ({value:v, label:v}));
+    const rankOpts = ['マスター','ダイヤモンド','プラチナ','ゴールド','シルバー','特別条件'].map(v => ({value:v, label:v}));
+    const typeOpts = [{value:'通常',label:'通常'},{value:'専属',label:'専属'}];
     const filteredTlist = tlist.filter(([tid, tm]) => {
       const ts = teacherStats(tm.label);
+      const m = tmGet(tid);
       const q = (TF.q||'').toLowerCase();
       if (q) {
-        const blob = `${tm.label||''} ${tid||''}`.toLowerCase();
+        const blob = `${tm.label||''} ${tid||''} ${m.account||''} ${m.real||''}`.toLowerCase();
         if (!blob.includes(q)) return false;
       }
+      if (TF.genre && m.genre !== TF.genre) return false;
+      if (TF.rank && m.rank !== TF.rank) return false;
+      if (TF.type && m.type !== TF.type) return false;
+      if (TF.chip === 'active' && m.active !== '稼働中') return false;
+      if (TF.chip === 'inactive' && m.active !== '未稼働') return false;
+      if (TF.chip === 'exclusive' && m.type !== '専属') return false;
       if (TF.chip === 'need' && ts.need <= 0) return false;
-      if (TF.chip === 'ok50' && ts.rate50 < 50) return false;
-      if (TF.chip === 'under50' && ts.rate50 >= 50) return false;
       return true;
     });
+    const dashFilterActive = TF.q || TF.genre || TF.rank || TF.type || TF.chip !== 'all';
     bottomHtml = `
       <div class="card card-pad" id="dashTeachersCard">
         <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-users"/></svg> 全講師の状況</div><span class="card-meta">クリックで担当生徒へ</span></div>
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
-          <div class="searchbar" style="max-width:320px;min-width:240px;flex:1"><svg class="ic"><use href="#i-search"/></svg><input id="dashTQ" value="${(TF.q||'').replace(/"/g,'&quot;')}" placeholder="講師名・講師IDで絞り込み…"></div>
+          <div class="searchbar" style="max-width:320px;min-width:240px;flex:1"><svg class="ic"><use href="#i-search"/></svg><input id="dashTQ" value="${(TF.q||'').replace(/"/g,'&quot;')}" placeholder="講師名・アカウントで絞り込み…"></div>
+          ${dashTopFilterHtml({key:'genre', head:'ジャンル', placeholder:'全ジャンル', current:TF.genre, options:genreOpts, searchable:true})}
+          ${dashTopFilterHtml({key:'rank', head:'ランク', placeholder:'全ランク', current:TF.rank, options:rankOpts})}
+          ${dashTopFilterHtml({key:'type', head:'区分', placeholder:'通常/専属', current:TF.type, options:typeOpts})}
         </div>
-        <div class="chips" id="dashTChips" style="margin-bottom:14px">
+        <div class="chips" id="dashTChips" style="margin-bottom:14px;flex-wrap:wrap">
           <button class="chip ${TF.chip==='all'?'active':''}" data-c="all" type="button">全員 <span class="c">${chipCounts.all}</span></button>
-          <button class="chip ${TF.chip==='need'?'active':''}" data-c="need" type="button">要対応あり <span class="c">${chipCounts.need}</span></button>
-          <button class="chip ${TF.chip==='ok50'?'active':''}" data-c="ok50" type="button">50日達成率 50%以上 <span class="c">${chipCounts.ok50}</span></button>
-          <button class="chip ${TF.chip==='under50'?'active':''}" data-c="under50" type="button">50日達成率 50%未満 <span class="c">${chipCounts.under50}</span></button>
-          ${(TF.q||TF.chip!=='all')?'<button class="btn btn-ghost btn-sm" onclick="dashClearTeacherFilter()" type="button" style="margin-left:auto">絞り込みをクリア</button>':''}
+          <button class="chip ${TF.chip==='active'?'active':''}" data-c="active" type="button">稼働中 <span class="c">${chipCounts.active}</span></button>
+          <button class="chip ${TF.chip==='inactive'?'active':''}" data-c="inactive" type="button">未稼働 <span class="c">${chipCounts.inactive}</span></button>
+          <button class="chip ${TF.chip==='exclusive'?'active':''}" data-c="exclusive" type="button">専属 <span class="c">${chipCounts.exclusive}</span></button>
+          <button class="chip ${TF.chip==='need'?'active':''}" data-c="need" type="button">要対応 <span class="c">${chipCounts.need}</span></button>
+          ${dashFilterActive ? '<button class="btn btn-ghost btn-sm" onclick="dashClearTeacherFilter()" type="button" style="margin-left:auto">絞り込みをクリア</button>' : ''}
         </div>
         <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">全 <b style="color:var(--ink)">${tlist.length}</b> 名 ／ 表示 <b style="color:var(--ink)">${filteredTlist.length}</b> 名</div>
         <div class="grid g3">
@@ -2348,8 +2365,68 @@ function renderDashboard(){
   });
 }
 function dashClearTeacherFilter() {
-  window._dashTeacherFilter = { q:'', chip:'all' };
+  window._dashTeacherFilter = { q:'', genre:'', rank:'', type:'', chip:'all' };
   renderDashboard();
+}
+
+// ダッシュボード「全講師の状況」のNotion風ドロップダウン (tmTopFilterHtml と同じ見た目)
+function dashTopFilterHtml(opts) {
+  const key = opts.key;
+  const cur = opts.current == null ? '' : String(opts.current);
+  const clearable = opts.clearable !== false;
+  const sel = opts.options.find(o => String(o.value) === cur);
+  const labelText = sel ? sel.label : opts.placeholder;
+  const isPlaceholder = !sel;
+  const headLabel = opts.head || opts.placeholder || key;
+  const itemHtml = opts.options.map(o => {
+    const on = String(o.value) === cur ? 'on' : '';
+    const lbl = (typeof tmEsc === 'function') ? tmEsc(o.label) : String(o.label);
+    const val = (typeof tmEsc === 'function') ? tmEsc(String(o.value)) : String(o.value);
+    return `<div class="th-menu-item ${on}" data-text="${lbl}" data-value="${val}" onclick="event.stopPropagation();dashSetTopFilter('${key}', this.dataset.value)">${lbl}</div>`;
+  }).join('');
+  const esc = (typeof tmEsc === 'function') ? tmEsc : (s => String(s||''));
+  return `<div class="tm-topfilter dash-topfilter" data-key="${key}">
+    <button type="button" class="tm-topfilter-btn ${isPlaceholder?'placeholder':''}" onclick="dashToggleTopFilter('${key}', event)">
+      <span class="label">${esc(labelText || '')}</span>
+      <svg class="caret" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4.5 L6 8.5 L10 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="tm-topfilter-pop" onclick="event.stopPropagation()">
+      <div class="th-menu">
+        <div class="th-menu-head">${esc(headLabel)} で絞り込み</div>
+        ${opts.searchable && opts.options.length > 6 ? `<div class="th-menu-search"><input type="text" placeholder="検索…" oninput="tmFilterMenu(this)" onkeydown="if(event.key==='Escape'){this.value='';tmFilterMenu(this);}" onclick="event.stopPropagation()"></div>` : ''}
+        ${clearable ? `<div class="th-menu-item ${cur===''?'on':''}" data-always="1" onclick="event.stopPropagation();dashSetTopFilter('${key}', '')">全て</div><div class="th-menu-sep" data-always="1"></div>` : ''}
+        ${itemHtml}
+        <div class="th-menu-empty" data-empty="1" style="display:none">該当なし</div>
+        ${clearable && cur ? '<div class="th-menu-sep" data-always="1"></div><div class="th-menu-item clear" data-always="1" onclick="event.stopPropagation();dashSetTopFilter(\'' + key + '\', \'\')">絞り込みを解除</div>' : ''}
+      </div>
+    </div>
+  </div>`;
+}
+function dashToggleTopFilter(key, evt) {
+  if (evt) evt.stopPropagation();
+  document.querySelectorAll('.dash-topfilter').forEach(g => {
+    const k = g.dataset.key;
+    const open = (k === key) && !g.querySelector('.tm-topfilter-pop[data-open="1"]');
+    g.querySelector('.tm-topfilter-btn').dataset.open = open ? '1' : '';
+    g.querySelector('.tm-topfilter-pop').dataset.open = open ? '1' : '';
+  });
+}
+function dashCloseTopFilters() {
+  document.querySelectorAll('.dash-topfilter .tm-topfilter-btn[data-open="1"]').forEach(b => b.dataset.open = '');
+  document.querySelectorAll('.dash-topfilter .tm-topfilter-pop[data-open="1"]').forEach(p => p.dataset.open = '');
+}
+function dashSetTopFilter(key, value) {
+  window._dashTeacherFilter = window._dashTeacherFilter || { q:'', genre:'', rank:'', type:'', chip:'all' };
+  window._dashTeacherFilter[key] = value || '';
+  dashCloseTopFilters();
+  renderDashboard();
+}
+if (!window.__dashFilterOutsideBound) {
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.dash-topfilter')) dashCloseTopFilters();
+  });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') dashCloseTopFilters(); });
+  window.__dashFilterOutsideBound = true;
 }
 
 /* ═════════════ TODO ═════════════ */
