@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-e</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-f</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2171,14 +2171,46 @@ function renderDashboard(){
   let bottomHtml;
   if (!CURRENT_TEACHER) {
     const tlist = [...teacherMeta.entries()].sort((a,b) => b[1].count - a[1].count);
+    // フィルタ状態を保持（再レンダー時に維持）
+    window._dashTeacherFilter = window._dashTeacherFilter || { q:'', chip:'all' };
+    const TF = window._dashTeacherFilter;
+    // チップ件数を事前計算
+    const chipCounts = {
+      all: tlist.length,
+      need: tlist.filter(([tid,tm]) => teacherStats(tm.label).need > 0).length,
+      ok50: tlist.filter(([tid,tm]) => teacherStats(tm.label).rate50 >= 50).length,
+      under50: tlist.filter(([tid,tm]) => teacherStats(tm.label).rate50 < 50).length,
+    };
+    const filteredTlist = tlist.filter(([tid, tm]) => {
+      const ts = teacherStats(tm.label);
+      const q = (TF.q||'').toLowerCase();
+      if (q) {
+        const blob = `${tm.label||''} ${tid||''}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      if (TF.chip === 'need' && ts.need <= 0) return false;
+      if (TF.chip === 'ok50' && ts.rate50 < 50) return false;
+      if (TF.chip === 'under50' && ts.rate50 >= 50) return false;
+      return true;
+    });
     bottomHtml = `
-      <div class="card card-pad">
+      <div class="card card-pad" id="dashTeachersCard">
         <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-users"/></svg> 全講師の状況</div><span class="card-meta">クリックで担当生徒へ</span></div>
+        <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <div class="searchbar" style="max-width:320px;min-width:240px;flex:1"><svg class="ic"><use href="#i-search"/></svg><input id="dashTQ" value="${(TF.q||'').replace(/"/g,'&quot;')}" placeholder="講師名・講師IDで絞り込み…"></div>
+        </div>
+        <div class="chips" id="dashTChips" style="margin-bottom:14px">
+          <button class="chip ${TF.chip==='all'?'active':''}" data-c="all" type="button">全員 <span class="c">${chipCounts.all}</span></button>
+          <button class="chip ${TF.chip==='need'?'active':''}" data-c="need" type="button">要対応あり <span class="c">${chipCounts.need}</span></button>
+          <button class="chip ${TF.chip==='ok50'?'active':''}" data-c="ok50" type="button">50日達成率 50%以上 <span class="c">${chipCounts.ok50}</span></button>
+          <button class="chip ${TF.chip==='under50'?'active':''}" data-c="under50" type="button">50日達成率 50%未満 <span class="c">${chipCounts.under50}</span></button>
+          ${(TF.q||TF.chip!=='all')?'<button class="btn btn-ghost btn-sm" onclick="dashClearTeacherFilter()" type="button" style="margin-left:auto">絞り込みをクリア</button>':''}
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">全 <b style="color:var(--ink)">${tlist.length}</b> 名 ／ 表示 <b style="color:var(--ink)">${filteredTlist.length}</b> 名</div>
         <div class="grid g3">
-          ${tlist.map(([tid, tm]) => {
+          ${filteredTlist.length ? filteredTlist.map(([tid, tm]) => {
             const ts = teacherStats(tm.label);
             const rate = ts.rate50 || 0;
-            // 達成率に応じて色を変える
             const donutColor = rate >= 80 ? 'var(--info)' : rate >= 50 ? 'var(--ok)' : rate >= 30 ? 'var(--warn)' : 'var(--danger)';
             return `<div class="tcard" onclick="selectTeacher('${tid}')">
               <div class="tcard-head"><span class="tcard-av">${ini(tm.label)}</span>
@@ -2201,7 +2233,7 @@ function renderDashboard(){
                   <div class="tstat" style="margin:0"><span class="l">要対応</span><span class="v" style="color:${ts.need?'var(--danger)':'var(--muted)'}">${ts.need} 名</span></div>
                 </div>
               </div></div>`;
-          }).join('')}
+          }).join('') : '<div class="empty" style="grid-column:1/-1;padding:40px 0">該当する講師がいません</div>'}
         </div>
       </div>`;
   } else {
@@ -2306,6 +2338,18 @@ function renderDashboard(){
       ${distHtml}
       ${bottomHtml}
     </div>`;
+  // 全講師の状況カードのフィルタイベント
+  const tq = document.getElementById('dashTQ');
+  if (tq) {
+    tq.oninput = (e) => { window._dashTeacherFilter.q = e.target.value; renderDashboard(); setTimeout(() => { const i=document.getElementById('dashTQ'); if(i){i.focus(); i.setSelectionRange(i.value.length,i.value.length);} }, 0); };
+  }
+  document.querySelectorAll('#dashTChips .chip').forEach(b => {
+    b.onclick = () => { window._dashTeacherFilter.chip = b.dataset.c; renderDashboard(); };
+  });
+}
+function dashClearTeacherFilter() {
+  window._dashTeacherFilter = { q:'', chip:'all' };
+  renderDashboard();
 }
 
 /* ═════════════ TODO ═════════════ */
