@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -5253,9 +5253,12 @@ function tmField(label,val,opts){
   if(opts.link!==undefined){
     const editable = !!opts.key;
     if (editable) {
-      // 直接入力できる URL フィールド。値が入っていれば右側に「開く」アイコンを表示
-      const safeUrl = tmEsc(opts.linkurl||'');
-      const openBtn = opts.link
+      // 直接入力できる URL フィールド。「❌」「—」などの未設定マーカーは空欄として表示
+      const rawUrl = String(opts.linkurl||'').trim();
+      const isValidUrl = /^(https?:\/\/|\/)/i.test(rawUrl);
+      const inputVal = isValidUrl ? rawUrl : '';
+      const safeUrl = tmEsc(inputVal);
+      const openBtn = inputVal
         ? `<a href="${safeUrl}" target="_blank" rel="noopener" title="新しいタブで開く" class="link-open-btn" style="flex:none;width:38px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--brand);text-decoration:none;border-left:1px solid var(--line);background:#fff">${tmIcon('ext',16)}</a>`
         : '';
       return `<div class="field"><label>${label}</label>
