@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2129,15 +2129,40 @@ function renderDashboard(){
       </div>
     </div>`;
 
-  // Distribution
+  // Distribution — ドーナツ円グラフ (6カテゴリ)
   const distOrder = ['stagnant','stuck','inprog','ok50','over80','grad'];
+  const STATUS_COLOR = {
+    stagnant: 'var(--danger)',
+    stuck:    'var(--warn)',
+    inprog:   '#9aa1ad',
+    ok50:     'var(--ok)',
+    over80:   'var(--info)',
+    grad:     '#6b7280'
+  };
   const distHtml = `
     <div class="card card-pad">
       <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-chart"/></svg> プログラム達成状況</div><span class="card-meta">${list.length} 名</span></div>
-      <div style="display:flex;flex-direction:column;gap:13px">
-        ${distOrder.map(s => { const n=list.filter(x => x.status===s).length; const p=pct(n,list.length);
-          return `<div class="bar-row"><span class="sdot ${STATUS[s].dot}"></span><span style="min-width:78px;font-size:12.5px;color:var(--ink2);font-weight:600">${STATUS[s].label}</span>
-            <div class="bar ${barClass(s)}"><i style="width:${p}%"></i></div><span class="bar-lbl">${n}</span></div>`;
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:16px;padding:8px 0">
+        ${distOrder.map(s => {
+          const n = list.filter(x => x.status===s).length;
+          const p = pct(n, list.length);
+          const color = STATUS_COLOR[s] || '#9aa1ad';
+          return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+            <div style="position:relative;width:96px;height:96px">
+              <svg viewBox="0 0 36 36" style="width:96px;height:96px;display:block">
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#eef0f3" stroke-width="3.6"/>
+                <circle cx="18" cy="18" r="15.915" fill="none" stroke="${color}" stroke-width="3.6"
+                  stroke-dasharray="${p} ${100-p}" stroke-dashoffset="25" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1">
+                <div style="font-size:18px;font-weight:800;color:var(--ink)">${p}<span style="font-size:11px;font-weight:700;color:var(--muted)">%</span></div>
+              </div>
+            </div>
+            <div style="text-align:center;line-height:1.4">
+              <div style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink2)"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block"></span>${STATUS[s].label}</div>
+              <div style="font-size:13px;font-weight:800;color:var(--ink);margin-top:2px"><span style="font-variant-numeric:tabular-nums">${n}</span><span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:2px">名</span></div>
+            </div>
+          </div>`;
         }).join('')}
       </div>
     </div>`;
@@ -2264,7 +2289,8 @@ function renderDashboard(){
       ${teacherInfoHtml}
       ${kpiHtml}
       <div class="grid g2">${followHtml}${upHtml}</div>
-      <div class="grid" style="grid-template-columns:1.1fr .9fr">${bottomHtml}${distHtml}</div>
+      ${bottomHtml}
+      ${distHtml}
     </div>`;
 }
 
