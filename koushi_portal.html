@@ -434,12 +434,12 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .seg{ display:inline-flex; background:var(--soft); border:1px solid var(--line); border-radius:var(--r-btn); padding:3px; gap:3px; }
 #page-teacherMaster .seg button{ font:inherit; font-size:12.5px; font-weight:600; color:var(--muted); border:none; background:none; cursor:pointer; height:32px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; border-radius:6px; }
 #page-teacherMaster .seg button.on{ background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(17,18,28,.08); }
-#page-teacherMaster .chips{ display:flex; gap:8px; flex-wrap:wrap; }
-#page-teacherMaster .chip{ height:32px; padding:0 14px; border-radius:var(--r-pill); border:1px solid var(--line); background:#fff; color:var(--ink2); font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; }
-#page-teacherMaster .chip .c{ color:var(--faint); font-weight:500; }
-#page-teacherMaster .chip:hover{ border-color:#d9dadd; }
-#page-teacherMaster .chip.active{ background:var(--pill); color:#fff; border-color:var(--pill); }
-#page-teacherMaster .chip.active .c{ color:rgba(255,255,255,.7); }
+#page-teacherMaster .chips, #page-dashboard .chips{ display:flex; gap:8px; flex-wrap:wrap; }
+#page-teacherMaster .chip, #page-dashboard .chip{ height:32px; padding:0 14px; border-radius:var(--r-pill); border:1px solid var(--line); background:#fff; color:var(--ink2); font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; font-family:inherit; }
+#page-teacherMaster .chip .c, #page-dashboard .chip .c{ color:var(--faint); font-weight:500; }
+#page-teacherMaster .chip:hover, #page-dashboard .chip:hover{ border-color:#d9dadd; }
+#page-teacherMaster .chip.active, #page-dashboard .chip.active{ background:var(--pill); color:#fff; border-color:var(--pill); }
+#page-teacherMaster .chip.active .c, #page-dashboard .chip.active .c{ color:rgba(255,255,255,.7); }
 #page-teacherMaster .tbl-wrap{ overflow-x:auto; overflow-y:visible; }
 #page-teacherMaster .tbl{ width:100%; border-collapse:collapse; font-size:13.5px; }
 #page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 10px; border-bottom:1px solid var(--line); white-space:nowrap; position:relative; }
@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.06.30-g</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.02-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2227,28 +2227,15 @@ function renderDashboard(){
         <div class="grid g3">
           ${filteredTlist.length ? filteredTlist.map(([tid, tm]) => {
             const ts = teacherStats(tm.label);
-            const rate = ts.rate50 || 0;
-            const donutColor = rate >= 80 ? 'var(--info)' : rate >= 50 ? 'var(--ok)' : rate >= 30 ? 'var(--warn)' : 'var(--danger)';
             return `<div class="tcard" onclick="selectTeacher('${tid}')">
               <div class="tcard-head"><span class="tcard-av">${ini(tm.label)}</span>
                 <div><div class="tcard-name">${tm.label}</div><div class="tcard-role">講師ID ${tid}</div></div>
                 ${ts.need>0?`<span class="tcard-flag"><span class="badge badge-danger">${ts.need}</span></span>`:''}</div>
-              <div class="tcard-body" style="display:flex;align-items:center;gap:14px">
-                <div style="position:relative;width:78px;height:78px;flex:none">
-                  <svg viewBox="0 0 36 36" style="width:78px;height:78px;display:block">
-                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="#eef0f3" stroke-width="3.4"/>
-                    <circle cx="18" cy="18" r="15.915" fill="none" stroke="${donutColor}" stroke-width="3.4"
-                      stroke-dasharray="${rate} ${100-rate}" stroke-dashoffset="25" stroke-linecap="round"/>
-                  </svg>
-                  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05">
-                    <div style="font-size:15px;font-weight:800;color:var(--ink)">${rate}<span style="font-size:9.5px;font-weight:700;color:var(--muted)">%</span></div>
-                    <div style="font-size:8.5px;color:var(--faint);font-weight:600;margin-top:1px">50日達成</div>
-                  </div>
-                </div>
-                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
-                  <div class="tstat" style="margin:0"><span class="l">担当生徒</span><span class="v">${ts.total} 名 / ${ts.classes.length}組</span></div>
-                  <div class="tstat" style="margin:0"><span class="l">要対応</span><span class="v" style="color:${ts.need?'var(--danger)':'var(--muted)'}">${ts.need} 名</span></div>
-                </div>
+              <div class="tcard-body">
+                <div class="tstat"><span class="l">担当生徒</span><span class="v">${ts.total} 名 / ${ts.classes.length}組</span></div>
+                <div class="tstat"><span class="l">50日達成率</span><span class="v">${ts.rate50}%</span></div>
+                <div class="bar-row"><div class="bar ok"><i style="width:${ts.rate50}%"></i></div></div>
+                <div class="tstat"><span class="l">要対応</span><span class="v" style="color:${ts.need?'var(--danger)':'var(--muted)'}">${ts.need} 名</span></div>
               </div></div>`;
           }).join('') : '<div class="empty" style="grid-column:1/-1;padding:40px 0">該当する講師がいません</div>'}
         </div>
