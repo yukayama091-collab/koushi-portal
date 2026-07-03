@@ -434,12 +434,12 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .seg{ display:inline-flex; background:var(--soft); border:1px solid var(--line); border-radius:var(--r-btn); padding:3px; gap:3px; }
 #page-teacherMaster .seg button{ font:inherit; font-size:12.5px; font-weight:600; color:var(--muted); border:none; background:none; cursor:pointer; height:32px; padding:0 12px; display:inline-flex; align-items:center; gap:6px; border-radius:6px; }
 #page-teacherMaster .seg button.on{ background:#fff; color:var(--ink); box-shadow:0 1px 2px rgba(17,18,28,.08); }
-#page-teacherMaster .chips, #page-dashboard .chips{ display:flex; gap:8px; flex-wrap:wrap; }
-#page-teacherMaster .chip, #page-dashboard .chip{ height:32px; padding:0 14px; border-radius:var(--r-pill); border:1px solid var(--line); background:#fff; color:var(--ink2); font-size:12.5px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; font-family:inherit; }
-#page-teacherMaster .chip .c, #page-dashboard .chip .c{ color:var(--faint); font-weight:500; }
-#page-teacherMaster .chip:hover, #page-dashboard .chip:hover{ border-color:#d9dadd; }
+#page-teacherMaster .chips, #page-dashboard .chips{ display:flex; gap:10px; flex-wrap:wrap; }
+#page-teacherMaster .chip, #page-dashboard .chip{ height:38px; padding:0 14px; border-radius:var(--r-input); border:1px solid var(--line); background:#fff; color:var(--ink); font:inherit; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:8px; line-height:1; transition:border-color .12s, box-shadow .12s; }
+#page-teacherMaster .chip .c, #page-dashboard .chip .c{ color:var(--muted); font-weight:600; font-size:12.5px; }
+#page-teacherMaster .chip:hover, #page-dashboard .chip:hover{ border-color:var(--ink2); }
 #page-teacherMaster .chip.active, #page-dashboard .chip.active{ background:var(--pill); color:#fff; border-color:var(--pill); }
-#page-teacherMaster .chip.active .c, #page-dashboard .chip.active .c{ color:rgba(255,255,255,.7); }
+#page-teacherMaster .chip.active .c, #page-dashboard .chip.active .c{ color:rgba(255,255,255,.75); }
 #page-teacherMaster .tbl-wrap{ overflow-x:auto; overflow-y:visible; }
 #page-teacherMaster .tbl{ width:100%; border-collapse:collapse; font-size:13.5px; }
 #page-teacherMaster .tbl th{ font-size:11.5px; font-weight:600; color:var(--muted); text-align:left; padding:12px 10px; border-bottom:1px solid var(--line); white-space:nowrap; position:relative; }
@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.02-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.03-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
