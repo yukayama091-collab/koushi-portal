@@ -725,14 +725,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 
 <div class="app">
   <div class="brandbox">
-    <a href="#" onclick="event.preventDefault();go('dashboard')" style="display:flex;align-items:center;gap:10px;text-decoration:none;user-select:none">
-      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
-        <defs><linearGradient id="lvlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e11d2a"/><stop offset="1" stop-color="#b31118"/></linearGradient></defs>
-        <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#lvlg)"/>
-        <path d="M9 8 v16 h14 v-3.5 h-10.5 v-12.5 z" fill="#fff"/>
-      </svg>
-      <span style="font-family:'Inter',ui-sans-serif,system-ui,'Noto Sans JP',sans-serif;font-weight:800;font-size:16px;color:var(--ink);letter-spacing:.02em;line-height:1">Levela<span style="opacity:.55;font-weight:600;font-size:11px;margin-left:6px;color:var(--muted)">Portal</span></span>
-    </a>
+    <img alt="株式会社Levela" src="/levela-logo-horizontal.jpg" style="height:auto;width:100%;max-width:180px;object-fit:contain;display:block" />
   </div>
 
   <header class="topbar">
@@ -749,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.05-f</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.05-g</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
