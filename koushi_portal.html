@@ -717,8 +717,8 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-c</span>
-      <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-d</span>
+      <button class="btn btn-ghost btn-sm" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
   </header>
@@ -1314,32 +1314,57 @@ function rosterRow(id, name) {
   };
 }
 
-async function loadData() {
+// LS キャッシュのキー & TTL
+const _LOADDATA_CACHE_KEY = 'koushi_data_cache_v1';
+const _LOADDATA_CACHE_TTL = 24 * 3600 * 1000; // 24時間
+
+async function loadData(forceRefresh) {
   if (!CFG.webAppUrl || !CFG.token) {
     openSettings(); return;
   }
   // 講師シート(生徒管理シート)のキャッシュも更新ボタン押下で破棄して最新化
-  if (lectureCache && typeof lectureCache.clear === 'function') lectureCache.clear();
+  if (forceRefresh && lectureCache && typeof lectureCache.clear === 'function') lectureCache.clear();
   $('#lastUpdated').textContent = '読み込み中…';
-  // AWS の講師データを並列で事前ロード (GAS の loadData を待たずに講師マスタが開けるように)
-  //   tmFetchIfNeeded は force=true で最新化。裏で走らせるだけで await しない
+  // AWS の講師データを並列で事前ロード
   try { tmFetchIfNeeded(true); } catch (e) { /* fire and forget */ }
   try {
     const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}`;
-    console.log('[loadData] fetching:', url.slice(0, 80) + '...');
-    console.log('[loadData] origin:', location.origin, 'protocol:', location.protocol);
-    let resp;
-    try {
-      const t0 = Date.now();
-      resp = await fetch(url);
-      console.log('[loadData] response in ' + (Date.now()-t0) + 'ms / HTTP ' + resp.status);
-    } catch (e) {
-      console.error('[loadData] fetch error:', e.name, e.message, e);
-      throw new Error('通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。');
+    let data = null;
+    let usedCache = false;
+    // 1. まず localStorage キャッシュを確認（forceRefresh=trueなら無視）
+    if (!forceRefresh) {
+      try {
+        const raw = localStorage.getItem(_LOADDATA_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.ts && (Date.now() - parsed.ts < _LOADDATA_CACHE_TTL) && parsed.data) {
+            data = parsed.data;
+            usedCache = true;
+            const ageMin = Math.floor((Date.now() - parsed.ts) / 60000);
+            console.log('[loadData] using LS cache (' + ageMin + ' min old)');
+          }
+        }
+      } catch (eLS) { console.warn('[loadData] LS cache read failed:', eLS); }
     }
-    if (!resp.ok) throw new Error('サーバー側で一時的なエラーが発生しています。1〜2分待って再度お試しください。（HTTP ' + resp.status + '）');
-    console.log('[loadData] response received, parsing JSON...');
-    const data = await resp.json();
+    // 2. キャッシュがなければ or 期限切れなら fetch
+    if (!data) {
+      console.log('[loadData] fetching from GAS...');
+      let resp;
+      try {
+        const t0 = Date.now();
+        resp = await fetch(url);
+        console.log('[loadData] response in ' + (Date.now()-t0) + 'ms / HTTP ' + resp.status);
+      } catch (e) {
+        console.error('[loadData] fetch error:', e.name, e.message, e);
+        throw new Error('通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。');
+      }
+      if (!resp.ok) throw new Error('サーバー側で一時的なエラーが発生しています。1〜2分待って再度お試しください。（HTTP ' + resp.status + '）');
+      data = await resp.json();
+      // 3. 成功したら LS に保存
+      try {
+        localStorage.setItem(_LOADDATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+      } catch (eLS) { console.warn('[loadData] LS cache write failed (probably quota exceeded):', eLS); }
+    }
     if (data.error) throw new Error(data.error === 'forbidden' ? '合言葉が違います（設定を確認）' : (data.message || data.error));
     console.log('[loadData] parsed OK. rows:', (data.progressOld?.rows?.length||0) + (data.progressNew?.rows?.length||0));
 
@@ -1646,10 +1671,22 @@ async function loadData() {
     (data.teacherMaster || []).forEach(t => { if (t && t.tid) teacherMasterMap.set(t.tid, t); });
 
     populateTeacherFilter();
-    $('#lastUpdated').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
+    if (usedCache) {
+      // キャッシュ表示中は「バックグラウンドで最新を取得中」表示
+      $('#lastUpdated').textContent = `キャッシュ表示中… (最新取得中)`;
+    } else {
+      $('#lastUpdated').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
+    }
     if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
     refreshCounts();
     go(state.page);
+    // キャッシュを使った場合は、1秒後に裏で最新データを取得して更新
+    if (usedCache) {
+      setTimeout(() => {
+        console.log('[loadData] refreshing in background...');
+        loadData(true).catch(e => console.warn('[loadData] background refresh failed:', e));
+      }, 1000);
+    }
   } catch (err) {
     $('#lastUpdated').textContent = '読み込みエラー';
     iosAlert(`データ読み込みエラー\n${humanizeError(err)}`);
@@ -3836,21 +3873,31 @@ function openStudent(id){
           const wasHeld = lectures[i] && lectures[i].held;
           if (!wasHeld) continue;
           if (v === '欠席') absent++;
-          else present++;   // 出席 or 1on1日付入力済み等は出席カウント
+          else present++;
         }
       }
-      const attCardTitle = stu ? `出席 ${present} / 実施 ${held} 回（全12回）` : (sample ? `出席記録なし（実施 ${held} 回）` : '講義データ未取得');
+      // 「データ取得中」判定: 講師IDが分かっていて、生徒管理シートが登録されているが、まだ講義データが未取得
+      const isLoading = !!(r && r.teacherId && !r.lecturesData && classSheetMap.get(r.teacherId));
+      // 「取得不可」判定: 生徒管理シートが講師DBに登録されていない
+      const notAvailable = !isLoading && !sample && !(r.teacherId && classSheetMap.get(r.teacherId));
+      const attendanceRow = isLoading
+        ? `<div class="dm-stats" style="margin-bottom:20px;grid-template-columns:repeat(3,1fr)">
+            <div class="dm-stat"><div class="v" style="color:var(--faint);font-size:14px;font-weight:600">読み込み中…</div><div class="l">講義出席</div></div>
+            <div class="dm-stat"><div class="v" style="color:var(--faint);font-size:14px;font-weight:600">読み込み中…</div><div class="l">講義欠席</div></div>
+            <div class="dm-stat"><div class="v" style="color:var(--faint);font-size:14px;font-weight:600">読み込み中…</div><div class="l">講義実施済み</div></div>
+          </div>`
+        : `<div class="dm-stats" style="margin-bottom:20px;grid-template-columns:repeat(3,1fr)">
+            <div class="dm-stat"><div class="v" style="color:var(--ok)">${present}<span style="font-size:13px;color:var(--faint)">/12</span></div><div class="l">講義出席</div></div>
+            <div class="dm-stat"><div class="v" style="color:var(--danger)">${absent}</div><div class="l">講義欠席</div></div>
+            <div class="dm-stat"><div class="v">${held}<span style="font-size:13px;color:var(--faint)">/12</span></div><div class="l">講義実施済み</div></div>
+          </div>`;
       return `<div class="dm-stats" style="margin-bottom:20px">
         <div class="dm-stat"><div class="v">${s.prog}<span style="font-size:13px">%</span></div><div class="l">進捗</div></div>
         <div class="dm-stat"><div class="v">${s.posts}</div><div class="l">投稿数</div></div>
         <div class="dm-stat"><div class="v">${s.sp+s.ap+s.pp}<span style="font-size:13px;color:var(--faint)">/30</span></div><div class="l">完了ステップ</div></div>
       </div>
-      <div class="dm-stats" style="margin-bottom:20px;grid-template-columns:repeat(3,1fr)">
-        <div class="dm-stat"><div class="v" style="color:var(--ok)">${present}<span style="font-size:13px;color:var(--faint)">/12</span></div><div class="l">講義出席</div></div>
-        <div class="dm-stat"><div class="v" style="color:var(--danger)">${absent}</div><div class="l">講義欠席</div></div>
-        <div class="dm-stat"><div class="v">${held}<span style="font-size:13px;color:var(--faint)">/12</span></div><div class="l">講義実施済み</div></div>
-      </div>
-      ${!sample ? `<div style="font-size:11.5px;color:var(--faint);margin:-12px 0 16px 2px">※ ${stu===null?'本生徒の出席記録なし':'講義データは講師フィルタ選択時に取得されます'}</div>` : ''}`;
+      ${attendanceRow}
+      ${notAvailable ? '<div style="font-size:11.5px;color:var(--faint);margin:-12px 0 16px 2px">講師の生徒管理シートが未登録のため、講義データを表示できません。</div>' : ''}`;
     })()}
     <div class="card-title" style="font-size:14px;margin-bottom:12px"><svg class="ic"><use href="#i-trending"/></svg> 投稿プログラム進行（ガント）</div>
     ${renderStudentGantt(r)}
@@ -4392,9 +4439,29 @@ async function saveStudentEdit() {
       return;
     }
     const applied = result.applied || [];
-    await iosAlert(`保存しました。\n更新フィールド: ${applied.length} 件\n${applied.map(a => '・' + a.field).join('\n')}`);
     try { await awsCacheClear(); } catch (e) { /* ignore */ }
     try { await loadData(); } catch (e) { console.warn(e); }
+    // Undo付きスナックバー (applied には before/after が入っている)
+    const undoUpdates = {};
+    applied.forEach(a => { if (a.field && 'before' in a) undoUpdates[a.field] = a.before; });
+    showSnackbar(`保存しました（${applied.length} 件更新）`, {
+      undoCallback: async () => {
+        if (!Object.keys(undoUpdates).length) { iosAlert('元に戻せる情報がありません'); return; }
+        try {
+          const undoResp = await fetch(withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_student`), {
+            method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+            body: JSON.stringify({ mid: mid, updates: undoUpdates }),
+          });
+          const ud = await undoResp.json();
+          if (!ud || ud.error) throw new Error(ud && (ud.message||ud.error) || '失敗');
+          try { await awsCacheClear(); } catch(e){}
+          try { await loadData(); } catch(e){}
+          showSnackbar('元に戻しました', {});
+        } catch(e) {
+          iosAlert('元に戻せませんでした\n' + humanizeError(e));
+        }
+      }
+    });
     // 表示モードへ
     setTimeout(() => openStudent(mid), 80);
   } catch (e) {
@@ -5794,6 +5861,45 @@ function iosConfirm(message, opts) {
 }
 
 // iOS風 アラート (OKボタン1つ)
+// スナックバー (画面下から出るトースト通知 + Undoボタン)
+let _snackbarTimer = null;
+function showSnackbar(message, opts) {
+  opts = opts || {};
+  const durationMs = opts.duration || 10000;
+  let el = document.getElementById('snackbar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'snackbar';
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);z-index:2000;display:flex;align-items:center;gap:14px;padding:12px 18px 12px 20px;background:#1a1c22;color:#fff;border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.3);font-size:13px;font-weight:600;min-width:280px;max-width:min(560px, 92vw);opacity:0;pointer-events:none;transition:opacity .18s, transform .18s cubic-bezier(.2,.7,.3,1);font-family:inherit';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <span style="flex:1;line-height:1.4">${message}</span>
+    ${opts.undoCallback ? `<button type="button" id="snackbarUndo" style="border:none;background:transparent;color:#7db3ff;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .12s" onmouseover="this.style.background='rgba(255,255,255,.08)'" onmouseout="this.style.background='transparent'">元に戻す</button>` : ''}
+    <button type="button" style="border:none;background:transparent;color:rgba(255,255,255,.6);font-size:18px;font-weight:400;cursor:pointer;padding:0 4px;line-height:1" onclick="hideSnackbar()" title="閉じる">×</button>
+  `;
+  el.style.opacity = '1';
+  el.style.transform = 'translateX(-50%) translateY(0)';
+  el.style.pointerEvents = 'auto';
+  if (opts.undoCallback) {
+    const undoBtn = document.getElementById('snackbarUndo');
+    undoBtn.onclick = async () => {
+      hideSnackbar();
+      try { await opts.undoCallback(); } catch (e) { console.error(e); }
+    };
+  }
+  if (_snackbarTimer) clearTimeout(_snackbarTimer);
+  _snackbarTimer = setTimeout(hideSnackbar, durationMs);
+}
+function hideSnackbar() {
+  const el = document.getElementById('snackbar');
+  if (!el) return;
+  el.style.opacity = '0';
+  el.style.transform = 'translateX(-50%) translateY(80px)';
+  el.style.pointerEvents = 'none';
+  if (_snackbarTimer) { clearTimeout(_snackbarTimer); _snackbarTimer = null; }
+}
+
 function iosAlert(message) {
   return new Promise(resolve => {
     const overlay = document.getElementById('iosAlert');
@@ -5854,6 +5960,10 @@ async function tmSaveDrawer(btn) {
   const editKeys = ['name','real','account','gender','birth','genre','rank','type','extraRank',
                     'contract','contractEnd','active','retire','one','launch','slot','good','bad','mg','sup',
                     'introSheet','introImage'];
+  // Undo用: 保存前の値をサーバー側 (TM_DATA 最終取得値) からスナップショット
+  const preSaveSnapshot = TM_DATA.find(t => t.id === tmCurRec.id);
+  const undoRow = preSaveSnapshot ? { id: tmCurRec.id } : null;
+  if (undoRow) editKeys.forEach(k => { if (preSaveSnapshot[k] !== undefined) undoRow[k] = preSaveSnapshot[k]; });
   const row = { id: tmCurRec.id };
   editKeys.forEach(k => { if (tmCurRec[k] !== undefined) row[k] = tmCurRec[k]; });
   const oldLabel = btn ? btn.innerHTML : '';
@@ -5882,7 +5992,30 @@ async function tmSaveDrawer(btn) {
     if (refreshed) tmCurRec = refreshed;
     tmRenderDrawerBody();
     if (typeof renderTeacherList === 'function') renderTeacherList();
-    await iosAlert('保存が完了しました。\n（AWSへの反映は最大15分〜1時間後です）');
+    // Undo付きスナックバー
+    const tName = (refreshed && refreshed.name) || tmCurRec.id;
+    showSnackbar(`「${tName}」を保存しました（${cells} セル更新）`, {
+      undoCallback: async () => {
+        if (!undoRow) { iosAlert('元に戻せる情報がありません'); return; }
+        try {
+          const undoResp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`, {
+            method: 'POST', headers: { 'Content-Type':'text/plain;charset=utf-8' },
+            body: JSON.stringify(withActor({ rows:[undoRow], noBackup:true })),
+          });
+          const ud = await undoResp.json();
+          if (!ud || !ud.ok) throw new Error(ud && (ud.message || ud.error) || '失敗');
+          try { await awsCacheClear(); } catch(e){}
+          try { await tmFetchIfNeeded(true); } catch(e){}
+          const refreshed2 = TM_DATA.find(t => t.id === tmCurRec.id);
+          if (refreshed2) tmCurRec = refreshed2;
+          tmRenderDrawerBody();
+          if (typeof renderTeacherList === 'function') renderTeacherList();
+          showSnackbar('元に戻しました', {});
+        } catch (e) {
+          iosAlert('元に戻せませんでした\n' + humanizeError(e));
+        }
+      }
+    });
   } catch (e) {
     console.error(e);
     await iosAlert('エラー\n' + humanizeError(e));
