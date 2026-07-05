@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.03-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-a</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4995,20 +4995,83 @@ let tmLoaded = false;
 let tmLoading = false;
 let _tmLoadPromise = null;  // 進行中の取得を共有して二重リクエスト/早期returnを防ぐ
 
+// AWS の /api/v1/teachers レスポンス(snake_case)を、Portal が使う camelCase に変換
+// AWS のスキーマ: teacher_id, teacher_name, account_name, account_url, employment_type,
+//   is_active, retired, acquisition_rank, instructor_mg, support_mg, num_classes,
+//   class_size, class_count, total_students, student_count, ...
+// Portal のスキーマ: id, name, account, ig, type, active, retire, extraRank, mg, sup, classes, ...
+function tmMapAwsTeacher(a) {
+  // AWS の is_active は「稼働中/未稼働/担当なし」のいずれかが入る
+  return {
+    id: a.teacher_id || '',
+    name: a.teacher_name || '',
+    account: a.account_name || '',
+    ig: a.account_url || '',
+    real: a.real_name || '',
+    genre: a.genre || '',
+    rank: a.rank || 'シルバー',
+    type: a.employment_type || '通常',
+    gender: a.gender || '',
+    birth: '', // list には無い。詳細エンドポイントで取得
+    contract: '',
+    contractEnd: '',
+    active: a.is_active === '稼働中' || a.is_active === '未稼働' ? a.is_active : '',
+    retire: a.retired === true,
+    extraRank: a.acquisition_rank || '',
+    one: false, // 現時点で AWS に無い
+    grad: '', // AWS の list には letters が無い。詳細で performance_class.graduated='○' から生成
+    ongoing: '', // 同上
+    mg: a.instructor_mg || '',
+    sup: a.support_mg || '',
+    classes: a.class_count || a.num_classes || 0,
+    perClass: a.class_size || 0,
+    students: a.total_students || a.student_count || 0,
+    slot: '',
+    good: '',
+    bad: '',
+    launch: '',
+    profileImage: '',
+  };
+}
+
+// AWS(GAS中継) を優先し、失敗時のみ従来の action=teachers にフォールバック
 async function tmFetchIfNeeded(force){
   if(!force && tmLoaded) return;
-  // 進行中のフェッチが存在する場合は、必ずその完了を待つ（force でも待つことで二重 fetch を防ぐ）
   if(_tmLoadPromise) { await _tmLoadPromise; if(!force) return; }
-  if(!CFG.webAppUrl || !CFG.token){ return; } // 設定無しならサンプルのまま
+  if(!CFG.webAppUrl || !CFG.token){ return; }
   tmLoading = true;
   _tmLoadPromise = (async () => {
    try {
-    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=teachers`;
-    const resp = await fetch(url);
-    const d = await resp.json();
-    if (d && Array.isArray(d.teachers)) {
+    let teachers = null;
+    // まず AWS 中継を試す (高速。フィールド名は snake_case なので tmMapAwsTeacher で変換)
+    try {
+      const awsUrl = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=aws_teachers${force?'&refresh=1':''}`;
+      const t0 = Date.now();
+      const awsResp = await fetch(awsUrl);
+      const awsD = await awsResp.json();
+      if (awsD && Array.isArray(awsD.rows)) {
+        teachers = awsD.rows.map(tmMapAwsTeacher);
+        console.log(`[tmFetch] AWS ok in ${Date.now()-t0}ms rows=${teachers.length}`);
+      } else if (awsD && awsD.error) {
+        console.warn('[tmFetch] AWS returned error:', awsD.error);
+      }
+    } catch (eAws) {
+      console.warn('[tmFetch] AWS fetch failed, falling back to GAS:', eAws);
+    }
+    // AWS 失敗時のフォールバック: 従来の GAS action=teachers
+    if (!teachers) {
+      const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=teachers`;
+      const resp = await fetch(url);
+      const d = await resp.json();
+      if (d && Array.isArray(d.teachers)) {
+        teachers = d.teachers;
+      } else if (d && d.error) {
+        console.error('teachers action error:', d);
+      }
+    }
+    if (teachers) {
       TM_DATA.length = 0;
-      d.teachers.forEach(t => {
+      teachers.forEach(t => {
         // 不足フィールドを補完してUIが壊れないように
         t.account = t.account || '';
         t.ig = t.ig || '';
@@ -5038,8 +5101,6 @@ async function tmFetchIfNeeded(force){
         TM_DATA.push(t);
       });
       tmLoaded = true;
-    } else if (d && d.error) {
-      console.error('teachers action error:', d);
     }
   } catch (e) {
     console.error('fetch teachers failed:', e);
