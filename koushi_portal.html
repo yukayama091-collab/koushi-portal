@@ -111,6 +111,15 @@ a{ color:inherit; text-decoration:none; }
 .btn-sm{ height:32px; padding:0 12px; font-size:12.5px; border-radius:8px; }
 .btn-xs{ height:28px; padding:0 11px; font-size:12px; border-radius:7px; }
 .btn-icon{ width:40px; height:40px; padding:0; }
+/* ヘッダーの「更新」ボタン: 存在感のあるアウトライン+アクセント */
+.btn-refresh{ height:36px; padding:0 14px; display:inline-flex; align-items:center; gap:6px; background:#fff; color:var(--ink); border:1px solid var(--line); border-radius:9px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; transition:border-color .12s, background .12s, box-shadow .12s; }
+.btn-refresh:hover{ border-color:var(--ink2); background:var(--soft); }
+.btn-refresh .ic{ width:16px; height:16px; color:var(--brand); transition:transform .3s; }
+.btn-refresh:hover .ic{ transform:rotate(90deg); }
+.btn-refresh.loading .ic{ animation:spin .8s linear infinite; }
+.btn-refresh.stale{ border-color:var(--brand); background:var(--brand-soft, #fdecec); color:var(--brand); box-shadow:0 0 0 3px rgba(225,29,42,.08); }
+.btn-refresh.stale .ic{ color:var(--brand); }
+.btn-refresh:disabled{ opacity:.6; cursor:default; }
 .btn-icon.btn-sm{ width:32px; height:32px; }
 .btn:active{ transform:scale(.98); }
 
@@ -448,11 +457,8 @@ table.tbl{ width:100%; border-collapse:collapse; }
 #page-teacherMaster .th-caret{ display:inline-block; width:9px; height:9px; margin-left:5px; vertical-align:1px; opacity:.55; transition:opacity .15s, transform .15s; }
 #page-teacherMaster .tbl th.has-filter:hover .th-caret{ opacity:1; transform:translateY(1px); }
 #page-teacherMaster .tbl th.th-active .th-caret{ opacity:1; }
-/* 列ヘッダーのフィルタメニュー: ホバーまたはクリックで表示 */
+/* 列ヘッダーのフィルタメニュー: クリックで開閉 (ホバー動作は撤去) */
 #page-teacherMaster .tbl th .th-filter-wrap{ display:none; position:absolute; left:8px; top:100%; z-index:50; padding-top:6px; cursor:default; }
-#page-teacherMaster .tbl th:hover > .th-filter-wrap,
-#page-teacherMaster .tbl th .th-filter-wrap:hover,
-#page-teacherMaster .tbl th .th-filter-wrap:focus-within,
 #page-teacherMaster .tbl th .th-filter-wrap[data-open="1"]{ display:block; }
 /* トップフィルタ（クリック式・Notion風メニュー） */
 .tm-topfilter{ position:relative; }
@@ -478,9 +484,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .ios-alert-actions .ios-btn-ok{ background:#fff; color:#1f7be7; border:none; font-size:16px; height:46px; border-top:1px solid var(--line2); border-radius:0; flex:1; }
 .ios-alert-actions.single{ padding:0; gap:0; }
 .ios-alert-actions.single .ios-btn-ok{ border-radius:0 0 14px 14px; }
-#page-teacherMaster .tbl th:hover > .th-filter-wrap,
-#page-teacherMaster .tbl th .th-filter-wrap:hover,
-#page-teacherMaster .tbl th .th-filter-wrap:focus-within{ display:block; }
+/* 旧ホバー起動ルール撤去済み — data-open="1" のみで開閉 */
 .th-menu{ min-width:200px; max-width:260px; max-height:380px; overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:10px; box-shadow:0 12px 30px rgba(15,15,15,.18), 0 2px 6px rgba(15,15,15,.06); padding:6px; font-family:inherit; }
 .th-menu-head{ font-size:10.5px; font-weight:700; color:var(--faint); padding:6px 10px 4px; letter-spacing:.06em; text-transform:none; position:sticky; top:0; background:#fff; z-index:3; }
 .th-menu-search{ position:sticky; top:24px; background:#fff; padding:2px 6px 8px; z-index:2; }
@@ -621,6 +625,31 @@ table.tbl{ width:100%; border-collapse:collapse; }
 @media (max-width:860px){
   .drawer{ width:96vw; height:94vh; border-radius:12px; }
 }
+/* モバイル (640px 以下): 検索/フィルタが1画面に収まるよう調整 */
+@media (max-width:640px){
+  #page-teacherMaster .searchbar{ min-width:0; flex:1 1 100%; max-width:none; }
+  #page-teacherMaster .tm-topfilter-btn{ min-width:0; height:36px; padding:0 10px; font-size:12.5px; }
+  #page-teacherMaster .chips, #page-dashboard .chips{ gap:6px; overflow-x:auto; flex-wrap:nowrap; padding-bottom:4px; -webkit-overflow-scrolling:touch; }
+  #page-teacherMaster .chip, #page-dashboard .chip{ height:34px; padding:0 12px; font-size:12px; white-space:nowrap; flex:none; }
+  #page-dashboard .searchbar{ min-width:0; flex:1 1 100%; }
+  /* トップフィルタは横スクロールで並べる */
+  .content{ padding:20px 16px 40px; }
+  .card-pad{ padding:16px 14px; }
+  .kpi{ padding:14px 12px; }
+  .kpi-val{ font-size:22px; }
+  .modal.wide{ max-width:96vw; }
+  .grid.g2{ grid-template-columns:1fr; gap:14px; }
+  .grid.g3{ grid-template-columns:1fr 1fr; }
+  .brandbox{ padding:0 12px; }
+  .topbar{ padding:0 12px; gap:6px; }
+  .today-pill{ display:none !important; }
+  .last-updated{ font-size:10.5px; }
+}
+@media (max-width:480px){
+  .grid.g3{ grid-template-columns:1fr; }
+  .btn-refresh span{ display:none; } /* テキスト隠してアイコンだけ */
+  .btn-refresh{ width:36px; padding:0; justify-content:center; }
+}
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 </head>
@@ -717,8 +746,8 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-d</span>
-      <button class="btn btn-ghost btn-sm" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-e</span>
+      <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
   </header>
@@ -1318,6 +1347,24 @@ function rosterRow(id, name) {
 const _LOADDATA_CACHE_KEY = 'koushi_data_cache_v1';
 const _LOADDATA_CACHE_TTL = 24 * 3600 * 1000; // 24時間
 
+// 更新ボタンのステート管理: 最終更新から10分経過で赤く光らせる
+function updateRefreshButtonState() {
+  const btn = document.getElementById('btnRefresh');
+  if (!btn) return;
+  const lastUp = window._lastUpdateTime;
+  if (!lastUp) return;
+  const elapsedMin = (Date.now() - lastUp) / 60000;
+  if (elapsedMin >= 10) {
+    btn.classList.add('stale');
+    btn.title = `最終更新から ${Math.floor(elapsedMin)} 分経過。押して最新にしてください`;
+  } else {
+    btn.classList.remove('stale');
+    btn.title = 'キャッシュを無視して最新データを取得';
+  }
+}
+// 1分ごとに更新ボタンの状態を再評価
+setInterval(updateRefreshButtonState, 60 * 1000);
+
 async function loadData(forceRefresh) {
   if (!CFG.webAppUrl || !CFG.token) {
     openSettings(); return;
@@ -1325,6 +1372,8 @@ async function loadData(forceRefresh) {
   // 講師シート(生徒管理シート)のキャッシュも更新ボタン押下で破棄して最新化
   if (forceRefresh && lectureCache && typeof lectureCache.clear === 'function') lectureCache.clear();
   $('#lastUpdated').textContent = '読み込み中…';
+  const btnRefresh = document.getElementById('btnRefresh');
+  if (btnRefresh) { btnRefresh.classList.add('loading'); btnRefresh.disabled = true; }
   // AWS の講師データを並列で事前ロード
   try { tmFetchIfNeeded(true); } catch (e) { /* fire and forget */ }
   try {
@@ -1675,7 +1724,11 @@ async function loadData(forceRefresh) {
       // キャッシュ表示中は「バックグラウンドで最新を取得中」表示
       $('#lastUpdated').textContent = `キャッシュ表示中… (最新取得中)`;
     } else {
-      $('#lastUpdated').textContent = `最終更新: ${new Date().toLocaleTimeString('ja-JP')}`;
+      const now = new Date();
+      $('#lastUpdated').textContent = `最終更新: ${now.toLocaleTimeString('ja-JP')}`;
+      // 最終更新時刻を保存 → 経過時間で更新ボタンが「stale」状態になる
+      window._lastUpdateTime = now.getTime();
+      updateRefreshButtonState();
     }
     if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
     refreshCounts();
@@ -1690,6 +1743,9 @@ async function loadData(forceRefresh) {
   } catch (err) {
     $('#lastUpdated').textContent = '読み込みエラー';
     iosAlert(`データ読み込みエラー\n${humanizeError(err)}`);
+  } finally {
+    const btnR = document.getElementById('btnRefresh');
+    if (btnR) { btnR.classList.remove('loading'); btnR.disabled = false; }
   }
 }
 
@@ -2172,41 +2228,54 @@ function renderDashboard(){
       </div>
     </div>`;
 
-  // Distribution — ドーナツ円グラフ (6カテゴリ)
+  // Distribution — 単一ドーナツ + 凡例 (6カテゴリを合計100%で積み上げる)
   const distOrder = ['stagnant','stuck','inprog','ok50','over80','grad'];
   const STATUS_COLOR = {
-    stagnant: 'var(--danger)',
-    stuck:    'var(--warn)',
-    inprog:   '#9aa1ad',
-    ok50:     'var(--ok)',
-    over80:   'var(--info)',
-    grad:     '#6b7280'
+    stagnant: '#e11d2a', stuck: '#d98309', inprog: '#9aa1ad',
+    ok50: '#16a34a', over80: '#2563eb', grad: '#6b7280'
   };
+  const total = list.length || 1;
+  // SVG 円周セグメント計算
+  let cumulative = 0;
+  const segments = distOrder.map(s => {
+    const n = list.filter(x => x.status===s).length;
+    const p = (n / total) * 100;
+    const seg = { s, n, p, offset: 25 - cumulative };
+    cumulative += p;
+    return seg;
+  });
   const distHtml = `
     <div class="card card-pad">
       <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-chart"/></svg> プログラム達成状況</div><span class="card-meta">${list.length} 名</span></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:16px;padding:8px 0">
-        ${distOrder.map(s => {
-          const n = list.filter(x => x.status===s).length;
-          const p = pct(n, list.length);
-          const color = STATUS_COLOR[s] || '#9aa1ad';
-          return `<div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-            <div style="position:relative;width:96px;height:96px">
-              <svg viewBox="0 0 36 36" style="width:96px;height:96px;display:block">
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="#eef0f3" stroke-width="3.6"/>
-                <circle cx="18" cy="18" r="15.915" fill="none" stroke="${color}" stroke-width="3.6"
-                  stroke-dasharray="${p} ${100-p}" stroke-dashoffset="25" stroke-linecap="round"/>
-              </svg>
-              <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1">
-                <div style="font-size:18px;font-weight:800;color:var(--ink)">${p}<span style="font-size:11px;font-weight:700;color:var(--muted)">%</span></div>
+      <div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap;padding:12px 4px 4px">
+        <div style="position:relative;width:170px;height:170px;flex:none">
+          <svg viewBox="0 0 36 36" style="width:170px;height:170px;display:block;transform:rotate(-90deg)">
+            <circle cx="18" cy="18" r="15.915" fill="none" stroke="#eef0f3" stroke-width="4.2"/>
+            ${segments.filter(x => x.n > 0).map(seg => `
+              <circle cx="18" cy="18" r="15.915" fill="none" stroke="${STATUS_COLOR[seg.s]}" stroke-width="4.2"
+                stroke-dasharray="${seg.p.toFixed(2)} ${(100 - seg.p).toFixed(2)}"
+                stroke-dashoffset="${seg.offset.toFixed(2)}"/>
+            `).join('')}
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;transform:rotate(0deg)">
+            <div style="font-size:26px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${list.length}</div>
+            <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:2px">名 合計</div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:240px;display:grid;grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));gap:10px 20px">
+          ${segments.map(seg => `
+            <div style="display:flex;align-items:center;gap:10px;padding:2px 0">
+              <span style="width:11px;height:11px;border-radius:3px;background:${STATUS_COLOR[seg.s]};flex:none"></span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12.5px;font-weight:700;color:var(--ink2);line-height:1.3">${STATUS[seg.s].label}</div>
+              </div>
+              <div style="text-align:right;line-height:1.1">
+                <div style="font-size:14px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums">${seg.n}</div>
+                <div style="font-size:10.5px;color:var(--muted);font-weight:600">${seg.p.toFixed(1)}%</div>
               </div>
             </div>
-            <div style="text-align:center;line-height:1.4">
-              <div style="display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink2)"><span style="width:8px;height:8px;border-radius:50%;background:${color};display:inline-block"></span>${STATUS[s].label}</div>
-              <div style="font-size:13px;font-weight:800;color:var(--ink);margin-top:2px"><span style="font-variant-numeric:tabular-nums">${n}</span><span style="font-size:11px;color:var(--muted);font-weight:600;margin-left:2px">名</span></div>
-            </div>
-          </div>`;
-        }).join('')}
+          `).join('')}
+        </div>
       </div>
     </div>`;
 
@@ -4843,12 +4912,17 @@ function applyRoleUi() {
   if (isLectMg || isSupMg) {
     document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
   }
-  // ヘッダーにロールバッジ
+  // ヘッダーにロールバッジ (クリックで権限説明)
   let badge = document.getElementById('userRoleBadge');
   if (!badge) {
-    badge = document.createElement('span');
+    badge = document.createElement('button');
     badge.id = 'userRoleBadge';
-    badge.style.cssText = 'padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid var(--line)';
+    badge.type = 'button';
+    badge.style.cssText = 'padding:4px 10px;background:var(--soft);color:var(--ink2);border-radius:999px;font:inherit;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid var(--line);cursor:pointer;transition:background .12s';
+    badge.onmouseover = () => badge.style.background = 'var(--line2)';
+    badge.onmouseout = () => badge.style.background = 'var(--soft)';
+    badge.onclick = () => showRoleInfoModal();
+    badge.title = 'クリックしてあなたにできることを表示';
     const lu = document.getElementById('lastUpdated');
     if (lu && lu.parentNode) lu.parentNode.insertBefore(badge, lu);
   }
@@ -4861,6 +4935,92 @@ function applyRoleUi() {
     demo: 'デモ'
   };
   badge.textContent = (ROLE_LABEL[u.role] || '未認証') + (u.name ? ' / ' + u.name : '');
+}
+
+// ロール別の権限説明モーダル
+function showRoleInfoModal() {
+  const u = window.CURRENT_USER || {};
+  const role = u.role || 'unknown';
+  const ROLE_CAPS = {
+    admin: {
+      title: '管理者',
+      desc: '全機能を利用できます',
+      can: [
+        'すべての講師・生徒データの閲覧・編集',
+        'ユーザーアカウントの発行・無効化',
+        '講師DBの一括CSVインポート/エクスポート',
+        '編集履歴の閲覧',
+        'GAS設定・システム設定の変更',
+        '担当生徒詳細の同期などのメンテナンス操作',
+      ]
+    },
+    lecturer_mg: {
+      title: '講師MG',
+      desc: '担当講師の情報を編集できます',
+      can: [
+        '担当講師の生徒・進捗の閲覧',
+        '担当講師の情報編集（保存でスプシに反映）',
+        '生徒管理シートの作成',
+        '講義出席・日程の編集',
+        '編集履歴の閲覧',
+      ],
+      cannot: ['他のMGが担当する講師の編集', 'ユーザー管理', '一括インポート'],
+    },
+    support_mg: {
+      title: 'サポートMG',
+      desc: '担当講師の情報を閲覧・編集できます',
+      can: [
+        '担当講師の生徒・進捗の閲覧',
+        '担当講師の情報編集（保存でスプシに反映）',
+        '講義出席の編集',
+      ],
+      cannot: ['他のMGが担当する講師', 'ユーザー管理'],
+    },
+    instructor: {
+      title: '講師',
+      desc: '自分自身の情報と担当生徒だけを見られます',
+      can: [
+        '自分のダッシュボード閲覧',
+        '自分の担当生徒の進捗確認',
+        '自分のクラスの講義出席編集',
+      ],
+      cannot: ['他の講師の情報', 'ユーザー管理', '大枠の編集'],
+    },
+    demo: {
+      title: 'デモ',
+      desc: 'すべての機能を「見るだけ」で試せます',
+      can: ['全画面の閲覧'],
+      cannot: ['全ての書き込み系（保存/発行/無効化 等）'],
+    },
+  };
+  const cap = ROLE_CAPS[role] || { title:'未認証', desc:'ログイン情報が読み込めていません', can:[], cannot:[] };
+  const canHtml = cap.can && cap.can.length
+    ? '<div style="margin-top:14px"><div style="font-weight:800;font-size:12.5px;color:var(--ok);margin-bottom:6px">できること</div><ul style="margin:0;padding-left:18px;line-height:1.9;color:var(--ink2);font-size:13px">' + cap.can.map(c => `<li>${c}</li>`).join('') + '</ul></div>'
+    : '';
+  const cantHtml = cap.cannot && cap.cannot.length
+    ? '<div style="margin-top:12px"><div style="font-weight:800;font-size:12.5px;color:var(--danger);margin-bottom:6px">できないこと</div><ul style="margin:0;padding-left:18px;line-height:1.9;color:var(--muted);font-size:13px">' + cap.cannot.map(c => `<li>${c}</li>`).join('') + '</ul></div>'
+    : '';
+  let m = document.getElementById('roleInfoModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'roleInfoModal';
+    m.className = 'overlay';
+    m.onclick = (e) => { if (e.target === m) m.classList.remove('open'); };
+    document.body.appendChild(m);
+  }
+  m.innerHTML = `<div class="modal" style="max-width:520px">
+    <div style="padding:24px 26px">
+      <div style="font-size:11px;color:var(--faint);font-weight:700;letter-spacing:.06em;margin-bottom:2px">ロール情報</div>
+      <div style="font-size:20px;font-weight:800;color:var(--ink);margin-bottom:4px">${cap.title}</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.6">${cap.desc}${u.name ? ` ／ 表示名: <b style="color:var(--ink)">${u.name.replace(/[<>]/g,'')}</b>` : ''}</div>
+      ${canHtml}
+      ${cantHtml}
+      <div style="display:flex;justify-content:flex-end;margin-top:20px">
+        <button class="btn btn-primary" type="button" onclick="document.getElementById('roleInfoModal').classList.remove('open')">閉じる</button>
+      </div>
+    </div>
+  </div>`;
+  m.classList.add('open');
 }
 
 if (CFG.webAppUrl && CFG.token) {
