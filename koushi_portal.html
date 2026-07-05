@@ -693,7 +693,14 @@ table.tbl{ width:100%; border-collapse:collapse; }
 
 <div class="app">
   <div class="brandbox">
-    <img alt="株式会社Levela" src="/levela-logo-horizontal.jpg" style="height:auto;width:100%;max-width:180px;object-fit:contain;display:block" />
+    <a href="#" onclick="event.preventDefault();go('dashboard')" style="display:flex;align-items:center;gap:10px;text-decoration:none;user-select:none">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <defs><linearGradient id="lvlg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e11d2a"/><stop offset="1" stop-color="#b31118"/></linearGradient></defs>
+        <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#lvlg)"/>
+        <path d="M9 8 v16 h14 v-3.5 h-10.5 v-12.5 z" fill="#fff"/>
+      </svg>
+      <span style="font-family:'Inter',ui-sans-serif,system-ui,'Noto Sans JP',sans-serif;font-weight:800;font-size:16px;color:var(--ink);letter-spacing:.02em;line-height:1">Levela<span style="opacity:.55;font-weight:600;font-size:11px;margin-left:6px;color:var(--muted)">Portal</span></span>
+    </a>
   </div>
 
   <header class="topbar">
@@ -710,7 +717,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-b</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-c</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -735,9 +742,6 @@ table.tbl{ width:100%; border-collapse:collapse; }
     </div>
     <div class="side-section">マスタ管理</div>
     <button class="nav" data-page="teacherMaster" onclick="go('teacherMaster')" title="講師情報の登録・編集"><svg class="ic"><use href="#i-teacher"/></svg> 講師マスタ</button>
-    <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-student"/></svg> 生徒マスタ<span class="soon-tag">今後</span></button>
-    <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-staff"/></svg> 従業員・MG<span class="soon-tag">今後</span></button>
-    <button class="nav soon" title="今後追加予定"><svg class="ic"><use href="#i-layers"/></svg> クラス<span class="soon-tag">今後</span></button>
     <div class="side-section">サポート</div>
     <button class="nav" data-page="users" onclick="go('users')" title="ユーザー権限管理（マネージャー専用）"><svg class="ic"><use href="#i-teacher"/></svg> ユーザー管理</button>
     <button class="nav" data-page="history" onclick="go('history')" title="編集履歴の一覧"><svg class="ic"><use href="#i-clock"/></svg> 編集履歴</button>
@@ -927,7 +931,7 @@ function errorMsg(detail) {
   return `エラーの確認\n\n${detail||''}\n\n${supportInfoText()}`;
 }
 function showError(detail) {
-  alert(errorMsg(detail));
+  iosAlert(errorMsg(detail));
 }
 
 // 編集履歴ログ用のアクター情報（ブラウザID + 表示名）
@@ -1331,10 +1335,9 @@ async function loadData() {
       console.log('[loadData] response in ' + (Date.now()-t0) + 'ms / HTTP ' + resp.status);
     } catch (e) {
       console.error('[loadData] fetch error:', e.name, e.message, e);
-      const msg = `窓口に接続できません: ${e.message}\n詳細は DevTools (F12) → Console / Network タブを確認してください`;
-      throw new Error(msg);
+      throw new Error('通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。');
     }
-    if (!resp.ok) throw new Error(`窓口アクセス失敗 (HTTP ${resp.status})`);
+    if (!resp.ok) throw new Error('サーバー側で一時的なエラーが発生しています。1〜2分待って再度お試しください。（HTTP ' + resp.status + '）');
     console.log('[loadData] response received, parsing JSON...');
     const data = await resp.json();
     if (data.error) throw new Error(data.error === 'forbidden' ? '合言葉が違います（設定を確認）' : (data.message || data.error));
@@ -1649,7 +1652,7 @@ async function loadData() {
     go(state.page);
   } catch (err) {
     $('#lastUpdated').textContent = '読み込みエラー';
-    alert(`データ読み込みエラー:\n${err.message}`);
+    iosAlert(`データ読み込みエラー\n${humanizeError(err)}`);
   }
 }
 
@@ -1840,7 +1843,7 @@ function openSnsClubItem(kind) {
   const urls = (window.SNS_CLUB_URLS) || {};
   const url = urls[kind];
   if (url) { window.open(url, '_blank', 'noopener'); return; }
-  alert(`${labels[kind] || kind} のURLは未設定です。\n設定するには、ブラウザのコンソールで以下のように実行してください：\n\nwindow.SNS_CLUB_URLS = { event:'https://...', roadmap:'https://...', program:'https://...' };`);
+  iosAlert(`${labels[kind] || kind} のURLは未設定です。\n設定するには、ブラウザのコンソールで以下のように実行してください：\n\nwindow.SNS_CLUB_URLS = { event:'https://...', roadmap:'https://...', program:'https://...' };`);
 }
 
 /* ── SnsClubイベント (Googleカレンダー予定一覧) ── */
@@ -1937,7 +1940,7 @@ function copyShareUrl(){
   // 設定モーダルの入力値を優先（保存前でも生成可能）。空なら CFG から
   const url = ($('#webAppUrlInput').value || CFG.webAppUrl || '').replace(/\s+/g, '');
   const tk  = ($('#tokenInput').value || CFG.token || '').replace(/\s+/g, '');
-  if (!url || !tk) { alert('URL と合言葉の両方が必要です'); return; }
+  if (!url || !tk) { iosAlert('URL と合言葉の両方が必要です'); return; }
   const base = location.origin + location.pathname;
   const shareUrl = `${base}#u=${encodeURIComponent(url)}&t=${encodeURIComponent(tk)}`;
   const msg = $('#shareCopiedMsg');
@@ -1958,9 +1961,9 @@ function saveSettings(){
   // 全空白（半角・全角・改行）を除去 — コピペ時の混入対策
   const url = $('#webAppUrlInput').value.replace(/\s+/g, '');
   const tk  = $('#tokenInput').value.replace(/\s+/g, '');
-  if (!url) { alert('受付窓口のURLを入力してください'); return; }
-  if (!tk)  { alert('合言葉を入力してください'); return; }
-  if (!/^https?:\/\//.test(url)) { alert('URLが正しくありません（https:// から始まる必要があります）'); return; }
+  if (!url) { iosAlert('受付窓口のURLを入力してください'); return; }
+  if (!tk)  { iosAlert('合言葉を入力してください'); return; }
+  if (!/^https?:\/\//.test(url)) { iosAlert('URLが正しくありません（https:// から始まる必要があります）'); return; }
   CFG.webAppUrl = url; CFG.token = tk;
   try {
     localStorage.setItem('koushi_webapp_url', url);
@@ -3246,7 +3249,7 @@ function copyToClipboard(text, btn) {
   });
 }
 async function revokeToken(token) {
-  if (!confirm('このトークンを無効化します。よろしいですか？\n（このURLでのアクセスができなくなります）')) return;
+  if (!await iosConfirm('このトークンを無効化します。よろしいですか？\n（このURLでのアクセスができなくなります）', { okText:'無効化', cancelText:'キャンセル' })) return;
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=revoke_token`, {
       method: 'POST', headers: {'Content-Type':'text/plain;charset=utf-8'},
@@ -3255,7 +3258,7 @@ async function revokeToken(token) {
     const d = await r.json();
     if (!d.ok) throw new Error(d.message || d.error || '失敗');
     renderUsers();
-  } catch(e) { alert('取消エラー: ' + e.message); }
+  } catch(e) { iosAlert('取消エラー\n' + humanizeError(e)); }
 }
 window.__issueTokenSelectedManaged = [];   // 選択中の担当講師ID配列
 
@@ -3381,12 +3384,12 @@ async function submitIssueToken(btnEl) {
     const raw = (document.getElementById('newTokTeacherInput').value || '').trim();
     const m = raw.match(/^(\d+)/);
     teacherId = m ? m[1] : raw;
-    if (!teacherId) { alert('講師を選択してください'); return; }
+    if (!teacherId) { iosAlert('講師を選択してください'); return; }
   }
   let managedIds = [];
   if (role === 'lecturer_mg' || role === 'support_mg') {
     managedIds = (window.__issueTokenSelectedManaged || []).slice();
-    if (!managedIds.length) { alert('担当する講師を1名以上選択してください'); return; }
+    if (!managedIds.length) { iosAlert('担当する講師を1名以上選択してください'); return; }
   }
   const name = document.getElementById('newTokName').value.trim();
   const memo = document.getElementById('newTokMemo').value.trim();
@@ -3419,7 +3422,7 @@ async function submitIssueToken(btnEl) {
     showIssuedTokenModal(shareUrl, !!d.reused);
     renderUsers();
   } catch(e) {
-    alert('発行エラー: ' + e.message);
+    iosAlert('発行エラー\n' + humanizeError(e));
   } finally {
     if (btnEl) {
       btnEl.dataset.busy = '';
@@ -3485,7 +3488,7 @@ async function copyIssuedTokenUrl(btnEl) {
     btnEl.style.background = '#ecfdf5';
     setTimeout(() => { btnEl.innerHTML = orig; btnEl.style.background = '#fff'; }, 1400);
   } catch (e) {
-    alert('コピーに失敗しました: ' + e.message);
+    iosAlert('コピーに失敗しました: ' + e.message);
   }
 }
 
@@ -3642,8 +3645,8 @@ function onCsvSelected(ev){
 }
 
 async function runSyncDataOrder(){
-  if (!_csvRows || !_csvRows.length) { alert('先に CSV ファイルを選択してください'); return; }
-  if (!confirm(`データ順番.E列 を CSV の ${_csvRows.length} 行で更新します。実行前にバックアップが取られますが、本当に実行しますか？`)) return;
+  if (!_csvRows || !_csvRows.length) { iosAlert('先に CSV ファイルを選択してください'); return; }
+  if (!await iosConfirm(`データ順番.E列 を CSV の ${_csvRows.length} 行で更新します。\n実行前にバックアップが取られます。実行しますか？`, { okText:'実行', cancelText:'キャンセル' })) return;
   const btn = $('#syncDataOrderBtn');
   const status = $('#syncDataOrderStatus');
   const orig = btn.innerHTML;
@@ -3683,7 +3686,7 @@ async function runSyncDataOrder(){
   }
 }
 async function runSyncTanto(){
-  if (!confirm('担当生徒詳細を生徒情報シートで上書きします。実行前にバックアップタブが自動生成されますが、本当に実行しますか？')) return;
+  if (!await iosConfirm('担当生徒詳細を生徒情報シートで上書きします。\n実行前にバックアップタブが自動生成されます。実行しますか？', { okText:'実行', cancelText:'キャンセル' })) return;
   const btn = event.target.closest('button');
   const status = $('#syncTantoStatus');
   const orig = btn.innerHTML;
@@ -4271,7 +4274,7 @@ const STUDENT_EDIT_FIELDS = [
 ];
 
 async function openStudentEdit(mid) {
-  if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは編集できません。'); return; }
+  if (CFG.token === DEMO_TOKEN) { iosAlert('デモトークンでは編集できません。'); return; }
   const body = $('#smBody');
   if (!body) return;
   const previousHtml = body.innerHTML;
@@ -4281,7 +4284,7 @@ async function openStudentEdit(mid) {
     const resp = await fetch(url);
     const result = await resp.json();
     if (!result || result.error) {
-      alert('読み込みに失敗しました: ' + (result && (result.message || result.error) || '不明なエラー'));
+      iosAlert('読み込みに失敗しました\n' + humanizeError(result && (result.message || result.error) || '不明なエラー'));
       body.innerHTML = previousHtml;
       return;
     }
@@ -4342,7 +4345,7 @@ async function openStudentEdit(mid) {
     `;
   } catch (e) {
     console.error(e);
-    alert('通信エラー: ' + (e && e.message || e));
+    iosAlert('エラー\n' + humanizeError(e));
     body.innerHTML = previousHtml;
   }
 }
@@ -4369,7 +4372,7 @@ async function saveStudentEdit() {
     if (newVal !== oldVal) updates[key] = newVal;
   });
   if (!Object.keys(updates).length) {
-    alert('変更はありません。');
+    await iosAlert('変更はありません。');
     return;
   }
   const btn = $('#sedit-save');
@@ -4384,19 +4387,19 @@ async function saveStudentEdit() {
     });
     const result = await resp.json();
     if (!result || result.error) {
-      alert('保存に失敗しました: ' + (result && (result.message || result.error) || '不明なエラー'));
+      iosAlert('保存に失敗しました\n' + humanizeError(result && (result.message || result.error) || '不明なエラー'));
       if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
       return;
     }
     const applied = result.applied || [];
-    alert(`保存しました。\n更新フィールド: ${applied.length} 件\n${applied.map(a => '・' + a.field).join('\n')}`);
+    await iosAlert(`保存しました。\n更新フィールド: ${applied.length} 件\n${applied.map(a => '・' + a.field).join('\n')}`);
     try { await awsCacheClear(); } catch (e) { /* ignore */ }
     try { await loadData(); } catch (e) { console.warn(e); }
     // 表示モードへ
     setTimeout(() => openStudent(mid), 80);
   } catch (e) {
     console.error(e);
-    alert('通信エラー: ' + (e && e.message || e));
+    iosAlert('エラー\n' + humanizeError(e));
     if (btn) { btn.disabled = false; btn.innerHTML = oldHtml; }
   }
 }
@@ -4404,9 +4407,9 @@ async function saveStudentEdit() {
 // 「生徒管理シートが反映されていません」警告から押された時：
 //  講師DB「クラス情報管理」K列が空欄の講師について、テンプレを複製してリンクを書き戻す
 async function createStudentSheet(tid, clsName, btnEl) {
-  if (!tid) { alert('講師IDを特定できません。'); return; }
-  if (CFG.token === DEMO_TOKEN) { alert('デモトークンでは作成できません。'); return; }
-  if (!confirm(`このクラスの講師（ID: ${tid}）の生徒管理シートを新規作成します。\nテンプレートから複製し、講師DBにリンクを反映します。\n\n実行しますか？`)) return;
+  if (!tid) { iosAlert('講師IDを特定できません。'); return; }
+  if (CFG.token === DEMO_TOKEN) { iosAlert('デモトークンでは作成できません。'); return; }
+  if (!await iosConfirm(`このクラスの講師（ID: ${tid}）の生徒管理シートを新規作成します。\nテンプレートから複製し、講師DBにリンクを反映します。`, { okText:'作成', cancelText:'キャンセル' })) return;
   const original = btnEl ? btnEl.innerHTML : '';
   if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '作成中…'; }
   try {
@@ -4414,12 +4417,12 @@ async function createStudentSheet(tid, clsName, btnEl) {
     const resp = await fetch(url);
     const result = await resp.json();
     if (!result || result.error) {
-      alert('作成に失敗しました: ' + (result && (result.message || result.error) || '不明なエラー'));
+      iosAlert('作成に失敗しました\n' + humanizeError(result && (result.message || result.error) || '不明なエラー'));
       if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = original; }
       return;
     }
     // クラス情報管理の再読込 → 該当クラスを再オープン
-    alert((result.reused ? '既存のシートURLを再利用しました。' : '生徒管理シートを作成しました。') + '\n\n講師DBへの反映を読み込みます。');
+    await iosAlert((result.reused ? '既存のシートURLを再利用しました。' : '生徒管理シートを作成しました。') + '\n\n講師DBへの反映を読み込みます。');
     try { await loadData(); } catch (e) { console.warn(e); }
     // 同じクラスを開き直す
     if (clsName) {
@@ -4431,7 +4434,7 @@ async function createStudentSheet(tid, clsName, btnEl) {
     }
   } catch (e) {
     console.error(e);
-    alert('通信エラー: ' + (e && e.message || e));
+    iosAlert('エラー\n' + humanizeError(e));
     if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = original; }
   }
 }
@@ -4439,9 +4442,9 @@ async function createStudentSheet(tid, clsName, btnEl) {
 // クラス全体の講義日付を保存（第1回, 第3〜12回）
 async function setLectureDate(lecIdx, value, inputEl) {
   if (!_classCtx) return;
-  if (!_classCtx.writable) { alert('講師の生徒管理シートが未登録のため保存できません。\n講師DB「クラス情報管理」のH列に生徒管理シートURLを登録してください。'); return; }
+  if (!_classCtx.writable) { iosAlert('講師の生徒管理シートが未登録のため保存できません。\n講師DB「クラス情報管理」のH列に生徒管理シートURLを登録してください。'); return; }
   const lec = _classCtx.lectures[lecIdx];
-  if (!lec || !lec.col) { alert('講義データが読み込まれていません'); return; }
+  if (!lec || !lec.col) { iosAlert('講義データが読み込まれていません'); return; }
   const ind = $('#saveInd-' + lecIdx);
   try {
     const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
@@ -4465,7 +4468,7 @@ async function setLectureDate(lecIdx, value, inputEl) {
     });
     if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1500); }
   } catch (e) {
-    alert('保存エラー: ' + e.message);
+    iosAlert('保存エラー\n' + humanizeError(e));
   }
 }
 
@@ -4501,10 +4504,10 @@ function toggle1on1(lecIdx) {
 // 第2回 1on1 の生徒個別日付を保存
 async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
   if (!_classCtx) return;
-  if (!_classCtx.writable) { alert('講師の生徒管理シートが未登録のため保存できません。'); return; }
+  if (!_classCtx.writable) { iosAlert('講師の生徒管理シートが未登録のため保存できません。'); return; }
   const st = _classCtx.students[studentIdx];
   const lec = _classCtx.lectures[lecIdx];
-  if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
+  if (!st || !lec || !st.row || !lec.col) { iosAlert('対象セル不明'); return; }
   const ind = $('#ind-1on1-' + studentIdx);
   try {
     const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=setCell`
@@ -4516,7 +4519,7 @@ async function set1on1StudentDate(studentIdx, lecIdx, value, inputEl) {
     if (st.att) st.att[lecIdx] = value || '';
     if (ind) { ind.classList.add('show'); setTimeout(() => ind.classList.remove('show'), 1500); }
   } catch (e) {
-    alert('保存エラー: ' + e.message);
+    iosAlert('保存エラー\n' + humanizeError(e));
   }
 }
 
@@ -4537,10 +4540,10 @@ function toggleAttendance(lecIdx) {
 // 第1回 / 第3〜12回 の出席・欠席を保存（生徒×回 セル）
 async function setAttendance(lecIdx, studentIdx, status, btn) {
   if (!_classCtx) return;
-  if (!_classCtx.writable) { alert('講師の生徒管理シートが未登録のため保存できません。'); return; }
+  if (!_classCtx.writable) { iosAlert('講師の生徒管理シートが未登録のため保存できません。'); return; }
   const st = _classCtx.students[studentIdx];
   const lec = _classCtx.lectures[lecIdx];
-  if (!st || !lec || !st.row || !lec.col) { alert('対象セル不明'); return; }
+  if (!st || !lec || !st.row || !lec.col) { iosAlert('対象セル不明'); return; }
   const row = btn.closest('.lec-att-row');
   const presentBtn = row.querySelector('.att-present');
   const absentBtn  = row.querySelector('.att-absent');
@@ -4572,7 +4575,7 @@ async function setAttendance(lecIdx, studentIdx, status, btn) {
     // 失敗したら元に戻す
     presentBtn.classList.toggle('active', prevPresent);
     absentBtn.classList.toggle('active', prevAbsent);
-    alert('保存エラー: ' + e.message);
+    iosAlert('保存エラー\n' + humanizeError(e));
   } finally {
     presentBtn.disabled = absentBtn.disabled = false;
   }
@@ -5708,7 +5711,7 @@ function tmStudentCountFor(teacherId) {
 // 個別生徒の進捗ステータスを UI から切替
 // kind: 'grad' (卒業済み) / 'inprog' (進行中) / 'cancel' (解約)
 async function setStudentGradFromUi(studentId, kind, selectEl) {
-  if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
+  if (!CFG.webAppUrl || !CFG.token) { iosAlert('受付窓口の設定が必要です'); return; }
   const ind = document.querySelector(`[data-grad-ind="${studentId}"]`);
   const value = kind === 'grad' ? '卒業生' : kind === 'cancel' ? '解約' : '';
   const prevDisabled = selectEl.disabled;
@@ -5732,13 +5735,32 @@ async function setStudentGradFromUi(studentId, kind, selectEl) {
     }
     if (ind) { ind.style.display = 'inline'; setTimeout(() => { ind.style.display = 'none'; }, 1500); }
   } catch (e) {
-    alert('保存エラー: ' + e.message);
+    iosAlert('保存エラー\n' + humanizeError(e));
   } finally {
     selectEl.disabled = prevDisabled;
   }
 }
 
 // iOS風 確認ダイアログ
+// 技術的エラーメッセージ → ユーザー向け日本語文言に変換
+function humanizeError(err) {
+  const raw = (err && (err.message || err.error || err)) + '';
+  const map = [
+    [/Failed to fetch|NetworkError|network error|ERR_INTERNET_DISCONNECTED|ERR_CONNECTION/i, '通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。'],
+    [/forbidden|不正なトークン|invalid token/i, 'この操作の権限がありません。管理者に依頼してください。'],
+    [/no_mid|mid_not_found/i, '対象の生徒が見つかりませんでした。ページを更新して再度お試しください。'],
+    [/teacher_not_in_class_info|no_teacher_id/i, '対象の講師が講師DBに見つかりません。管理者に確認してください。'],
+    [/demo_readonly/i, 'デモモードでは書き込みできません。管理者用の共有URLでアクセスしてください。'],
+    [/HTTP 5\d\d|窓口アクセス失敗.*HTTP 5/i, 'サーバー側で一時的なエラーが発生しています。1〜2分待って再度お試しください。'],
+    [/HTTP 4\d\d/i, '受付窓口の設定に問題があるかもしれません。設定URLと合言葉を確認してください。'],
+    [/aws_http_\d+|aws_fetch_failed/i, 'AWS 連携で一時的な問題が発生しました。もう一度お試しください（自動でスプシから復旧します）。'],
+    [/parse_failed|JSON/i, '応答の解析に失敗しました。管理者へご連絡ください。'],
+    [/quota|Too many|rate limit/i, '短時間に多くの操作をしたため、一時的に制限されました。1分ほど待って再度お試しください。'],
+  ];
+  for (const [re, msg] of map) if (re.test(raw)) return msg;
+  return raw; // 該当なしはそのまま
+}
+
 function iosConfirm(message, opts) {
   opts = opts || {};
   const okText = opts.okText || '保存';
@@ -5777,7 +5799,7 @@ function iosAlert(message) {
     const overlay = document.getElementById('iosAlert');
     const msg = document.getElementById('iosAlertMsg');
     const actions = document.getElementById('iosAlertActions');
-    if (!overlay || !msg || !actions) { window.alert(message); resolve(); return; }
+    if (!overlay || !msg || !actions) { window.iosAlert(message); resolve(); return; }
     msg.textContent = message;
     actions.className = 'ios-alert-actions single';
     actions.innerHTML = `<button type="button" class="ios-btn ios-btn-ok">OK</button>`;
@@ -5844,7 +5866,7 @@ async function tmSaveDrawer(btn) {
     });
     const d = await resp.json();
     if (!d || !d.ok) {
-      await iosAlert('保存に失敗しました\n' + (d && (d.message || d.error) || '不明なエラー'));
+      await iosAlert('保存に失敗しました\n' + humanizeError(d && (d.message || d.error) || '不明なエラー'));
       return;
     }
     const cells = d.stats && d.stats.cellsChanged || 0;
@@ -5863,7 +5885,7 @@ async function tmSaveDrawer(btn) {
     await iosAlert('保存が完了しました。\n（AWSへの反映は最大15分〜1時間後です）');
   } catch (e) {
     console.error(e);
-    await iosAlert('通信エラー\n' + (e && e.message || e));
+    await iosAlert('エラー\n' + humanizeError(e));
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
   }
@@ -5871,7 +5893,7 @@ async function tmSaveDrawer(btn) {
 
 // 生徒詳細から講師ドロワーへ遷移するためのヘルパー
 async function openTeacherById(tid) {
-  if (!tid) { alert('講師IDが取得できません'); return; }
+  if (!tid) { iosAlert('講師IDが取得できません'); return; }
   // 講師マスタデータが未取得なら取得
   if (typeof tmFetchIfNeeded === 'function' && !window.tmLoaded) {
     try { await tmFetchIfNeeded(true); } catch(e){}
@@ -5977,23 +5999,23 @@ async function importTeachersCSV(){
   input.onchange = async () => {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (!CFG.webAppUrl || !CFG.token) { alert('受付窓口の設定が必要です'); return; }
-    if (!confirm(`「${file.name}」をアップロードして講師DBを一括更新します。\n\n実行前にバックアップタブが自動生成されます。続けますか？`)) return;
+    if (!CFG.webAppUrl || !CFG.token) { iosAlert('受付窓口の設定が必要です'); return; }
+    if (!await iosConfirm(`「${file.name}」をアップロードして講師DBを一括更新します。\n実行前にバックアップタブが自動生成されます。続けますか？`, { okText:'アップロード', cancelText:'キャンセル' })) return;
     let text;
-    try { text = await file.text(); } catch(e) { alert('ファイル読み込み失敗: ' + e.message); return; }
+    try { text = await file.text(); } catch(e) { iosAlert('ファイル読み込み失敗: ' + e.message); return; }
     const rowsArr = parseCSV(text);
-    if (!rowsArr.length) { alert('CSVが空です'); return; }
+    if (!rowsArr.length) { iosAlert('CSVが空です'); return; }
     const header = rowsArr.shift();
     const colIdx = name => header.indexOf(name);
     const idIdx = colIdx('id');
-    if (idIdx < 0) { alert('CSVの1行目に id 列がありません'); return; }
+    if (idIdx < 0) { iosAlert('CSVの1行目に id 列がありません'); return; }
     const entries = [];
     rowsArr.forEach(r => {
       const obj = {};
       header.forEach((h, i) => { if (h) obj[h] = r[i] != null ? String(r[i]) : ''; });
       if (obj.id) entries.push(obj);
     });
-    if (!entries.length) { alert('有効な行がありません'); return; }
+    if (!entries.length) { iosAlert('有効な行がありません'); return; }
     const btn = document.getElementById('tm-csv-upload');
     if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
     try {
@@ -6005,7 +6027,7 @@ async function importTeachersCSV(){
       const d = await resp.json();
       if (!d.ok) throw new Error(d.message || d.error || '更新失敗');
       const s = d.stats || {};
-      alert([
+      iosAlert([
         `✓ 講師DB一括更新完了`,
         `・受信: ${s.received||0}行`,
         `・実際に更新: ${s.updated||0}名`,
@@ -6021,7 +6043,7 @@ async function importTeachersCSV(){
       await tmFetchIfNeeded(true);
       renderTeacherMaster();
     } catch (e) {
-      alert('アップロードエラー: ' + e.message);
+      iosAlert('アップロードエラー\n' + humanizeError(e));
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = `${tmIcon('upload',16)||''}CSVアップロード`; }
     }
