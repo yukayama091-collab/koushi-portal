@@ -710,7 +710,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-a</span>
+      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-b</span>
       <button class="btn btn-ghost btn-sm" onclick="loadData()" title="データ更新"><svg class="ic"><use href="#i-refresh"/></svg> 更新</button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1317,6 +1317,9 @@ async function loadData() {
   // 講師シート(生徒管理シート)のキャッシュも更新ボタン押下で破棄して最新化
   if (lectureCache && typeof lectureCache.clear === 'function') lectureCache.clear();
   $('#lastUpdated').textContent = '読み込み中…';
+  // AWS の講師データを並列で事前ロード (GAS の loadData を待たずに講師マスタが開けるように)
+  //   tmFetchIfNeeded は force=true で最新化。裏で走らせるだけで await しない
+  try { tmFetchIfNeeded(true); } catch (e) { /* fire and forget */ }
   try {
     const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}`;
     console.log('[loadData] fetching:', url.slice(0, 80) + '...');
@@ -4387,6 +4390,7 @@ async function saveStudentEdit() {
     }
     const applied = result.applied || [];
     alert(`保存しました。\n更新フィールド: ${applied.length} 件\n${applied.map(a => '・' + a.field).join('\n')}`);
+    try { await awsCacheClear(); } catch (e) { /* ignore */ }
     try { await loadData(); } catch (e) { console.warn(e); }
     // 表示モードへ
     setTimeout(() => openStudent(mid), 80);
@@ -4994,6 +4998,44 @@ let tmCurRec = null, tmCurTab = 0;
 let tmLoaded = false;
 let tmLoading = false;
 let _tmLoadPromise = null;  // 進行中の取得を共有して二重リクエスト/早期returnを防ぐ
+
+// ============ AWS 中継用ヘルパー ============
+// GAS 側の Script Cache (5分) をクリアする。書き込み後に呼ぶと、次のAWS取得は必ずフレッシュ
+async function awsCacheClear() {
+  if (!CFG.webAppUrl || !CFG.token) return;
+  try {
+    await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=aws_cache_clear`);
+  } catch (e) { /* ignore */ }
+}
+
+// 書き込み後にAWSへ反映されるまで待つ（オプション。最大60秒ポーリング）
+// callback(hint) を渡すと 3秒ごとに hint(elapsed, meta) が呼ばれ、UI更新できる
+async function awsWaitForSync(callback, maxSec) {
+  if (!CFG.webAppUrl || !CFG.token) return;
+  maxSec = maxSec || 60;
+  const start = Date.now();
+  const priorMeta = await fetchAwsMeta_();
+  const priorLastSync = priorMeta && priorMeta.lastSync;
+  while ((Date.now() - start) / 1000 < maxSec) {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const m = await fetchAwsMeta_(true);
+      if (m && m.lastSync && m.lastSync !== priorLastSync) {
+        if (callback) callback({ elapsed: (Date.now()-start)/1000, meta:m, synced:true });
+        return true;
+      }
+      if (callback) callback({ elapsed: (Date.now()-start)/1000, meta:m, synced:false });
+    } catch (e) { /* ignore, retry */ }
+  }
+  if (callback) callback({ elapsed: maxSec, synced:false, timeout:true });
+  return false;
+}
+
+async function fetchAwsMeta_(refresh) {
+  const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=aws_meta${refresh?'&refresh=1':''}`;
+  const r = await fetch(url);
+  return await r.json();
+}
 
 // AWS の /api/v1/teachers レスポンス(snake_case)を、Portal が使う camelCase に変換
 // AWS のスキーマ: teacher_id, teacher_name, account_name, account_url, employment_type,
@@ -5810,13 +5852,15 @@ async function tmSaveDrawer(btn) {
       await iosAlert('変更はありません。');
       return;
     }
+    // AWS 中継キャッシュをクリアして次のフェッチが最新になるようにする
+    try { await awsCacheClear(); } catch (e) { /* ignore */ }
     // 講師マスタを再取得 → 一覧/ドロワーを再描画
     try { await tmFetchIfNeeded(true); } catch(e) { console.warn(e); }
     const refreshed = TM_DATA.find(t => t.id === tmCurRec.id);
     if (refreshed) tmCurRec = refreshed;
     tmRenderDrawerBody();
     if (typeof renderTeacherList === 'function') renderTeacherList();
-    await iosAlert('保存が完了しました。');
+    await iosAlert('保存が完了しました。\n（AWSへの反映は最大15分〜1時間後です）');
   } catch (e) {
     console.error(e);
     await iosAlert('通信エラー\n' + (e && e.message || e));
