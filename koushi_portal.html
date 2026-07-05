@@ -6,7 +6,7 @@
 <title>講師ポータル — 株式会社LeVela</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ════════════════════════════════════════════════════════════
    Levela 講師ポータル — Design System
@@ -30,7 +30,8 @@
 }
 html,body{ height:100%; }
 body{
-  font-family:"Noto Sans JP", -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Segoe UI", sans-serif;
+  font-family: "Inter", "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Segoe UI", sans-serif;
+  font-feature-settings: "cv02","cv03","cv04","cv11";
   background:var(--page); color:var(--ink); -webkit-font-smoothing:antialiased;
   font-size:14px; line-height:1.6; letter-spacing:.01em;
 }
@@ -141,9 +142,9 @@ a{ color:inherit; text-decoration:none; }
 .kpi-top{ display:flex; align-items:center; gap:9px; margin-bottom:14px; }
 .kpi-ico{ width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none; }
 .kpi-ico .ic{ width:18px; height:18px; }
-.kpi-label{ font-size:12.5px; font-weight:600; color:var(--muted); }
-.kpi-val{ font-size:34px; font-weight:700; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
-.kpi-val .u{ font-size:16px; font-weight:600; color:var(--faint); margin-left:3px; }
+.kpi-label{ font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.02em; }
+.kpi-val{ font-size:36px; font-weight:800; line-height:1; letter-spacing:-.025em; font-variant-numeric:tabular-nums; color:var(--ink); }
+.kpi-val .u{ font-size:14px; font-weight:600; color:var(--faint); margin-left:4px; letter-spacing:0; }
 .kpi-sub{ font-size:12px; color:var(--muted); margin-top:9px; display:flex; align-items:center; gap:6px; }
 .kpi-arrow{ position:absolute; top:20px; right:20px; color:var(--faint); width:16px; height:16px; opacity:0; transition:.12s; }
 .kpi:hover .kpi-arrow{ opacity:1; transform:translateX(2px); }
@@ -475,7 +476,9 @@ table.tbl{ width:100%; border-collapse:collapse; }
 @keyframes iosFadeIn{ from{ opacity:0 } to{ opacity:1 } }
 .ios-alert{ background:#fff; width:min(320px, 88vw); border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,.25); overflow:hidden; font-family:inherit; animation:iosPopIn .18s ease-out; }
 @keyframes iosPopIn{ from{ transform:scale(.92); opacity:.6 } to{ transform:scale(1); opacity:1 } }
-.ios-alert-body{ padding:22px 20px 20px; font-size:15px; font-weight:600; color:var(--ink); text-align:center; line-height:1.45; white-space:pre-wrap; }
+.ios-alert-body{ padding:24px 22px 18px; font-size:16px; font-weight:700; color:var(--ink); text-align:center; line-height:1.5; white-space:pre-wrap; letter-spacing:.01em; }
+/* 2行目以降(改行後の詳細) は補足として1段小さくして重要度を下げる */
+.ios-alert-body::first-line{ font-size:16px; font-weight:800; }
 .ios-alert-actions{ display:flex; gap:10px; padding:0 14px 14px; }
 .ios-alert-actions .ios-btn{ flex:1; height:42px; border-radius:10px; font:inherit; font-size:14.5px; font-weight:700; cursor:pointer; border:none; transition:filter .12s; }
 .ios-alert-actions .ios-btn:hover{ filter:brightness(0.97); }
@@ -746,7 +749,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated" style="opacity:.6;font-size:11px" title="ポータルビルド版">v2026.07.05-e</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.05-f</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1036,7 +1039,6 @@ function withActor(qsOrObj) {
         const u = new URL(urlStr, location.href);
         const action = u.searchParams.get('action');
         if (action && WRITE_ACTIONS.has(action)) {
-          console.log('[READONLY] blocked', action);
           const fake = { ok:true, demo:true, value:'', stats:{ updated:0, demo:true } };
           return Promise.resolve(new Response(JSON.stringify(fake), { status:200, headers:{'Content-Type':'application/json'} }));
         }
@@ -1390,19 +1392,16 @@ async function loadData(forceRefresh) {
             data = parsed.data;
             usedCache = true;
             const ageMin = Math.floor((Date.now() - parsed.ts) / 60000);
-            console.log('[loadData] using LS cache (' + ageMin + ' min old)');
           }
         }
       } catch (eLS) { console.warn('[loadData] LS cache read failed:', eLS); }
     }
     // 2. キャッシュがなければ or 期限切れなら fetch
     if (!data) {
-      console.log('[loadData] fetching from GAS...');
       let resp;
       try {
         const t0 = Date.now();
         resp = await fetch(url);
-        console.log('[loadData] response in ' + (Date.now()-t0) + 'ms / HTTP ' + resp.status);
       } catch (e) {
         console.error('[loadData] fetch error:', e.name, e.message, e);
         throw new Error('通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。');
@@ -1415,8 +1414,6 @@ async function loadData(forceRefresh) {
       } catch (eLS) { console.warn('[loadData] LS cache write failed (probably quota exceeded):', eLS); }
     }
     if (data.error) throw new Error(data.error === 'forbidden' ? '合言葉が違います（設定を確認）' : (data.message || data.error));
-    console.log('[loadData] parsed OK. rows:', (data.progressOld?.rows?.length||0) + (data.progressNew?.rows?.length||0));
-
     // 講師DB登録の teacherId 集合（卒業生マスタ取り込みのフィルタに使用）
     // 講師DBに存在しない講師（例: ふみや・りぶ等）の卒業生は本ポータルでは表示しない
     const knownTeacherIds = new Set();
@@ -1620,7 +1617,6 @@ async function loadData(forceRefresh) {
         const byName = studentMetaByName.has(normName(r.name));
         return byId || byName;
       });
-      console.log(`[loadData] 生徒情報シートで絞り込み: ${before} → ${allRows.length}`);
     }
 
     // 卒業済み（および「今日>卒業予定日」）は「超過」バケットから外して卒業扱い
@@ -1736,7 +1732,6 @@ async function loadData(forceRefresh) {
     // キャッシュを使った場合は、1秒後に裏で最新データを取得して更新
     if (usedCache) {
       setTimeout(() => {
-        console.log('[loadData] refreshing in background...');
         loadData(true).catch(e => console.warn('[loadData] background refresh failed:', e));
       }, 1000);
     }
@@ -1913,6 +1908,8 @@ function refreshCounts() {
   if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; }
 }
 function go(page) {
+  // 画面遷移時に開いてる全モーダル・ドロワーを閉じる（操作不能ゾーン防止）
+  closeAllOverlays();
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
@@ -1920,6 +1917,25 @@ function go(page) {
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
+}
+
+// 全モーダル・ドロワー・スナックバーを一括で閉じる
+function closeAllOverlays() {
+  // overlay系
+  document.querySelectorAll('.overlay.open').forEach(el => el.classList.remove('open'));
+  // 講師ドロワー
+  const drawer = document.getElementById('tmDrawer');
+  const scrim = document.getElementById('tmScrim');
+  if (drawer && drawer.classList.contains('open')) drawer.classList.remove('open');
+  if (scrim && scrim.classList.contains('open')) scrim.classList.remove('open');
+  // 講師マスタの絞り込みドロップダウン等
+  if (typeof tmCloseTopFilters === 'function') tmCloseTopFilters();
+  if (typeof tmCloseColumnFilters === 'function') tmCloseColumnFilters();
+  if (typeof dashCloseTopFilters === 'function') dashCloseTopFilters();
+  // スナックバー
+  if (typeof hideSnackbar === 'function') hideSnackbar();
+  // 状態リセット
+  if (typeof _studentBack !== 'undefined') _studentBack = null;
 }
 function toggleSidebar(){ const sb=$('#sidebar'); sb.classList.toggle('open'); $('#mobileScrim').style.display = sb.classList.contains('open')?'block':'none'; }
 function closeSidebar(){ $('#sidebar').classList.remove('open'); $('#mobileScrim').style.display='none'; }
@@ -4145,7 +4161,6 @@ function openClass(clsName){
     // 候補: クラス内生徒の teacherId（重複を含む）→ 先頭の有効値 / fallback で CURRENT_TEACHER
     const candidates = cl.map(s => s.__row && s.__row.teacherId).filter(t => t);
     const classTid = candidates.find(t => classSheetMap.get(t)) || (classSheetMap.get(CURRENT_TEACHER) ? CURRENT_TEACHER : '');
-    console.log('[openClass] no lecturesData attached. clsName=', clsName, 'candidates=', [...new Set(candidates)], 'CURRENT_TEACHER=', CURRENT_TEACHER, 'pickedTid=', classTid);
     if (classTid) {
       _openClassRetried = clsName;
       _diagMsg = `講師シート（${classTid}）を読み込み中…`;
@@ -4733,7 +4748,7 @@ if (_gs) _gs.addEventListener('input', e => {
 (function setTodayPill(){
   const el = $('#todayPill');
   if (!el) return;
-  el.innerHTML = `<svg class="ic" style="width:13px;height:13px"><use href="#i-calendar"/></svg>${TODAY.getFullYear()}年${TODAY.getMonth()+1}月${TODAY.getDate()}日(${dow(TODAY)})`;
+  el.innerHTML = `<svg class="ic" style="width:13px;height:13px"><use href="#i-calendar"/></svg>${TODAY.getFullYear()}/${String(TODAY.getMonth()+1).padStart(2,'0')}/${String(TODAY.getDate()).padStart(2,'0')} <span style="color:var(--muted);font-weight:600;margin-left:2px">${dow(TODAY)}</span>`;
 })();
 
 // 初期描画
@@ -4935,6 +4950,10 @@ function applyRoleUi() {
     demo: 'デモ'
   };
   badge.textContent = (ROLE_LABEL[u.role] || '未認証') + (u.name ? ' / ' + u.name : '');
+  // 管理者のみバージョン表記を表示
+  document.querySelectorAll('.version-tag').forEach(el => {
+    el.style.display = (u.role === 'admin') ? '' : 'none';
+  });
 }
 
 // ロール別の権限説明モーダル
@@ -5323,7 +5342,6 @@ async function tmFetchIfNeeded(force){
       const awsD = await awsResp.json();
       if (awsD && Array.isArray(awsD.rows)) {
         teachers = awsD.rows.map(tmMapAwsTeacher);
-        console.log(`[tmFetch] AWS ok in ${Date.now()-t0}ms rows=${teachers.length}`);
       } else if (awsD && awsD.error) {
         console.warn('[tmFetch] AWS returned error:', awsD.error);
       }
@@ -5812,7 +5830,7 @@ function tmTabContent(r, t){
       : [];
     const baseList = allValid.filter(s => s.__row && s.__row.teacherId === r.id);
     baseList.sort((a,b) => String(a.cls||'').localeCompare(String(b.cls||''),'ja') || String(a.name||'').localeCompare(String(b.name||''),'ja'));
-    if(!baseList.length) return `<div style="font-size:13px;color:var(--muted);padding:8px 2px;line-height:1.7">担当生徒は<b>生徒マスタ</b>と連携して表示されます。<br>現在、講師ID <b>${tmEsc(r.id)}</b> に紐づく生徒はいません。</div>`;
+    if(!baseList.length) return `<div style="font-size:13px;color:var(--muted);padding:24px 2px;text-align:center;line-height:1.7">この講師に紐づく生徒はまだいません。</div>`;
     const progText = s => {
       if (s.status === 'grad') return '卒業済み';
       if (s.completed) return '完了';
