@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.05-g</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.07-a</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -5088,7 +5088,7 @@ const TM_STUDENTS = {
   ],
 };
 const TM_RANKMAP = {"マスター":"master","ダイヤモンド":"diamond","プラチナ":"platinum","ゴールド":"gold","シルバー":"silver","特別条件":"special"};
-const TM_TABS = ["基本情報","契約・稼働","クラス運営","ローンチ","担当生徒"];
+const TM_TABS = ["基本情報","契約・稼働","クラス運営","ローンチ","ローンチ履歴","担当生徒"];
 const TM_CHIPS = [["全員",t=>true],["稼働中",t=>t.active==="稼働中"],["未稼働",t=>t.active==="未稼働"],["専属",t=>t.type==="専属"],["1on1 可",t=>t.one],["要対応",t=>t.active==="未稼働"&&!t.retire]];
 let tmView = 'table';
 let tmChipIdx = 0;
@@ -5817,6 +5817,12 @@ function tmTabContent(r, t){
     ${tmField("受け持ち可能な時間帯",r.slot,{key:'slot'})}
     <div class="field-row">${tmField("得意ジャンル",r.good,{key:'good'})}${tmField("苦手ジャンル",r.bad,{key:'bad'})}</div>`;
   if(t===4){
+    // ローンチ履歴タブ: 講師のローンチ計画+実績を表示
+    return `<div id="tmLaunchHistoryContainer" data-tid="${tmEsc(r.id)}" data-tname="${tmEsc(r.name||'')}">
+      <div class="empty" style="padding:24px 0;color:var(--muted)">ローンチ履歴を読み込み中…</div>
+    </div>`;
+  }
+  if(t===5){
     // 講師ID(r.id) に紐づく生徒を抽出（CURRENT_TEACHER スコープに関係なく全 allRows から取得）
     const allValid = (typeof viewStudents === 'function' && allRows && allRows.length)
       ? viewStudents(allRows.filter(rr => isValidClassName(rr.className)))
@@ -6114,6 +6120,99 @@ function tmCaptureDrawerEdits() {
 function tmRenderDrawerBody(){
   document.getElementById('tm-dr-body').innerHTML = tmTabContent(tmCurRec, tmCurTab);
   document.querySelectorAll('#tmDrawer .dr-tab').forEach((b,i)=>b.classList.toggle('on', i===tmCurTab));
+  // ローンチ履歴タブが表示されたらデータ取得
+  if (tmCurTab === 4) tmLoadLaunchHistory();
+}
+
+// ローンチ履歴を GAS から取得して描画
+const _tmLaunchCache = new Map(); // tid → response
+async function tmLoadLaunchHistory() {
+  const container = document.getElementById('tmLaunchHistoryContainer');
+  if (!container) return;
+  const tid = container.dataset.tid;
+  const tname = container.dataset.tname;
+  if (!CFG.webAppUrl || !CFG.token) {
+    container.innerHTML = '<div class="empty" style="padding:24px 0">受付窓口の設定が必要です</div>'; return;
+  }
+  // キャッシュ
+  let d = _tmLaunchCache.get(tid);
+  if (!d) {
+    try {
+      const params = new URLSearchParams({ token: CFG.token, action: 'launch_history', tid: tid, name: tname });
+      const resp = await fetch(`${CFG.webAppUrl}?${params.toString()}`);
+      d = await resp.json();
+      _tmLaunchCache.set(tid, d);
+    } catch (e) {
+      container.innerHTML = `<div class="empty" style="padding:24px 0">取得エラー: ${humanizeError(e)}</div>`;
+      return;
+    }
+  }
+  if (!d || d.error) {
+    if (d && d.error === 'teacher_not_in_launch_sheet') {
+      container.innerHTML = '<div class="empty" style="padding:24px 0">この講師はローンチスケジュールに登録されていません</div>';
+    } else {
+      container.innerHTML = `<div class="empty" style="padding:24px 0">読み込めませんでした: ${(d && d.error) || '不明なエラー'}</div>`;
+    }
+    return;
+  }
+  container.innerHTML = renderLaunchHistoryHtml(d);
+}
+
+// ローンチ履歴 → HTML 描画
+function renderLaunchHistoryHtml(d) {
+  const launches = d.launches || [];
+  if (!launches.length) {
+    return '<div class="empty" style="padding:24px 0">記録されているローンチはありません</div>';
+  }
+  // status別に分類
+  const past = launches.filter(l => l.status === 'past');
+  const current = launches.filter(l => l.status === 'current');
+  const future = launches.filter(l => l.status === 'future');
+  const totalTarget = past.concat(current).reduce((s, l) => s + (l.target||0), 0);
+  const rowsHtml = (arr, label, color) => arr.map(l => {
+    const badge = l.status === 'current'
+      ? `<span class="badge" style="background:#fef2f2;color:${'var(--danger)'};font-weight:800;font-size:11px">今回</span>`
+      : l.status === 'past'
+        ? `<span class="badge" style="background:#f3f4f6;color:var(--muted);font-weight:700;font-size:11px">${l.marker || '完了'}</span>`
+        : `<span class="badge" style="background:#eff6ff;color:var(--info);font-weight:700;font-size:11px">予定</span>`;
+    const targetTxt = l.target != null ? `${l.target.toLocaleString()} <span style="font-size:10.5px;color:var(--muted);font-weight:600">名</span>` : '<span class="faint">—</span>';
+    const resultTxt = l.studentCount != null ? `${l.studentCount.toLocaleString()} <span style="font-size:10.5px;color:var(--muted);font-weight:600">名</span>` : '<span class="faint">—</span>';
+    const rate = (l.target && l.studentCount != null) ? Math.round((l.studentCount / l.target) * 100) : null;
+    const rateHtml = rate != null
+      ? `<span style="font-size:13px;font-weight:800;color:${rate>=100?'var(--ok)':rate>=80?'var(--info)':rate>=50?'var(--warn)':'var(--danger)'}">${rate}%</span>`
+      : '<span class="faint">—</span>';
+    return `<tr>
+      <td style="font-weight:700;color:var(--ink)">${l.date}</td>
+      <td>${badge}</td>
+      <td class="num">${targetTxt}</td>
+      <td class="num">${resultTxt}</td>
+      <td class="num" style="text-align:right">${rateHtml}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div class="stack" style="gap:16px">
+      <div class="dm-stats" style="grid-template-columns:repeat(3,1fr);margin:0">
+        <div class="dm-stat"><div class="v">${past.length}</div><div class="l">過去ローンチ</div></div>
+        <div class="dm-stat"><div class="v" style="color:var(--danger)">${current.length}</div><div class="l">今回</div></div>
+        <div class="dm-stat"><div class="v" style="color:var(--info)">${future.length}</div><div class="l">今後の予定</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="card-head" style="padding:14px 18px;border-bottom:1px solid var(--line);margin:0">
+          <div class="card-title" style="font-size:14px"><svg class="ic"><use href="#i-calendar"/></svg> ローンチ履歴</div>
+          <span class="card-meta">合計 ${launches.length} 件 / 目標累計 ${totalTarget.toLocaleString()} 名</span>
+        </div>
+        <table class="tbl" style="width:100%">
+          <thead><tr>
+            <th>日付</th><th>状態</th><th style="text-align:right">目標</th><th style="text-align:right">実績</th><th style="text-align:right">達成率</th>
+          </tr></thead>
+          <tbody>${rowsHtml(launches, '', '')}</tbody>
+        </table>
+      </div>
+      <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.6">
+        目標: 講師DB「講師ローンチスケジュール」シートの予定申込数<br>
+        実績: 現時点で連携未実装（0件表示）
+      </div>
+    </div>`;
 }
 
 // 講師ドロワーの保存 — update_teacher を呼んでスプシに書き戻す
@@ -6225,7 +6324,7 @@ function openTeacherDrawer(id, isNew){
       ${isNew?'':`<button class="btn btn-primary btn-sm" id="tm-dr-portal" title="この講師のダッシュボード/担当生徒/講義実施状況などをポータルで見る" style="margin-right:8px;height:34px;padding:0 12px;display:inline-flex;align-items:center;gap:6px">${tmIcon('ext',14)} ポータルで見る</button>`}
       <button class="dr-x" id="tm-dr-close">${tmIcon('x',18)}</button>
     </div>
-    <div class="dr-tabs">${TM_TABS.map((t,ti)=>`<button class="dr-tab ${ti===0?'on':''}">${t}${ti===4?`<span class="cnt">${tmStudentCountFor(r.id)}</span>`:''}</button>`).join('')}</div>
+    <div class="dr-tabs">${TM_TABS.map((t,ti)=>`<button class="dr-tab ${ti===0?'on':''}">${t}${ti===5?`<span class="cnt">${tmStudentCountFor(r.id)}</span>`:''}</button>`).join('')}</div>
     <div class="dr-body" id="tm-dr-body"></div>
     <div class="dr-foot">
       <button class="btn btn-primary" id="tm-dr-save">保存する</button>
