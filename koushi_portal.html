@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.10-b</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.10-c</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1052,6 +1052,11 @@ let CFG = {
 if (CFG.webAppUrl) try { localStorage.setItem('koushi_webapp_url', CFG.webAppUrl); } catch(e){}
 if (CFG.token)    try { localStorage.setItem('koushi_token', CFG.token); } catch(e){}
 let CURRENT_TEACHER = localStorage.getItem('koushi_teacher') || '';
+
+// 起動時に loadData()→tmFetchIfNeeded() から早期に参照されるので var で hoist しておく (TDZ 回避)
+var tmLoaded = false;
+var tmLoading = false;
+var _tmLoadPromise = null;
 
 let allRows = [];
 let postDataMap = new Map();
@@ -5232,9 +5237,7 @@ function tmFilterMenu(input) {
   if (empty) empty.style.display = (q && visible === 0) ? '' : 'none';
 }
 let tmCurRec = null, tmCurTab = 0;
-let tmLoaded = false;
-let tmLoading = false;
-let _tmLoadPromise = null;  // 進行中の取得を共有して二重リクエスト/早期returnを防ぐ
+// tmLoaded/tmLoading/_tmLoadPromise は先頭で var 宣言済み (hoisted, 起動時 loadData→tmFetchIfNeeded 経路の TDZ 回避)
 
 // ============ AWS 中継用ヘルパー ============
 // GAS 側の Script Cache (5分) をクリアする。書き込み後に呼ぶと、次のAWS取得は必ずフレッシュ
@@ -6077,7 +6080,7 @@ function iosAlert(message) {
     const overlay = document.getElementById('iosAlert');
     const msg = document.getElementById('iosAlertMsg');
     const actions = document.getElementById('iosAlertActions');
-    if (!overlay || !msg || !actions) { window.iosAlert(message); resolve(); return; }
+    if (!overlay || !msg || !actions) { try { window.alert(message); } catch(e){} resolve(); return; }
     msg.textContent = message;
     actions.className = 'ios-alert-actions single';
     actions.innerHTML = `<button type="button" class="ios-btn ios-btn-ok">OK</button>`;
