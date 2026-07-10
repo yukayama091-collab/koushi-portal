@@ -732,7 +732,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="btn btn-ghost btn-icon btn-sm hamburger" onclick="toggleSidebar()" aria-label="メニュー"><svg class="ic"><use href="#i-menu"/></svg></button>
     <div class="searchbar">
       <svg class="ic"><use href="#i-search"/></svg>
-      <input id="globalSearch" placeholder="生徒名・クラスで検索…" autocomplete="off">
+      <input id="globalSearch" placeholder="生徒名・クラス・講師ID・講師名で検索…" autocomplete="off">
     </div>
     <div class="topbar-right">
       <div class="teacher-filter-wrap" style="position:relative;display:inline-flex;align-items:center">
@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.10-d</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.10-e</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1885,6 +1885,7 @@ function viewStudents(rows) {
       cls: r.className||'',
       month: r.month||'',
       teacher: r.teacherId ? (teacherMeta.get(r.teacherId)?.label||'') : '',
+      teacherId: r.teacherId || '',
       curr: r.kind||'old',
       grad: status === 'grad', days, step, prog, posts, man10, status,
       sp, ap, pp, __row: r,
@@ -2644,7 +2645,18 @@ function renderSearch(){
     if (state.searchStatus === 'enrolled' && isGraduatedClass(s.cls)) return false;
     if (state.searchClass && s.cls!==state.searchClass) return false;
     if (state.searchCurr && s.curr!==state.searchCurr) return false;
-    if (q && !((s.name||'').includes(q) || (s.cls||'').includes(q) || (s.teacher||'').includes(q))) return false;
+    if (q) {
+      const ql = q.toLowerCase();
+      const tid = (s.teacherId || '').toLowerCase();
+      // 講師ID: 完全一致 / 部分一致 / ゼロ埋め除去後の一致 (例 "86" → "0086")
+      const tidStripped = tid.replace(/^0+/, '');
+      const qStripped = ql.replace(/^0+/, '');
+      const tidHit = tid && (tid.includes(ql) || (qStripped && tidStripped === qStripped));
+      const nameHit = (s.name || '').toLowerCase().includes(ql);
+      const clsHit  = (s.cls  || '').toLowerCase().includes(ql);
+      const tnHit   = (s.teacher || '').toLowerCase().includes(ql);
+      if (!(nameHit || clsHit || tnHit || tidHit)) return false;
+    }
     return true;
   });
 
@@ -2656,7 +2668,7 @@ function renderSearch(){
       <div class="card card-pad" style="padding:18px 22px">
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
           <div class="searchbar" style="max-width:300px"><svg class="ic"><use href="#i-search"/></svg>
-            <input id="searchBox" placeholder="名前・クラスで検索…" value="${q.replace(/"/g,'&quot;')}" oninput="state.search=this.value;$('#globalSearch').value=this.value;renderSearch()"></div>
+            <input id="searchBox" placeholder="名前・クラス・講師ID・講師名で検索…" value="${q.replace(/"/g,'&quot;')}" oninput="state.search=this.value;$('#globalSearch').value=this.value;renderSearch()"></div>
           <select class="select-min" onchange="state.searchClass=this.value;renderSearch()">
             <option value="">全クラス</option>${classes.map(c => `<option value="${c}" ${state.searchClass===c?'selected':''}>${c}</option>`).join('')}
           </select>
