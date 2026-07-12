@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-g</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-h</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2488,6 +2488,13 @@ function renderDashboard(){
     }
   }
 
+  // 講師選択時: ローンチスケジュールのプレースホルダを差し込む (fetchで後埋め)
+  const launchScheduleHtml = CURRENT_TEACHER ? `
+    <div class="card card-pad" id="dashLaunchScheduleCard">
+      <div class="card-head"><div class="card-title"><svg class="ic"><use href="#i-calendar"/></svg> ローンチスケジュール</div><span class="card-meta" id="dashLaunchScheduleMeta">読み込み中…</span></div>
+      <div id="dashLaunchScheduleBody" style="padding:8px 0"><div class="empty" style="padding:20px 0"><svg class="ic" style="animation:spin 1s linear infinite;vertical-align:-3px;margin-right:6px"><use href="#i-refresh"/></svg> ローンチ情報を読み込み中…</div></div>
+    </div>` : '';
+
   $('#page-dashboard').innerHTML = `
     <div class="page-head">
       <div><div class="page-title">ダッシュボード</div><div class="page-sub">${scopeLabel()} ／ 全クラスのサマリ</div></div>
@@ -2497,9 +2504,16 @@ function renderDashboard(){
       ${teacherInfoHtml}
       ${kpiHtml}
       <div class="grid g2">${followHtml}${upHtml}</div>
+      ${launchScheduleHtml}
       ${distHtml}
       ${bottomHtml}
     </div>`;
+  // ローンチスケジュール取得 (講師選択時のみ)
+  if (CURRENT_TEACHER) {
+    const tid = CURRENT_TEACHER;
+    const tname = teacherMasterMap.get(tid)?.name || teacherIdToLabel.get(tid) || '';
+    loadDashboardLaunchSchedule(tid, tname);
+  }
   // 全講師の状況カードのフィルタイベント
   const tq = document.getElementById('dashTQ');
   if (tq) {
@@ -6332,6 +6346,48 @@ function tmRenderDrawerBody(){
 
 // ローンチ履歴を GAS から取得して描画
 const _tmLaunchCache = new Map(); // tid → response
+// ダッシュボード用ローンチスケジュール読み込み (講師マスタと同じキャッシュを流用)
+async function loadDashboardLaunchSchedule(tid, tname) {
+  const body = document.getElementById('dashLaunchScheduleBody');
+  const meta = document.getElementById('dashLaunchScheduleMeta');
+  if (!body) return;
+  if (!CFG.webAppUrl || !CFG.token) {
+    body.innerHTML = '<div class="empty" style="padding:24px 0">受付窓口の設定が必要です</div>';
+    if (meta) meta.textContent = '';
+    return;
+  }
+  let d = _tmLaunchCache.get(tid);
+  if (!d) {
+    try {
+      const params = new URLSearchParams({ token: CFG.token, action: 'launch_history', tid: tid, name: tname || '' });
+      const resp = await fetch(`${CFG.webAppUrl}?${params.toString()}`);
+      d = await resp.json();
+      _tmLaunchCache.set(tid, d);
+    } catch (e) {
+      body.innerHTML = `<div class="empty" style="padding:24px 0">取得エラー: ${humanizeError(e)}</div>`;
+      if (meta) meta.textContent = '';
+      return;
+    }
+  }
+  if (!d || d.error) {
+    if (d && d.error === 'teacher_not_in_launch_sheet') {
+      body.innerHTML = '<div class="empty" style="padding:20px 0">この講師はローンチスケジュールに登録されていません</div>';
+    } else {
+      body.innerHTML = `<div class="empty" style="padding:20px 0">読み込めませんでした: ${(d && d.error) || '不明なエラー'}</div>`;
+    }
+    if (meta) meta.textContent = '';
+    return;
+  }
+  body.innerHTML = renderLaunchHistoryHtml(d);
+  if (meta) {
+    const launches = d.launches || [];
+    const past = launches.filter(l => l.status === 'past').length;
+    const cur = launches.filter(l => l.status === 'current').length;
+    const fut = launches.filter(l => l.status === 'future').length;
+    meta.textContent = `過去 ${past} / 今回 ${cur} / 予定 ${fut}`;
+  }
+}
+
 async function tmLoadLaunchHistory() {
   const container = document.getElementById('tmLaunchHistoryContainer');
   if (!container) return;
