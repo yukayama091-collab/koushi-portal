@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-f</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-g</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -4731,24 +4731,49 @@ async function saveStudentEdit() {
 
 // 「生徒管理シートが反映されていません」警告から押された時：
 //  講師DB「クラス情報管理」K列が空欄の講師について、テンプレを複製してリンクを書き戻す
+function showBusyOverlay(message) {
+  let ov = document.getElementById('busyOverlay');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'busyOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:99999;backdrop-filter:blur(2px)';
+    ov.innerHTML = `<div style="background:#fff;padding:26px 32px;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:240px;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <svg style="width:36px;height:36px;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#e5e7eb" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="var(--brand)" stroke-width="3" stroke-linecap="round"/></svg>
+      <div id="busyOverlayMsg" style="font-size:14px;font-weight:600;color:var(--ink);text-align:center;line-height:1.5">${message || '処理中…'}</div>
+    </div>`;
+    document.body.appendChild(ov);
+  } else {
+    ov.style.display = 'flex';
+    const msg = document.getElementById('busyOverlayMsg');
+    if (msg) msg.textContent = message || '処理中…';
+  }
+}
+function hideBusyOverlay() {
+  const ov = document.getElementById('busyOverlay');
+  if (ov) ov.style.display = 'none';
+}
+
 async function createStudentSheet(tid, clsName, btnEl) {
   if (!tid) { iosAlert('講師IDを特定できません。'); return; }
   if (CFG.token === DEMO_TOKEN) { iosAlert('デモトークンでは作成できません。'); return; }
   if (!await iosConfirm(`このクラスの講師（ID: ${tid}）の生徒管理シートを新規作成します。`, { okText:'作成', cancelText:'キャンセル' })) return;
   const original = btnEl ? btnEl.innerHTML : '';
   if (btnEl) { btnEl.disabled = true; btnEl.innerHTML = '作成中…'; }
+  showBusyOverlay(`生徒管理シートを作成中… (ID: ${tid})\nGoogleドライブでテンプレを複製しています`);
   try {
     const url = withActor(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=create_student_sheet_for_teacher&teacherId=${encodeURIComponent(tid)}`);
     const resp = await fetch(url);
     const result = await resp.json();
     if (!result || result.error) {
+      hideBusyOverlay();
       iosAlert('作成に失敗しました\n' + humanizeError(result && (result.message || result.error) || '不明なエラー'));
       if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = original; }
       return;
     }
-    // クラス情報管理の再読込 → 該当クラスを再オープン
-    await iosAlert((result.reused ? '既存のシートURLを再利用しました。' : '生徒管理シートを作成しました。') + '\n\n講師DBへの反映を読み込みます。');
+    showBusyOverlay('講師DBへ反映を読み込み中…');
     try { await loadData(); } catch (e) { console.warn(e); }
+    hideBusyOverlay();
+    await iosAlert((result.reused ? '既存のシートURLを再利用しました。' : '生徒管理シートを作成しました。'));
     // 同じクラスを開き直す
     if (clsName) {
       closeModal('classModal');
@@ -4758,6 +4783,7 @@ async function createStudentSheet(tid, clsName, btnEl) {
       btnEl.innerHTML = original;
     }
   } catch (e) {
+    hideBusyOverlay();
     console.error(e);
     iosAlert('エラー\n' + humanizeError(e));
     if (btnEl) { btnEl.disabled = false; btnEl.innerHTML = original; }
