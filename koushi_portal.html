@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-a</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-b</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1755,6 +1755,8 @@ async function loadData(forceRefresh, opts) {
     }
     if (CURRENT_TEACHER) preloadTeacherLectures(CURRENT_TEACHER);
     else preloadAllTeachersLecturesInBackground();
+    // 生徒メモ: 全生徒分を裏でロード
+    fetchStudentMemos().catch(e => console.warn('memo fetch failed', e));
     refreshCounts();
     if (!silent) go(state.page);
     // キャッシュを使った場合は、1秒後にサイレントで最新データを取得
@@ -4067,8 +4069,74 @@ function openStudent(id){
     })()}
     <div class="card-title" style="font-size:14px;margin-bottom:12px"><svg class="ic"><use href="#i-trending"/></svg> 投稿プログラム進行（ガント）</div>
     ${renderStudentGantt(r)}
+    ${renderStudentMemoBlock(s.id, s.name)}
   `;
   openModal('studentModal');
+}
+
+// 生徒メモ表示&編集
+const studentMemoMap = new Map();  // mid → {memo, updatedBy, updatedAt}
+async function fetchStudentMemos() {
+  if (!CFG.webAppUrl || !CFG.token) return;
+  try {
+    const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_student_memos`);
+    const d = await resp.json();
+    if (d && d.memos) {
+      studentMemoMap.clear();
+      Object.keys(d.memos).forEach(mid => studentMemoMap.set(mid, d.memos[mid]));
+    }
+  } catch (e) { console.warn('[fetchStudentMemos] failed', e); }
+}
+function renderStudentMemoBlock(mid, name) {
+  const cur = studentMemoMap.get(mid);
+  const memo = cur && cur.memo ? cur.memo : '';
+  const meta = cur ? `<span style="font-size:11px;color:var(--muted);margin-left:auto">最終更新: ${cur.updatedAt || '—'}${cur.updatedBy ? ' / '+ cur.updatedBy : ''}</span>` : '';
+  const safeMid = String(mid).replace(/"/g, '&quot;').replace(/'/g, "\\'");
+  const safeName = String(name).replace(/"/g, '&quot;').replace(/'/g, "\\'");
+  return `
+    <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line2)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <svg class="ic"><use href="#i-clipboard"/></svg>
+        <div style="font-size:14px;font-weight:700;color:var(--ink)">個別メモ</div>
+        ${meta}
+      </div>
+      <textarea id="studentMemoInput" placeholder="この生徒についてのメモを自由に記入…" style="width:100%;min-height:110px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13.5px;line-height:1.6;resize:vertical;box-sizing:border-box">${memo.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button type="button" class="btn btn-ghost btn-sm" id="studentMemoResetBtn" onclick="(function(){document.getElementById('studentMemoInput').value='${(memo||'').replace(/'/g,\"\\\\'\").replace(/\n/g,'\\\\n')}';})()">元に戻す</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveStudentMemo('${safeMid}','${safeName}')">保存</button>
+      </div>
+    </div>`;
+}
+async function saveStudentMemo(mid, name) {
+  const el = document.getElementById('studentMemoInput');
+  if (!el) return;
+  const memo = el.value;
+  const actor = (localStorage.getItem('koushi_actor_name') || '').trim();
+  const body = new URLSearchParams();
+  body.set('token', CFG.token);
+  body.set('action', 'set_student_memo');
+  body.set('mid', mid);
+  body.set('name', name);
+  body.set('memo', memo);
+  body.set('actor_name', actor);
+  try {
+    const resp = await fetch(CFG.webAppUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: body.toString()
+    });
+    const d = await resp.json();
+    if (d && d.ok) {
+      studentMemoMap.set(mid, { memo: memo, updatedBy: actor || '不明', updatedAt: d.updatedAt || '' });
+      showSnackbar('メモを保存しました', 2000);
+      // モーダル再描画で最終更新を反映
+      if (_studentEditCtx && _studentEditCtx.id === mid) openStudent(mid);
+    } else {
+      iosAlert('メモの保存に失敗しました: ' + (d && d.error ? d.error : '不明なエラー'));
+    }
+  } catch (e) {
+    iosAlert('メモの保存に失敗しました: ' + e.message);
+  }
 }
 
 // 生徒1人ぶんのガント（投稿プログラム進行）
