@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.14-a</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.14-b</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -6211,6 +6211,16 @@ async function renderTeacherMaster(){
           ${tmTopFilterHtml({
             key:'retire', head:'在籍状態', placeholder:'全在籍/退職', current:tmFilter.retire || '',
             options:[{value:'在籍中',label:'在籍中'},{value:'退職済',label:'退職済'}]
+          })}
+          ${tmTopFilterHtml({
+            key:'mg', head:'講師MG', placeholder:'全講師MG', current:tmFilter.mg || '',
+            options:[...new Set(TM_DATA.map(t=>t.mg).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja')).map(v=>({value:v,label:v})),
+            searchable:true
+          })}
+          ${tmTopFilterHtml({
+            key:'sup', head:'サポMG', placeholder:'全サポMG', current:tmFilter.sup || '',
+            options:[...new Set(TM_DATA.map(t=>t.sup).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ja')).map(v=>({value:v,label:v})),
+            searchable:true
           })}
           ${tmTopFilterHtml({
             key:'mode', head:'表示モード', placeholder:'表示モード', current:tmTableMode || 'basic',
