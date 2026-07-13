@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-k</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-l</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -771,6 +771,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="users" onclick="go('users')" title="ユーザー権限管理（マネージャー専用）"><svg class="ic"><use href="#i-teacher"/></svg> ユーザー管理</button>
     <button class="nav" data-page="history" onclick="go('history')" title="編集履歴の一覧"><svg class="ic"><use href="#i-clock"/></svg> 編集履歴</button>
     <button class="nav" data-page="help" onclick="go('help')" title="マーク・色・使い方の説明"><svg class="ic"><use href="#i-help"/></svg> ヘルプ・凡例</button>
+    <button class="nav" data-page="guide" onclick="go('guide')" title="初めての方向けの操作手順書"><svg class="ic"><use href="#i-book"/></svg> 使い方ガイド</button>
     <div class="side-foot">講師ポータル v3.0 ・ LeVela</div>
   </aside>
 
@@ -786,6 +787,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-users" class="page"></div>
       <div id="page-teacherMaster" class="page"></div>
       <div id="page-help" class="page"></div>
+      <div id="page-guide" class="page"></div>
     </div>
   </div>
 </div>
@@ -1955,7 +1957,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, history:renderHistory, users:renderUsers, help:renderHelp };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -4000,6 +4002,128 @@ async function copyIssuedTokenUrl(btnEl) {
   }
 }
 
+/* ═════════════ GUIDE (使い方ガイド) ═════════════ */
+function renderGuide(){
+  const u = window.CURRENT_USER || {};
+  const isAdminLike = u.role === 'admin' || u.role === 'sub_admin';
+  const sec = (num, title, imgFile, stepsHtml, note) => `
+    <div class="card card-pad" id="guide-sec-${num}" style="scroll-margin-top:80px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <span style="width:32px;height:32px;border-radius:50%;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:none">${num}</span>
+        <div style="font-size:17px;font-weight:800;color:var(--ink)">${title}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr;gap:16px">
+        <ol style="margin:0;padding-left:22px;display:flex;flex-direction:column;gap:8px;font-size:13.5px;line-height:1.7;color:var(--ink2)">${stepsHtml}</ol>
+        ${imgFile ? `<a href="guide/${imgFile}" target="_blank" rel="noopener" title="クリックで拡大">
+          <img src="guide/${imgFile}" loading="lazy" alt="${title}"
+            style="width:100%;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-card);display:block;cursor:zoom-in">
+        </a>` : ''}
+        ${note ? `<div style="font-size:12px;color:var(--muted);background:var(--soft);border-radius:8px;padding:10px 14px;line-height:1.7">${note}</div>` : ''}
+      </div>
+    </div>`;
+
+  const tocItems = [
+    [1,'ログイン'],[2,'画面の基本構成'],[3,'ダッシュボード'],[4,'やること'],[5,'生徒管理（検索）'],
+    [6,'クラス一覧'],[7,'進捗キャッチアップ'],[8,'講師マスタ'],[9,'講師の詳細・編集'],[10,'生徒の詳細・個別メモ'],
+    ...(isAdminLike ? [[11,'ユーザー管理（管理者のみ）']] : []),
+    [12,'困ったときは']
+  ];
+
+  $('#page-guide').innerHTML = `
+    <div class="page-head">
+      <div><div class="page-title">使い方ガイド</div><div class="page-sub">初めての方向け ／ 各画面の操作手順</div></div>
+    </div>
+    <div class="stack" style="gap:18px">
+      <div class="card card-pad">
+        <div style="font-size:14px;font-weight:800;color:var(--ink);margin-bottom:10px">目次</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${tocItems.map(([n,t]) => `<button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('guide-sec-${n}').scrollIntoView({behavior:'smooth'})">${n}. ${t}</button>`).join('')}
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:12px">画像はクリックで拡大できます（画像内の名前などは保護のためぼかしています）</div>
+      </div>
+
+      ${sec(1, 'ログイン', '01_login.png', `
+        <li>管理者から共有された<b>ログインID</b>と<b>パスワード</b>を入力して「ログイン」を押します。</li>
+        <li>共有URL（アイパス付きリンク）を受け取った場合は、そのURLを開くだけで自動ログインされます。</li>
+        <li>一度ログインすると、同じブラウザでは次回から自動でログイン状態になります。</li>`,
+        'アイパスが分からない場合は管理者（マスター管理者）に確認してください。')}
+
+      ${sec(2, '画面の基本構成', '02_dashboard.png', `
+        <li><b>左サイドバー</b>: ページの切り替え（ダッシュボード／やること／生徒管理 など）。</li>
+        <li><b>上部の検索窓</b>: 生徒名・クラス・講師ID・講師名でどのページからでも検索できます。</li>
+        <li><b>講師フィルター</b>（検索窓の右）: 講師名を選ぶと、全ページがその講師のデータに絞られます。空欄にすると全校表示に戻ります。</li>
+        <li><b>更新ボタン</b>（右上）: 最新データを取り直します。10分以上経つと赤く点滅してお知らせします。</li>
+        <li><b>歯車アイコン</b>: 接続設定（受付窓口URL・合言葉）を変更できます。通常は触る必要はありません。</li>`)}
+
+      ${sec(3, 'ダッシュボード', '02_dashboard.png', `
+        <li>上段の<b>KPIカード</b>（在学中のクラス／50日達成率／卒業済み／要フォロー）はクリックすると該当の一覧に移動します。</li>
+        <li><b>要対応（今日のフォロー）</b>: 停滞・つまずき中の生徒が経過日数順に表示されます。行をクリックで生徒詳細が開きます。</li>
+        <li><b>直近3日間の講義</b>: 本日から3日間の講義予定。クリックでクラス詳細が開きます。</li>
+        <li><b>プログラム達成状況</b>: 生徒のステータス別の分布をドーナツチャートで表示します。</li>
+        <li>講師を選択している場合は、その講師の<b>ローンチスケジュール</b>（過去／今回／予定）も表示されます。</li>`)}
+
+      ${sec(4, 'やること', '03_todo.png', `
+        <li>対応が必要な生徒が<b>優先度順</b>（停滞中 → つまずき → 卒業対応）に並びます。</li>
+        <li>上部のセレクトで<b>クラス・講師で絞り込み</b>ができます。</li>
+        <li>カードをクリックすると生徒詳細が開き、状況を確認できます。</li>`)}
+
+      ${sec(5, '生徒管理（検索）', '04_search.png', `
+        <li>検索窓に<b>生徒名・クラス名・講師ID・講師名</b>のいずれかを入力すると即座に絞り込まれます。</li>
+        <li>講師IDは「0086」でも「86」でもヒットします。</li>
+        <li>検索結果は<b>クラスごとにグルーピング</b>され、停滞・つまずき・卒業済みの件数バッジが付きます。</li>
+        <li>講師IDや講師名で検索した場合、結果の上部に<b>講師ヒットカード</b>が表示され、クリックで講師マスタに移動できます。</li>
+        <li>生徒の行をクリックすると詳細（進捗・出欠・ガントチャート）が開きます。</li>`)}
+
+      ${sec(6, 'クラス一覧', '05_classes.png', `
+        <li>クラスが<b>開始月別</b>に一覧表示されます。並び順は「月別／クラス名／講師名」で切替できます。</li>
+        <li>クラスをクリックすると、講義の実施状況（第1〜12回）と生徒の出欠一覧が開きます。</li>
+        <li>クラス詳細では講義日の入力・出欠の変更ができ、その場で生徒管理シートに保存されます。</li>
+        <li>生徒管理シートが未作成の講師には「作成」ボタンが表示され、ワンクリックでシートを自動作成できます。</li>`)}
+
+      ${sec(7, '進捗キャッチアップ', '06_progress.png', `
+        <li>生徒を<b>ステータス別</b>（停滞中／つまずき／在学中／50日達成 など）にカードで一覧できます。</li>
+        <li>フォローの優先順位づけや、状況の全体把握に使います。</li>
+        <li>カードをクリックすると生徒詳細が開きます。</li>`)}
+
+      ${sec(8, '講師マスタ', '07_teacher_master.png', `
+        <li>全講師の情報（ジャンル・ランク・稼働状況・担当MGなど）を一覧・編集できます。</li>
+        <li>表示は<b>テーブル／カード</b>の2種類。右上のボタンで切替できます。</li>
+        <li>検索窓・ジャンル・ランクなどの<b>ドロップダウンで絞り込み</b>ができます。列ヘッダーのクリックでも絞り込めます。</li>
+        <li><b>CSVダウンロード／アップロード</b>で一括編集も可能です。</li>
+        <li>右上の<b>「+ 新規講師」</b>から新しい講師を登録できます（講師IDは自動採番）。</li>`)}
+
+      ${sec(9, '講師の詳細・編集', '08_teacher_drawer.png', `
+        <li>講師マスタの行をクリックすると<b>詳細画面</b>が開きます。</li>
+        <li>タブで情報を切替: <b>基本情報／契約・稼働／クラス運営／ローンチ／ローンチ履歴／担当生徒</b>。</li>
+        <li>各項目を編集して左下の<b>「保存する」</b>を押すと講師DB（スプレッドシート）に反映されます。</li>
+        <li><b>ローンチ履歴</b>タブでは過去・今回・予定のローンチと目標人数を確認できます。</li>
+        <li><b>担当生徒</b>タブからそのまま生徒詳細に移動できます。</li>`)}
+
+      ${sec(10, '生徒の詳細・個別メモ', '09_student_detail.png', `
+        <li>どのページからでも生徒をクリックすると詳細が開きます。</li>
+        <li>上段に<b>進捗・投稿数・完了ステップ・講義出欠</b>のサマリが表示されます。</li>
+        <li><b>投稿プログラム進行（ガント）</b>で日別の進捗が確認できます。</li>
+        <li>下部の<b>個別メモ</b>に自由にメモを書いて「保存」できます。メモはポータル利用者全員で共有され、最終更新者と時刻が表示されます。</li>
+        <li>「編集」ボタンから生徒情報（ステータス・卒業日など）を変更できます。</li>`)}
+
+      ${isAdminLike ? sec(11, 'ユーザー管理（管理者のみ）', '10_users.png', `
+        <li>ポータルにアクセスできる<b>ユーザーの発行・管理</b>を行います（マスター管理者のみ）。</li>
+        <li><b>「+ 新規発行」</b>: ロール（講師／講師MG／サポートMG／サブ管理者／管理者）を選んでアカウントを作成します。講師を選ぶと表示名は自動入力されます。</li>
+        <li><b>「アイパス一括発行」</b>: ログインID・パスワード未発行のユーザー全員に自動発行します。</li>
+        <li>各行の<b>「アイパスコピー」</b>でログインID・パスワード・URLをまとめてコピーし、本人に共有できます。</li>
+        <li><b>「編集」</b>で表示名・ロール・ログインID・パスワード・メモを変更できます。</li>
+        <li><b>「取消」</b>でそのユーザーのアクセスを無効化します。</li>`,
+        'ロールの違い: 管理者=全機能+ユーザー管理 ／ サブ管理者=ユーザー管理以外の全機能 ／ 講師MG・サポートMG=担当講師のみ ／ 講師=自分のデータのみ') : ''}
+
+      ${sec(12, '困ったときは', '', `
+        <li><b>データが古い気がする</b>: 右上の「更新」ボタンを押してください。スプレッドシートの変更が数分以内に反映されます。</li>
+        <li><b>画面が真っ白・エラーが出る</b>: ブラウザで強制再読み込み（Mac: Cmd+Shift+R ／ Windows: Ctrl+Shift+R）を試してください。</li>
+        <li><b>ログインできない</b>: アイパスを管理者に確認してください。無効化されている可能性もあります。</li>
+        <li><b>生徒・講師が見つからない</b>: 講師フィルターが設定されたままになっていないか確認してください（空欄で全校表示）。</li>
+        <li>その他の不明点は管理者（マスター管理者）まで連絡してください。</li>`)}
+    </div>`;
+}
+
 /* ═════════════ HELP ═════════════ */
 function renderHelp(){
   $('#page-help').innerHTML = `
@@ -5404,8 +5528,8 @@ function applyRoleUi() {
     document.querySelectorAll('[data-page="history"]').forEach(b => b.style.display = 'none');
     document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
   }
-  // MG（lecturer_mg / support_mg）: ユーザー管理は非表示（admin のみ発行可能）
-  if (isLectMg || isSupMg) {
+  // MG（lecturer_mg / support_mg）・サブ管理者: ユーザー管理は非表示（admin のみ発行可能）
+  if (isLectMg || isSupMg || u.role === 'sub_admin') {
     document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
   }
   // ヘッダーにロールバッジ (クリックで権限説明)
