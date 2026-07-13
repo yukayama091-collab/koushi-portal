@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-j</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-k</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3471,17 +3471,15 @@ function renderUserListTable() {
         const credText = u.loginId && u.password ? `ログインID: ${u.loginId}\nパスワード: ${u.password}\n\n(または以下URLでも自動ログイン可)\n${shareUrl}` : shareUrl;
         return `<tr style="${rowStyle}">
           <td style="font-weight:600">${nameCol}</td>
-          <td>
-            <span class="badge ${b[0]}">${b[1]}</span>
-            ${u.active ? `<button class="btn btn-ghost btn-sm" onclick="changeUserRole(${u.row})" type="button" style="margin-left:6px;font-size:11px;padding:2px 6px" title="ロール変更">変更</button>` : ''}
-          </td>
+          <td><span class="badge ${b[0]}">${b[1]}</span></td>
           <td>${lidCol}</td>
-          <td>${pwCol}${u.active && u.loginId ? ` <button class="btn btn-ghost btn-sm" onclick="resetUserPassword(${u.row})" type="button" style="font-size:11px;padding:2px 6px;margin-left:4px" title="パスワード再発行">再発行</button>` : ''}</td>
+          <td>${pwCol}</td>
           <td class="muted" style="font-size:12px;word-break:break-all;max-width:180px">${teacherCol}</td>
           <td class="muted nowrap" style="font-size:12px">${escTxt(u.createdAt||'')}</td>
           <td>${u.active ? '<span class="tmbadge tmbadge-ok">有効</span>' : '<span class="tmbadge tmbadge-line">無効</span>'}</td>
-          <td style="white-space:nowrap">
+          <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
             ${u.active && u.loginId && u.password ? `<button class="btn btn-ghost btn-sm" onclick="copyToClipboard(\`${credText.replace(/\\/g,'\\\\').replace(/`/g,'\\`').replace(/'/g,"\\'")}\`, this)" type="button" title="ログインアイパス+URLをコピー">アイパスコピー</button>` : ''}
+            ${u.active ? `<button class="btn btn-ghost btn-sm" onclick="openEditUserModal(${u.row})" type="button" title="ユーザー編集">編集</button>` : ''}
             ${u.active ? `<button class="btn btn-ghost btn-sm" onclick="revokeToken('${u.token}')" type="button">取消</button>` : '<span class="muted" style="font-size:11.5px;font-weight:600">取消済</span>'}
           </td>
         </tr>`;
@@ -3569,6 +3567,95 @@ function iosPrompt(title, message, defaultVal) {
     const val = window.prompt(title + (message ? ('\n\n' + message) : ''), defaultVal || '');
     resolve(val);
   });
+}
+
+// ========== ユーザー編集モーダル ==========
+function openEditUserModal(row) {
+  const target = (_usersData || []).find(u => u.row === row);
+  if (!target) return;
+  let m = document.getElementById('editUserModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'editUserModal';
+    m.className = 'overlay';
+    m.onclick = (e) => { if (e.target === m) m.classList.remove('open'); };
+    document.body.appendChild(m);
+  }
+  const escTxt = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  m.innerHTML = `<div class="modal" style="max-width:520px">
+    <div style="padding:22px 26px 20px">
+      <h3 style="margin:0 0 16px;font-size:16px">ユーザー編集</h3>
+      <div class="field"><label>表示名</label>
+        <input type="text" id="euName" value="${escTxt(target.name)}" style="font:inherit;padding:8px;width:100%;box-sizing:border-box">
+      </div>
+      <div class="field"><label>ロール</label>
+        <select id="euRole" style="font:inherit;padding:8px;width:100%;box-sizing:border-box">
+          <option value="admin" ${target.role==='admin'?'selected':''}>管理者（全機能・ユーザー管理含む）</option>
+          <option value="sub_admin" ${target.role==='sub_admin'?'selected':''}>サブ管理者（ユーザー管理以外）</option>
+          <option value="lecturer_mg" ${target.role==='lecturer_mg'?'selected':''}>講師MG</option>
+          <option value="support_mg" ${target.role==='support_mg'?'selected':''}>サポートMG</option>
+          <option value="instructor" ${target.role==='instructor'?'selected':''}>講師</option>
+        </select>
+      </div>
+      <div class="field"><label>ログインID</label>
+        <input type="text" id="euLoginId" value="${escTxt(target.loginId)}" style="font:inherit;padding:8px;width:100%;box-sizing:border-box">
+      </div>
+      <div class="field">
+        <label style="display:flex;justify-content:space-between;align-items:center">
+          <span>パスワード</span>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="euRegenPw()" style="font-size:11px;padding:3px 8px">パスワードを再発行</button>
+        </label>
+        <input type="text" id="euPassword" value="${escTxt(target.password)}" style="font:inherit;padding:8px;width:100%;box-sizing:border-box;font-family:monospace">
+      </div>
+      <div class="field"><label>メモ</label>
+        <input type="text" id="euMemo" value="${escTxt(target.memo||'')}" style="font:inherit;padding:8px;width:100%;box-sizing:border-box">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+        <button class="btn btn-ghost" onclick="document.getElementById('editUserModal').classList.remove('open')" type="button">キャンセル</button>
+        <button class="btn btn-primary" onclick="saveEditUser(${row})" type="button">保存</button>
+      </div>
+    </div>
+  </div>`;
+  m.classList.add('open');
+  m.dataset.originalRole = target.role;
+}
+function euRegenPw() {
+  const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
+  let s = '';
+  for (let i = 0; i < 8; i++) s += chars.charAt(Math.floor(Math.random()*chars.length));
+  const el = document.getElementById('euPassword');
+  if (el) el.value = s;
+}
+async function saveEditUser(row) {
+  const name = document.getElementById('euName').value.trim();
+  const role = document.getElementById('euRole').value;
+  const loginId = document.getElementById('euLoginId').value.trim();
+  const password = document.getElementById('euPassword').value.trim();
+  const memo = document.getElementById('euMemo').value.trim();
+  try {
+    // 1. ロール変更が必要
+    const original = (_usersData||[]).find(u => u.row === row) || {};
+    if (role !== original.role) {
+      const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=change_user_role`, {
+        method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify(withActor({ row: row, role: role }))
+      });
+      const d = await r.json();
+      if (!d.ok) { await iosAlert('ロール変更に失敗: ' + (d.error||d.message)); return; }
+    }
+    // 2. 名前/ログインID/パスワード/メモ 変更 (update_user action)
+    const r2 = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=update_user_fields`, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(withActor({ row: row, name: name, loginId: loginId, password: password, memo: memo }))
+    });
+    const d2 = await r2.json();
+    if (!d2.ok) { await iosAlert('保存に失敗: ' + (d2.error||d2.message)); return; }
+    document.getElementById('editUserModal').classList.remove('open');
+    showSnackbar('ユーザーを更新しました', 2000);
+    renderUsers();
+  } catch (e) {
+    await iosAlert('エラー: ' + e.message);
+  }
 }
 
 // ========== ログインモーダル ==========
