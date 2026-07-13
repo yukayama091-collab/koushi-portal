@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.13-l</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.14-a</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -6153,6 +6153,7 @@ function tmFiltered(){
     if(tmFilter.retire) {
       const isRetired = !!r.retire;
       if(tmFilter.retire === '退職済' && !isRetired) return false;
+      if(tmFilter.retire === '在籍中' && isRetired) return false;
     }
     if(tmFilter.one) {
       const oneVal = r.one ? '可' : '不可';
@@ -6206,6 +6207,10 @@ async function renderTeacherMaster(){
           ${tmTopFilterHtml({
             key:'type', head:'区分', placeholder:'通常/専属', current:tmFilter.type || '',
             options:[{value:'通常',label:'通常'},{value:'専属',label:'専属'}]
+          })}
+          ${tmTopFilterHtml({
+            key:'retire', head:'在籍状態', placeholder:'全在籍/退職', current:tmFilter.retire || '',
+            options:[{value:'在籍中',label:'在籍中'},{value:'退職済',label:'退職済'}]
           })}
           ${tmTopFilterHtml({
             key:'mode', head:'表示モード', placeholder:'表示モード', current:tmTableMode || 'basic',
