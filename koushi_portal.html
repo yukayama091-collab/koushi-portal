@@ -5907,7 +5907,7 @@ function tmMapAwsTeacher(a) {
     ig: a.account_url || '',
     real: a.real_name || '',
     genre: a.genre || '',
-    rank: a.rank || 'シルバー',
+    rank: a.rank || '',  // 空欄は空のまま（勝手にシルバー化しない＝未設定として表示）
     type: a.employment_type || '通常',
     gender: a.gender || '',
     birth: '', // list には無い。詳細エンドポイントで取得
@@ -5974,7 +5974,7 @@ async function tmFetchIfNeeded(force){
         t.ig = t.ig || '';
         t.real = t.real || '';
         t.genre = t.genre || '';
-        t.rank = t.rank || 'シルバー';
+        t.rank = t.rank || '';  // 空欄は空のまま（未設定表示。シルバーに化けさせない）
         t.type = t.type || '通常';
         t.gender = t.gender || '';
         t.birth = t.birth || '';
@@ -6128,7 +6128,9 @@ function tmAvatarHtml(r, sizeClass){
   // (4) Initials
   return `<span class="${cls}">${initials}</span>`;
 }
-const tmRankBadge = r => `<span class="rank ${TM_RANKMAP[r]||'silver'}"><span class="dot"></span>${tmEsc(r||"—")}</span>`;
+const tmRankBadge = r => r
+  ? `<span class="rank ${TM_RANKMAP[r]||'silver'}"><span class="dot"></span>${tmEsc(r)}</span>`
+  : `<span class="rank" style="color:#9aa1ad" title="ランク未設定（元データが空欄）"><span class="dot" style="background:#d1d5db"></span>未設定</span>`;
 const tmTypeBadge = t => t==='専属' ? `<span class="tmbadge tmbadge-red">専属</span>` : `<span class="tmbadge tmbadge-line">通常</span>`;
 const tmActiveBadge = a => a==='稼働中' ? `<span class="tmbadge tmbadge-ok"><span class="dot"></span>稼働中</span>` : `<span class="tmbadge tmbadge-line"><span class="dot"></span>未稼働</span>`;
 const tmGenreTag = g => g ? `<span class="tag">${tmEsc(g)}</span>` : '<span class="faint">—</span>';
