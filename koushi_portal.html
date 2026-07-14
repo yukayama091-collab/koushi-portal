@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.14-c</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.14-d</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -2497,11 +2497,53 @@ function renderDashboard(){
       <div id="dashLaunchScheduleBody" style="padding:8px 0"><div class="empty" style="padding:20px 0"><svg class="ic" style="animation:spin 1s linear infinite;vertical-align:-3px;margin-right:6px"><use href="#i-refresh"/></svg> ローンチ情報を読み込み中…</div></div>
     </div>` : '';
 
+  // 担当講師クイックアクセス (MG/サポMG向け)
+  const cu = window.CURRENT_USER || {};
+  const managedIds = (cu.managedIds || []).map(s => String(s).trim()).filter(Boolean);
+  let managedQuickHtml = '';
+  if ((cu.role === 'lecturer_mg' || cu.role === 'support_mg' || cu.role === 'manager') && managedIds.length) {
+    const cards = managedIds.map(tid => {
+      const tm = teacherMasterMap.get(tid) || {};
+      const label = tm.name || teacherIdToLabel.get(tid) || `講師${tid}`;
+      const st = teacherStats(label);
+      const initial = (tm.name || '?').charAt(0);
+      const active = tm.active || '—';
+      const activeColor = active === '稼働中' ? 'var(--ok)' : (active === '未稼働' ? 'var(--muted)' : 'var(--faint)');
+      const isSelected = CURRENT_TEACHER === tid;
+      return `<button type="button" class="managed-card ${isSelected ? 'active' : ''}"
+        onclick="selectManagedTeacher('${tid.replace(/'/g,"\\'")}')"
+        style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;background:${isSelected?'#fff5f6':'#fff'};border:1px solid ${isSelected?'var(--brand)':'var(--line)'};border-radius:12px;text-align:left;cursor:pointer;transition:.12s;min-width:180px;flex:1 1 200px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="width:36px;height:36px;border-radius:10px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none">${initial}</span>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:13.5px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</div>
+            <div class="faint" style="font-size:11px;font-weight:600">${tid} ／ <span style="color:${activeColor}">${active}</span></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:14px;font-size:11.5px;color:var(--muted);font-weight:600">
+          <span>在学 <b style="color:var(--ink);font-weight:800">${st.active}</b></span>
+          <span>要対応 <b style="color:${st.need?'var(--danger)':'var(--ink)'};font-weight:800">${st.need}</b></span>
+          <span>50達 <b style="color:var(--ok);font-weight:800">${st.rate50}%</b></span>
+        </div>
+      </button>`;
+    }).join('');
+    const clearBtn = CURRENT_TEACHER ? `<button type="button" onclick="selectManagedTeacher('')" style="padding:8px 14px;font-size:12px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;color:var(--muted);white-space:nowrap">担当全体に戻る</button>` : '';
+    managedQuickHtml = `
+      <div class="card card-pad">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px;flex-wrap:wrap">
+          <div class="card-title" style="font-size:14px"><svg class="ic"><use href="#i-teacher"/></svg> 担当講師 (${managedIds.length}名) — クリックで切替</div>
+          ${clearBtn}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${cards}</div>
+      </div>`;
+  }
+
   $('#page-dashboard').innerHTML = `
     <div class="page-head">
       <div><div class="page-title">ダッシュボード</div><div class="page-sub">${scopeLabel()} ／ 全クラスのサマリ</div></div>
     </div>
     <div class="stack">
+      ${managedQuickHtml}
       ${todayHtml}
       ${teacherInfoHtml}
       ${kpiHtml}
@@ -2527,6 +2569,20 @@ function renderDashboard(){
 }
 function dashClearTeacherFilter() {
   window._dashTeacherFilter = { q:'', genre:'', rank:'', type:'', chip:'all' };
+  renderDashboard();
+}
+
+// 担当講師クイックアクセスから選択 (講師フィルタを設定)
+function selectManagedTeacher(tid) {
+  CURRENT_TEACHER = tid || '';
+  try { tid ? localStorage.setItem('koushi_teacher', tid) : localStorage.removeItem('koushi_teacher'); } catch(e){}
+  // ヘッダーの teacherFilter 入力にも反映
+  const input = document.getElementById('teacherFilter');
+  if (input) {
+    input.value = tid ? (teacherIdToLabel.get(tid) || '') : '';
+    if (typeof updateTeacherClearBtn === 'function') updateTeacherClearBtn();
+  }
+  refreshCounts();
   renderDashboard();
 }
 
