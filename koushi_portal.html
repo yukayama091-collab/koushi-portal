@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.14-e</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.15-a</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -3846,6 +3846,11 @@ function openIssueTokenModal() {
       <datalist id="newTokTeacherList">${datalistOpts}</datalist>
       <div class="hint">講師ID または 名前で絞り込めます</div>
     </div>
+    <div class="field" id="newTokMgPersonWrap" style="display:none"><label id="newTokMgPersonLabel">MG本人</label>
+      <input type="text" id="newTokMgPersonInput" list="newTokMgPersonList" placeholder="MGの名前で検索…" style="font:inherit;padding:8px;width:100%" autocomplete="off">
+      <datalist id="newTokMgPersonList"></datalist>
+      <div class="hint">MG本人を選ぶと、担当講師が自動で入ります (手動で追加/削除も可能)</div>
+    </div>
     <div class="field" id="newTokManagedWrap" style="display:none"><label>担当講師</label>
       <div id="newTokManagedChips" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:1px solid var(--line);border-radius:8px;min-height:42px;background:#fff;cursor:text" onclick="document.getElementById('newTokManagedInput').focus()">
         <input type="text" id="newTokManagedInput" list="newTokManagedList" placeholder="講師ID・名前で検索して追加…" style="border:none;outline:none;font:inherit;flex:1;min-width:200px;padding:4px" autocomplete="off">
@@ -3874,13 +3879,67 @@ function openIssueTokenModal() {
   }
   m.innerHTML = `<div class="modal" style="max-width:560px">${html}</div>`;
   m.classList.add('open');
+  // MG候補リストを構築 (講師MG=t.mg / サポMG=t.sup の unique名)
+  const buildMgPersonList = (role) => {
+    const field = role === 'lecturer_mg' ? 'mg' : 'sup';
+    const source = (window.__issueTokenAllTeachers || []);
+    // MG name → 担当講師IDリスト
+    const mgToTids = {};
+    // TM_DATA も参照 (teacherMasterMapにmg/supが無い場合の予備)
+    const merged = source.concat((typeof TM_DATA !== 'undefined' ? TM_DATA : []).map(t => ({tid:t.id, name:t.name, mg:t.mg, sup:t.sup})));
+    merged.forEach(t => {
+      const mgName = String((t[field] || '')).trim();
+      if (!mgName || mgName === '担当なし' || mgName === 'クラスなし') return;
+      if (!mgToTids[mgName]) mgToTids[mgName] = new Set();
+      if (t.tid) mgToTids[mgName].add(t.tid);
+    });
+    window.__issueTokenMgMap = mgToTids;
+    // datalist 更新
+    const dl = document.getElementById('newTokMgPersonList');
+    if (dl) {
+      dl.innerHTML = Object.keys(mgToTids).sort((a,b)=>a.localeCompare(b,'ja'))
+        .map(n => `<option value="${n.replace(/"/g,'&quot;')} (担当${mgToTids[n].size}名)">`).join('');
+    }
+  };
   document.getElementById('newTokRole').onchange = e => {
     const v = e.target.value;
     document.getElementById('newTokTeacherWrap').style.display = v === 'instructor' ? 'block' : 'none';
     document.getElementById('newTokManagedWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
+    document.getElementById('newTokMgPersonWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
+    if (v === 'lecturer_mg' || v === 'support_mg') {
+      document.getElementById('newTokMgPersonLabel').textContent = v === 'lecturer_mg' ? '講師MG本人' : 'サポートMG本人';
+      document.getElementById('newTokMgPersonInput').placeholder = v === 'lecturer_mg' ? '講師MGの名前で検索…' : 'サポMGの名前で検索…';
+      buildMgPersonList(v);
+      // 表示名リセット (前ロールの残存を避ける)
+      const mgInput = document.getElementById('newTokMgPersonInput');
+      if (mgInput) mgInput.value = '';
+    }
   };
   // 初期表示でも反映
   document.getElementById('newTokRole').dispatchEvent(new Event('change'));
+  // MG本人選択で担当講師を自動投入 + 表示名オートフィル
+  const mgPersonInput = document.getElementById('newTokMgPersonInput');
+  if (mgPersonInput) {
+    const applyMgSelection = () => {
+      const raw = (mgPersonInput.value || '').trim();
+      if (!raw) return;
+      // "名前 (担当N名)" 形式から名前部分を抽出
+      const mgName = raw.replace(/\s*\(担当\d+名\)\s*$/, '').trim();
+      const tids = (window.__issueTokenMgMap && window.__issueTokenMgMap[mgName]) || null;
+      if (!tids) return;
+      // 担当講師リストに設定
+      window.__issueTokenSelectedManaged = [...tids];
+      if (typeof renderManagedChips === 'function') renderManagedChips();
+      // 表示名も自動入力 (未編集時のみ)
+      const nInput = document.getElementById('newTokName');
+      if (nInput && (!nInput.value || nInput.dataset.autofilled === '1')) {
+        nInput.value = mgName;
+        nInput.dataset.autofilled = '1';
+      }
+    };
+    mgPersonInput.addEventListener('input', applyMgSelection);
+    mgPersonInput.addEventListener('change', applyMgSelection);
+  }
   // 講師選択で表示名を自動入力（表示名が空 or 未編集の場合）
   const tInput = document.getElementById('newTokTeacherInput');
   const nInput = document.getElementById('newTokName');
