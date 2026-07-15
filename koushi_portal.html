@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.15-a</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.15-b</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -1964,6 +1964,19 @@ function go(page) {
 }
 
 // 全モーダル・ドロワー・スナックバーを一括で閉じる
+// 中身が空(実質「ぼやけた黒画面だけ」)の overlay を自動でクリーンアップ
+function autoCleanupEmptyOverlays() {
+  document.querySelectorAll('.overlay.open').forEach(o => {
+    if (!o.querySelector('.modal') && !o.textContent.trim() && !o.querySelector('button, input')) {
+      o.classList.remove('open');
+      console.warn('cleaned up empty overlay', o.id || '(no id)');
+    }
+  });
+}
+// 起動2秒後 & 5秒後に自動チェック (レース状態で空overlayが残るケース対策)
+setTimeout(autoCleanupEmptyOverlays, 2000);
+setTimeout(autoCleanupEmptyOverlays, 5000);
+
 function closeAllOverlays() {
   // overlay系
   document.querySelectorAll('.overlay.open').forEach(el => el.classList.remove('open'));
@@ -5597,12 +5610,17 @@ function startTour() {
     overlay = document.createElement('div');
     overlay.id = 'tourOverlay';
     overlay.className = 'overlay';
+    // 背景クリックで閉じる (中身が壊れても閉じれるように)
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) { try { window.closeTour(); } catch(err){ overlay.classList.remove('open'); } }
+    });
     document.body.appendChild(overlay);
   }
   let idx = 0;
   const render = () => {
     const s = steps[idx];
-    overlay.innerHTML = `
+    try {
+      overlay.innerHTML = `
       <div class="modal" style="max-width:520px">
         <div class="modal-head">
           <div>
@@ -5624,6 +5642,12 @@ function startTour() {
           </div>
         </div>
       </div>`;
+    } catch (renderErr) {
+      // 描画失敗時は overlay を確実に閉じる (空overlayで画面がぼやける事象を防ぐ)
+      console.error('tour render failed', renderErr);
+      overlay.classList.remove('open');
+      overlay.innerHTML = '';
+    }
   };
   window.tourStep = (delta) => {
     const cb = document.getElementById('tourNoMore');
