@@ -742,7 +742,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <datalist id="teacherList"></datalist>
       <span class="today-pill" id="todayPill" title="本日の日付" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap"></span>
       <span class="last-updated" id="lastUpdated"></span>
-      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.15-b</span>
+      <span class="last-updated version-tag" style="opacity:.6;font-size:11px;display:none" title="ポータルビルド版">v2026.07.21-a</span>
       <button class="btn btn-refresh" id="btnRefresh" onclick="loadData(true)" title="キャッシュを無視して最新データを取得"><svg class="ic"><use href="#i-refresh"/></svg><span>更新</span></button>
       <button class="btn btn-ghost btn-sm btn-icon" onclick="openSettings()" title="設定"><svg class="ic"><use href="#i-settings"/></svg></button>
     </div>
@@ -5867,7 +5867,7 @@ const TM_STUDENTS = {
 };
 const TM_RANKMAP = {"マスター":"master","ダイヤモンド":"diamond","プラチナ":"platinum","ゴールド":"gold","シルバー":"silver","特別条件":"special"};
 const TM_TABS = ["基本情報","契約・稼働","クラス運営","ローンチ","ローンチ履歴","担当生徒"];
-const TM_CHIPS = [["全員",t=>true],["稼働中",t=>t.active==="稼働中"],["未稼働",t=>t.active==="未稼働"],["専属",t=>t.type==="専属"],["1on1 可",t=>t.one],["要対応",t=>t.active==="未稼働"&&!t.retire]];
+const TM_CHIPS = [["全員",t=>true],["稼働中",t=>t.active==="稼働中"],["未稼働",t=>t.active==="未稼働"],["専属",t=>t.type==="専属"],["1on1 可",t=>t.one],["要対応",t=>t.active==="未稼働"&&!t.retire],["退職済",t=>!!t.retire]];
 let tmView = 'table';
 let tmChipIdx = 0;
 let tmTableMode = 'basic';  // basic | contract | class | launch | students
@@ -6405,7 +6405,12 @@ async function renderTeacherMaster(){
   `;
   // wire
   document.querySelectorAll('#tm-viewseg button, #tm-viewseg2 button').forEach(b=>b.onclick=()=>{tmView=b.dataset.v; renderTeacherMaster();});
-  document.querySelectorAll('#tm-chips .chip').forEach(b=>b.onclick=()=>{tmChipIdx=+b.dataset.i; renderTeacherMaster();});
+  // クリックで active 切替 (再度押すと 全員=idx0 に戻る)
+  document.querySelectorAll('#tm-chips .chip').forEach(b=>b.onclick=()=>{
+    const i = +b.dataset.i;
+    tmChipIdx = (tmChipIdx === i && i !== 0) ? 0 : i;
+    renderTeacherMaster();
+  });
   document.getElementById('tm-q').oninput = e=>{ tmFilter.q=e.target.value; renderTeacherList(); };
   document.getElementById('tm-newbtn').onclick = ()=>openTeacherDrawer(null, true);
   document.getElementById('tm-csv').onclick = exportTeachersCSV;
