@@ -765,6 +765,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
         <button class="nav-pop-item" onclick="openSnsClubItem('program')" type="button">プログラム詳細</button>
       </div>
     </div>
+    <button class="nav" data-page="roadmap" onclick="go('roadmap')" title="講師業務ロードマップ（フェーズ別のやること）"><svg class="ic"><use href="#i-book"/></svg> ロードマップ</button>
     <div class="side-section">マスタ管理</div>
     <button class="nav" data-page="teacherMaster" onclick="go('teacherMaster')" title="講師情報の登録・編集"><svg class="ic"><use href="#i-teacher"/></svg> 講師マスタ</button>
     <div class="side-section">サポート</div>
@@ -786,6 +787,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-history" class="page"></div>
       <div id="page-users" class="page"></div>
       <div id="page-teacherMaster" class="page"></div>
+      <div id="page-roadmap" class="page"></div>
       <div id="page-help" class="page"></div>
       <div id="page-guide" class="page"></div>
     </div>
@@ -1957,7 +1959,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
   (renderers[page] || (()=>{}))();
   window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -2005,6 +2007,7 @@ function barClass(s){ return s==='stagnant'?'danger':s==='stuck'?'warn':(s==='ok
 // SnsClubサービス サブメニューの遷移先（URLは後日設定可能）
 function openSnsClubItem(kind) {
   if (kind === 'event') { openSnsClubEvents(); return; }
+  if (kind === 'roadmap') { go('roadmap'); return; }   // ポータル内のロードマップ画面へ
   const labels = { event:'SnsClubイベント', roadmap:'講師用ロードマップ', program:'プログラム詳細' };
   const urls = (window.SNS_CLUB_URLS) || {};
   const url = urls[kind];
@@ -5604,6 +5607,185 @@ function dcChip(className) {
   return `<a href="${c.url}" target="_blank" rel="noopener" title="${title}"
     onclick="event.stopPropagation()"
     style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:11.5px;font-weight:700;color:#5865F2;background:#f5f6fe;border:1px solid #d6d9fb;border-radius:6px;text-decoration:none">${label}${grad}</a>`;
+}
+
+// ====== 講師業務ロードマップ ======
+// 講師DB「ロードマップ」タブ（Notion を GitHub Actions が定期取得）を読み、
+// フェーズごとのやることをチェックリストとして表示する。
+// チェックは講師IDごとに「ロードマップ進捗」タブへ保存される。
+window.RM = { tasks: [], done: {}, counts: {}, updatedAt: '', loaded: false, teacherId: '', busy: {} };
+window.RM_FILTER = { phase: '', cat: '', hideDone: false };
+
+function rmTargetTeacher() {
+  // 講師本人は自分固定。MG/管理者は画面上部の講師フィルタで選んだ講師。
+  const u = window.CURRENT_USER || {};
+  if (u.role === 'instructor') return String(u.teacherId || '');
+  return String(CURRENT_TEACHER || '');
+}
+function rmEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function loadRoadmap(force) {
+  if (!CFG.webAppUrl || !CFG.token) return;
+  const tid = rmTargetTeacher();
+  if (window.RM.loaded && !force && window.RM.teacherId === tid) return;
+  try {
+    const url = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=roadmap`
+      + (tid ? `&teacherId=${encodeURIComponent(tid)}` : '');
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!d || !d.ok) return;
+    window.RM = {
+      tasks: d.tasks || [], done: d.done || {}, counts: d.doneCounts || {},
+      updatedAt: d.updatedAt || '', loaded: true, teacherId: tid, busy: {}
+    };
+  } catch (e) { console.warn('roadmap failed', e); }
+}
+
+async function renderRoadmap() {
+  const page = document.getElementById('page-roadmap');
+  if (!CFG.webAppUrl || !CFG.token) {
+    page.innerHTML = `<div class="page-head"><div><div class="page-title">ロードマップ</div></div></div>
+      <div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">右上の「設定」から受付窓口URLとトークンを設定してください</div>`;
+    return;
+  }
+  if (!window.RM.loaded || window.RM.teacherId !== rmTargetTeacher()) {
+    page.innerHTML = `<div class="loading" style="padding:40px;text-align:center;color:var(--muted)">ロードマップを読み込み中…</div>`;
+    await loadRoadmap(true);
+  }
+  const RM = window.RM;
+  const F = window.RM_FILTER;
+  const tid = RM.teacherId;
+  const tName = tid ? (teacherMasterMap.get(tid)?.name || teacherIdToLabel.get(tid) || `講師${tid}`) : '';
+
+  if (!RM.tasks.length) {
+    page.innerHTML = `<div class="page-head"><div><div class="page-title">ロードマップ</div></div></div>
+      <div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">
+        ロードマップがまだ同期されていません。<br>講師DBの「ロードマップ」タブが空の可能性があります。
+      </div>`;
+    return;
+  }
+
+  // フェーズ順は取得順（Notionの並び）を保つ
+  const phases = [];
+  RM.tasks.forEach(t => { if (!phases.includes(t.phase)) phases.push(t.phase); });
+  const cats = [];
+  RM.tasks.forEach(t => String(t.category || '').split(',').forEach(c => {
+    c = c.trim(); if (c && !cats.includes(c)) cats.push(c);
+  }));
+
+  const doneTotal = RM.tasks.filter(t => RM.done[t.key]).length;
+  const pct = RM.tasks.length ? Math.round(doneTotal / RM.tasks.length * 100) : 0;
+
+  const chip = (label, active, onclick) =>
+    `<button type="button" class="chip ${active ? 'on' : ''}" onclick="${onclick}">${rmEsc(label)}</button>`;
+
+  const phaseChips = [chip('すべて', !F.phase, `rmSetFilter('phase','')`)]
+    .concat(phases.map(p => chip(p, F.phase === p, `rmSetFilter('phase',${JSON.stringify(p).replace(/"/g, '&quot;')})`))).join('');
+  const catChips = [chip('すべて', !F.cat, `rmSetFilter('cat','')`)]
+    .concat(cats.map(c => chip(c, F.cat === c, `rmSetFilter('cat',${JSON.stringify(c).replace(/"/g, '&quot;')})`))).join('');
+
+  const canCheck = !!tid;
+  const notice = canCheck ? '' : `<div class="hint" style="margin-top:8px">上の講師フィルタで講師を選ぶと、その講師のチェックを付けられます</div>`;
+
+  let body = '';
+  phases.forEach(ph => {
+    if (F.phase && F.phase !== ph) return;
+    let list = RM.tasks.filter(t => t.phase === ph);
+    if (F.cat) list = list.filter(t => String(t.category || '').split(',').map(s => s.trim()).includes(F.cat));
+    if (F.hideDone) list = list.filter(t => !RM.done[t.key]);
+    if (!list.length) return;
+    const all = RM.tasks.filter(t => t.phase === ph);
+    const d = all.filter(t => RM.done[t.key]).length;
+    const rows = list.map(t => {
+      const isDone = !!RM.done[t.key];
+      const busy = !!RM.busy[t.key];
+      const catTags = String(t.category || '').split(',').map(c => c.trim()).filter(Boolean)
+        .map(c => `<span style="display:inline-block;padding:1px 6px;font-size:10.5px;font-weight:700;color:var(--muted);background:#f3f4f6;border:1px solid var(--line2);border-radius:5px">${rmEsc(c)}</span>`).join(' ');
+      const link = t.url
+        ? `<a href="${rmEsc(t.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+             style="font-size:11.5px;font-weight:700;color:var(--brand);text-decoration:none;white-space:nowrap">開く</a>` : '';
+      const dur = t.duration ? `<span class="faint" style="font-size:10.5px">${rmEsc(t.duration)}</span>` : '';
+      return `<div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-top:1px solid var(--line2);${isDone ? 'background:#fafffa' : ''}">
+        <input type="checkbox" ${isDone ? 'checked' : ''} ${canCheck && !busy ? '' : 'disabled'}
+          onchange="rmToggle(${JSON.stringify(t.key).replace(/"/g, '&quot;')}, this.checked)"
+          style="margin-top:3px;width:16px;height:16px;flex:none;cursor:${canCheck ? 'pointer' : 'not-allowed'}">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:13px;font-weight:700;color:${isDone ? 'var(--muted)' : 'var(--ink)'};${isDone ? 'text-decoration:line-through' : ''}">${rmEsc(t.task) || '<span class="faint">(やること未記入)</span>'}</div>
+          ${t.note ? `<div class="faint" style="font-size:11.5px;margin-top:3px;white-space:pre-wrap">${rmEsc(t.note)}</div>` : ''}
+          <div style="display:flex;gap:6px;align-items:center;margin-top:5px;flex-wrap:wrap">${catTags}${dur}${link}</div>
+        </div>
+      </div>`;
+    }).join('');
+    body += `<div class="card" style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px">
+        <div class="card-title" style="font-size:13.5px">${rmEsc(ph)}</div>
+        <div style="font-size:12px;font-weight:800;color:${d === all.length ? 'var(--ok,#16a34a)' : 'var(--muted)'};font-variant-numeric:tabular-nums">${d} / ${all.length}</div>
+      </div>
+      ${rows}
+    </div>`;
+  });
+
+  page.innerHTML = `
+    <div class="page-head">
+      <div>
+        <div class="page-title">ロードマップ</div>
+        <div class="page-sub">${tid ? rmEsc(tName) + ' ／ ' : ''}講師業務ロードマップ（全 ${RM.tasks.length} 件）</div>
+      </div>
+      <button type="button" class="btn" onclick="rmRefresh()" style="padding:7px 12px;font-size:12.5px;background:#fff;border:1px solid var(--line);border-radius:8px;cursor:pointer">最新に更新</button>
+    </div>
+    <div class="stack">
+      <div class="card card-pad">
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;margin-bottom:6px">
+          <span class="muted" style="font-weight:700">${tid ? '完了状況' : '完了状況（講師未選択）'}</span>
+          <span style="font-weight:800;font-variant-numeric:tabular-nums">${doneTotal} / ${RM.tasks.length}（${pct}%）</span>
+        </div>
+        <div style="height:7px;background:#f3f4f6;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${pct >= 70 ? '#22c55e' : (pct >= 40 ? '#eab308' : 'var(--brand)')};border-radius:4px"></div>
+        </div>
+        ${notice}
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="muted" style="font-size:11.5px;font-weight:700;min-width:64px">フェーズ</span>${phaseChips}</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span class="muted" style="font-size:11.5px;font-weight:700;min-width:64px">カテゴリー</span>${catChips}</div>
+          <label style="display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted);cursor:pointer">
+            <input type="checkbox" ${F.hideDone ? 'checked' : ''} onchange="rmSetFilter('hideDone', this.checked)"> 完了したものを隠す
+          </label>
+        </div>
+        <div class="faint" style="font-size:11px;margin-top:10px">最終同期: ${rmEsc(RM.updatedAt) || '—'}</div>
+      </div>
+      ${body || '<div class="card card-pad" style="text-align:center;color:var(--muted);padding:30px">条件に合うやることがありません</div>'}
+    </div>`;
+}
+
+function rmSetFilter(k, v) { window.RM_FILTER[k] = v; renderRoadmap(); }
+function rmRefresh() { window.RM.loaded = false; renderRoadmap(); }
+
+async function rmToggle(key, checked) {
+  const tid = window.RM.teacherId;
+  if (!tid) return;
+  window.RM.busy[key] = true;
+  // 先に画面へ反映してから保存する（保存に失敗したら元に戻す）
+  if (checked) window.RM.done[key] = ''; else delete window.RM.done[key];
+  renderRoadmap();
+  try {
+    const actor = getActorInfo();
+    const r = await fetch(`${CFG.webAppUrl}?action=set_roadmap_progress&token=${encodeURIComponent(CFG.token)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ teacherId: tid, taskKey: key, done: !!checked, actor_name: actor.name, actor_id: actor.id })
+    });
+    const d = await r.json();
+    if (!d || !d.ok) throw new Error((d && d.message) || '保存に失敗しました');
+    if (checked) window.RM.done[key] = d.updatedAt || '';
+  } catch (e) {
+    if (checked) delete window.RM.done[key]; else window.RM.done[key] = '';
+    try { iosAlert('チェックを保存できませんでした。\n' + (e.message || e)); } catch (_) {}
+  } finally {
+    delete window.RM.busy[key];
+    renderRoadmap();
+  }
 }
 
 // ====== 3分ツアー ======
