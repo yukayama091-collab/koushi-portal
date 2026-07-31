@@ -85,7 +85,16 @@ a{ color:inherit; text-decoration:none; }
 .nav.active .nav-badge{ background:rgba(255,255,255,.22); }
 .nav .nav-badge.hot{ background:var(--brand); }
 .nav.active .nav-badge.hot{ background:rgba(255,255,255,.28); }
-.side-foot{ margin-top:auto; padding:14px 12px 4px; font-size:11px; color:#54565e; border-top:1px solid #1c1d22; }
+.side-account{ margin-top:auto; padding:12px 12px 10px; border-top:1px solid #1c1d22; display:flex; flex-direction:column; gap:8px; }
+.side-account-info{ min-width:0; }
+.side-account-name{ font-size:12.5px; font-weight:700; color:#e8e9ec; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.side-account-role{ font-size:11px; color:#8a8c95; margin-top:2px; }
+.side-account-actions{ display:flex; gap:6px; }
+.side-account-btn{ flex:1; padding:6px 8px; font-size:11.5px; font-weight:700; color:#c9cad0; background:#17181d; border:1px solid #2a2c33; border-radius:7px; cursor:pointer; white-space:nowrap; transition:.15s; }
+.side-account-btn:hover{ background:#1f2027; color:#fff; }
+.side-account-btn.danger{ color:#f0a8ab; border-color:#3a2427; }
+.side-account-btn.danger:hover{ background:#3a1f22; color:#fff; }
+.side-foot{ padding:0 12px 4px; font-size:11px; color:#54565e; }
 
 .content-wrap{ grid-column:2; grid-row:2; min-width:0; }
 .content{ max-width:1320px; margin:0 auto; padding:28px 28px 64px; }
@@ -773,6 +782,16 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="history" onclick="go('history')" title="編集履歴の一覧"><svg class="ic"><use href="#i-clock"/></svg> 編集履歴</button>
     <button class="nav" data-page="help" onclick="go('help')" title="マーク・色・使い方の説明"><svg class="ic"><use href="#i-help"/></svg> ヘルプ・凡例</button>
     <button class="nav" data-page="guide" onclick="go('guide')" title="初めての方向けの操作手順書"><svg class="ic"><use href="#i-book"/></svg> 使い方ガイド</button>
+    <div class="side-account" id="sideAccount">
+      <div class="side-account-info">
+        <div class="side-account-name" id="sideAccountName">未ログイン</div>
+        <div class="side-account-role" id="sideAccountRole">—</div>
+      </div>
+      <div class="side-account-actions">
+        <button type="button" class="side-account-btn" onclick="switchPortalAccount()" title="ログアウトして別のアカウントでログインします">アカウント切り替え</button>
+        <button type="button" class="side-account-btn danger" onclick="logoutPortal()" title="このブラウザから完全にサインアウトします">ログアウト</button>
+      </div>
+    </div>
     <div class="side-foot">講師ポータル v3.0 ・ LeVela</div>
   </aside>
 
@@ -5538,6 +5557,7 @@ async function fetchWhoami() {
     if (d && d.user) {
       window.CURRENT_USER = d.user;
       applyRoleUi();
+      updateSideAccount();
       maybeShowTour();
       // 担当講師が判明したら、現在ダッシュボード表示中なら再描画
       if (state.page === 'dashboard' && (d.user.managedIds||[]).length && typeof renderDashboard === 'function') {
@@ -5545,6 +5565,7 @@ async function fetchWhoami() {
       }
     }
   } catch(e) { console.warn('whoami failed', e); }
+  updateSideAccount();
 }
 
 // ====== Discord クラスチャンネル対応表 ======
@@ -5607,6 +5628,68 @@ function dcChip(className) {
   return `<a href="${c.url}" target="_blank" rel="noopener" title="${title}"
     onclick="event.stopPropagation()"
     style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;font-size:11.5px;font-weight:700;color:#5865F2;background:#f5f6fe;border:1px solid #d6d9fb;border-radius:6px;text-decoration:none">${label}${grad}</a>`;
+}
+
+// ====== ログアウト / アカウント切り替え ======
+// 「アカウント切り替え」… トークンと講師選択だけ消す。受付窓口URLは残るので、
+//                         ログイン画面ではIDとパスワードだけ入れれば切り替わる。
+// 「ログアウト」        … 受付窓口URLとキャッシュも含めて消す。共用PCから離れる時用。
+const ROLE_LABEL_JA = {
+  admin: '管理者', sub_admin: 'サブ管理者', lecturer_mg: '講師MG',
+  support_mg: 'サポートMG', manager: '講師MG', instructor: '講師', demo: 'デモ'
+};
+
+function updateSideAccount() {
+  const nameEl = document.getElementById('sideAccountName');
+  const roleEl = document.getElementById('sideAccountRole');
+  const box = document.getElementById('sideAccount');
+  if (!nameEl || !roleEl || !box) return;
+  const u = window.CURRENT_USER || {};
+  const signedIn = !!(CFG.token && u.active);
+  if (!signedIn) {
+    nameEl.textContent = CFG.token ? '確認中…' : '未ログイン';
+    roleEl.textContent = CFG.token ? '' : 'ログインしてください';
+    box.querySelectorAll('.side-account-btn').forEach(b => { b.style.display = CFG.token ? '' : 'none'; });
+    return;
+  }
+  box.querySelectorAll('.side-account-btn').forEach(b => { b.style.display = ''; });
+  nameEl.textContent = u.name || '(名前未設定)';
+  nameEl.title = u.name || '';
+  const parts = [ROLE_LABEL_JA[u.role] || u.role || ''];
+  if (u.role === 'instructor' && u.teacherId) parts.push('講師ID ' + u.teacherId);
+  roleEl.textContent = parts.filter(Boolean).join(' ・ ');
+}
+
+// ログイン状態に紐づくものを消す。keepUrl=true なら受付窓口URLは残す。
+function clearPortalSession(keepUrl) {
+  const keys = ['koushi_token', 'koushi_teacher', 'koushi_actor_name', 'koushi_actor_id',
+                'koushi_data_cache_v1', 'koushi_discord_ch_v1', 'koushi_tour_done'];
+  if (!keepUrl) keys.push('koushi_webapp_url');
+  keys.forEach(k => { try { localStorage.removeItem(k); } catch (e) {} });
+  CFG.token = '';
+  if (!keepUrl) CFG.webAppUrl = '';
+}
+
+async function switchPortalAccount() {
+  const u = window.CURRENT_USER || {};
+  const who = u.name ? `${u.name}（${ROLE_LABEL_JA[u.role] || u.role}）` : '現在のアカウント';
+  const ok = await iosConfirm(
+    `${who} からログアウトして、別のアカウントでログインします。\n\n接続先の設定は残るので、ログインIDとパスワードだけで切り替えられます。`,
+    { okText: '切り替える', cancelText: 'やめる', okClass: 'ios-btn-primary' });
+  if (!ok) return;
+  clearPortalSession(true);
+  try { openLoginModal(); } catch (e) { location.reload(); }
+}
+
+async function logoutPortal() {
+  const u = window.CURRENT_USER || {};
+  const who = u.name ? `${u.name}（${ROLE_LABEL_JA[u.role] || u.role}）` : '現在のアカウント';
+  const ok = await iosConfirm(
+    `${who} からログアウトします。\n\nこのブラウザに保存されたログイン情報・接続先・読み込み済みデータをすべて消します。共用のPCを離れる時はこちらを使ってください。`,
+    { okText: 'ログアウト', cancelText: 'やめる', okClass: 'ios-btn-primary' });
+  if (!ok) return;
+  clearPortalSession(false);
+  location.reload();
 }
 
 // ====== 講師業務ロードマップ ======
@@ -6074,6 +6157,7 @@ function showRoleInfoModal() {
   m.classList.add('open');
 }
 
+updateSideAccount();
 if (CFG.webAppUrl && CFG.token) {
   fetchWhoami();
   loadDiscordChannels();
