@@ -819,20 +819,25 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <div class="modal-head">
       <div>
         <div class="modal-eyebrow">設定</div>
-        <div class="modal-title">データ受付窓口</div>
+        <div class="modal-title">接続先とあなたの名前</div>
       </div>
       <button class="modal-x" onclick="closeModal('settingsModal')"><svg class="ic"><use href="#i-x"/></svg></button>
     </div>
     <div class="modal-body">
+      <div class="hint" style="background:#f8f9fb;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:14px;line-height:1.7">
+        <b style="color:var(--ink)">ログインするだけならこの画面は使いません。</b><br>
+        接続先は既定値が入っているので、通常はサイドバー下部の「アカウント切り替え」からログインIDとパスワードで入ってください。<br>
+        ここは<b style="color:var(--ink)">接続先を切り替える時（管理者向け）</b>と、<b style="color:var(--ink)">編集履歴に出す名前を変える時</b>に使います。
+      </div>
       <div class="field">
         <label>受付窓口の URL（GAS Web App）</label>
         <input type="text" id="webAppUrlInput" placeholder="https://script.google.com/macros/s/.../exec" />
-        <div class="hint">非公開シートを安全に読むための窓口URL。ブラウザのローカルストレージに保存されます。</div>
+        <div class="hint">非公開シートを安全に読むための窓口URL。既定値が入っているので、通常は変更不要です。</div>
       </div>
       <div class="field">
         <label>合言葉（アクセストークン）</label>
         <input type="password" id="tokenInput" placeholder="••••••••" autocomplete="off" />
-        <div class="hint">窓口側に設定した合言葉と一致させてください。</div>
+        <div class="hint">ログインID・パスワードで入る場合は不要です。管理者から合言葉を直接渡された場合のみ入力してください。</div>
       </div>
       <div class="field">
         <label>あなたの名前（編集履歴に表示）</label>
@@ -1065,8 +1070,13 @@ function withActor(qsOrObj) {
 })();
 
 // 起動時に localStorage 値も空白除去（過去の壊れた値を自動修復）
+// 受付窓口(GAS Web App)の既定値。
+// これを持たせておくことで、講師は URL を知らなくてもログインID・パスワードだけで入れる。
+// 窓口はトークンが無いと何も返さないので、URLだけ分かっても中身は見えない。
+// 窓口を作り直した時はここを差し替える（設定画面から個別に上書きも可能）。
+const DEFAULT_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzxHTnrCPv8jYJo6FhGmGpFTtpP8HVeWf05fNC_BG_oO_fkITzs5jWHd6oIv5bVE0Ci/exec';
 let CFG = {
-  webAppUrl: (localStorage.getItem('koushi_webapp_url') || '').replace(/\s+/g, ''),
+  webAppUrl: (localStorage.getItem('koushi_webapp_url') || DEFAULT_WEBAPP_URL).replace(/\s+/g, ''),
   token:     (localStorage.getItem('koushi_token')      || '').replace(/\s+/g, ''),
   // SnsClubイベント用カレンダーID (info@levela.co.jp 管理)
   snsclubCalendarId: 'c_4143a7ed518b1386d698a8a9276cded9ab71af25b39bed86e6f089e5ddb04464@group.calendar.google.com',
@@ -3803,7 +3813,8 @@ async function loginByIdPassword(loginId, password) {
   return d;
 }
 function openLoginModal() {
-  const defaultUrl = localStorage.getItem('koushi_webapp_url') || '';
+  // 既定の受付窓口があるので、通常はURL欄を出さずID/パスワードだけを聞く
+  const defaultUrl = localStorage.getItem('koushi_webapp_url') || CFG.webAppUrl || '';
   let m = document.getElementById('loginModal');
   if (!m) {
     m = document.createElement('div');
@@ -6163,30 +6174,22 @@ if (CFG.webAppUrl && CFG.token) {
   loadDiscordChannels();
   // 全ての const/let 宣言が初期化された後に loadData を実行 (TDZ回避)
   setTimeout(() => loadData(), 0);
-} else if (CFG.webAppUrl && !CFG.token) {
-  // URLだけあってtoken無し → ログインモーダル
-  setTimeout(() => { try { openLoginModal(); } catch(e){} }, 200);
 } else {
-  fetchWhoami();
+  // 未ログイン → まずログイン画面を出す。
+  // 受付窓口URLには既定値があるので、講師はID・パスワードだけ入れればよい。
+  setTimeout(() => { try { openLoginModal(); } catch(e){} }, 200);
   $('#page-dashboard').innerHTML = `
-    <div class="page-head"><div><div class="page-title">講師ポータル</div><div class="page-sub">ようこそ — まずはログイン情報の設定が必要です</div></div></div>
-    <div class="card card-pad" style="text-align:center;padding:48px 26px;max-width:680px;margin:0 auto">
-      <svg class="ic ic-l" style="width:48px;height:48px;color:var(--brand);margin-bottom:14px"><use href="#i-settings"/></svg>
-      <div style="font-size:18px;font-weight:700;margin-bottom:6px">講師ポータルへようこそ</div>
-      <p style="color:var(--ink2);font-size:14px;line-height:1.7;margin-bottom:14px">
-        SNS伸ばすスクール（Levela）の担当生徒・クラス・講師情報を一元管理するための業務ポータルです。
+    <div class="page-head"><div><div class="page-title">講師ポータル</div><div class="page-sub">ログインしてください</div></div></div>
+    <div class="card card-pad" style="text-align:center;padding:48px 26px;max-width:560px;margin:0 auto">
+      <svg class="ic ic-l" style="width:44px;height:44px;color:var(--brand);margin-bottom:14px"><use href="#i-user"/></svg>
+      <div style="font-size:18px;font-weight:700;margin-bottom:6px">ログインが必要です</div>
+      <p style="color:var(--ink2);font-size:14px;line-height:1.7;margin-bottom:20px">
+        管理者から受け取った<b style="color:var(--ink)">ログインID</b>と<b style="color:var(--ink)">パスワード</b>を入力してください。
       </p>
-      <div style="background:#f8f9fb;border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:18px;text-align:left;font-size:13px;line-height:1.8;color:var(--ink2)">
-        <div style="font-weight:700;color:var(--ink);margin-bottom:6px">利用開始までの流れ</div>
-        ① 管理者から <b style="color:var(--ink)">専用の共有URL</b> を受け取ってください<br>
-        ② そのURLを開くと、ログイン情報が自動で入り、画面が表示されます<br>
-        ③ 以降はこのブラウザに保存され、通常URL（${location.host}/koushi_portal.html）でもアクセス可能になります
-      </div>
-      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-bottom:18px">
-        共有URLが手元にない場合は、右上の<b style="color:var(--ink)">「設定」</b>ボタンから手動で URL・合言葉を入力することもできます。<br>
-        ご不明な点は ${supportInfoHtml()}
+      <button class="btn btn-primary" onclick="openLoginModal()" style="padding:11px 28px;font-size:14px;font-weight:700">ログイン画面を開く</button>
+      <p style="color:var(--muted);font-size:12.5px;line-height:1.7;margin-top:22px">
+        アイパスが分からない場合は ${supportInfoHtml()}
       </p>
-      <button class="btn btn-primary" onclick="openSettings()">設定を開く</button>
     </div>`;
 }
 
