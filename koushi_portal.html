@@ -5869,7 +5869,30 @@ async function renderRoadmap() {
   }
 
   const canCheck = !!tid;
-  const notice = canCheck ? '' : `<div class="hint" style="margin-top:8px">上の講師フィルタで講師を選ぶと、その講師のチェックを付けられます</div>`;
+  // 講師が選ばれていないとチェックの保存先が決まらないので、その場で選べるようにする。
+  // （小さな注意書きだけだと、押しても反応しない箱に見えてしまうため）
+  let notice = '';
+  if (!canCheck) {
+    const u = window.CURRENT_USER || {};
+    const managed = (u.managedIds || []).map(s => String(s).trim()).filter(Boolean);
+    const pool = managed.length
+      ? managed.map(id => [id, teacherMasterMap.get(id)?.name || teacherIdToLabel.get(id) || `講師${id}`])
+      : [...teacherIdToLabel.entries()];
+    const opts = pool
+      .filter(([id, name]) => id && name)
+      .sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'ja'))
+      .map(([id, name]) => `<option value="${rmEsc(id)}">${rmEsc(name)}</option>`).join('');
+    notice = `<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:#fff8f8;border:1px solid #f6dcdc;border-radius:10px;padding:12px 14px;margin-bottom:12px">
+      <div style="font-size:12.5px;line-height:1.7;color:var(--ink2)">
+        <b style="color:var(--ink)">チェックを付けるには講師を選んでください。</b><br>
+        完了状況は講師ごとに保存されるため、誰の分かが決まるまでチェックできません。
+      </div>
+      <select onchange="rmSelectTeacher(this.value)"
+        style="font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;min-width:200px;cursor:pointer">
+        <option value="">講師を選ぶ…</option>${opts}
+      </select>
+    </div>`;
+  }
 
   // 先に表示対象のフェーズを決める。絞り込みで0件になったフェーズは丸ごと隠す
   const visible = [];
@@ -5918,7 +5941,8 @@ async function renderRoadmap() {
         return `<div style="display:grid;grid-template-columns:20px 1fr;gap:12px;align-items:start;border:1px solid var(--line2);border-radius:9px;padding:13px 15px;background:${isDone ? '#fafbfa' : '#fff'}">
           <input type="checkbox" ${isDone ? 'checked' : ''} ${canCheck && !busy ? '' : 'disabled'}
             onchange="rmToggle(${JSON.stringify(t.key).replace(/"/g, '&quot;')}, this.checked)"
-            style="width:16px;height:16px;margin-top:2px;accent-color:var(--brand);cursor:${canCheck ? 'pointer' : 'not-allowed'}">
+            title="${canCheck ? '' : '講師を選ぶとチェックできます'}"
+            style="width:16px;height:16px;margin-top:2px;accent-color:var(--brand);cursor:${canCheck ? 'pointer' : 'not-allowed'};opacity:${canCheck ? '1' : '.35'}">
           <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
             <div style="font-size:13.5px;font-weight:700;line-height:1.6;color:${isDone ? 'var(--muted)' : 'var(--ink)'};${isDone ? 'text-decoration:line-through' : ''}">${rmEsc(t.task) || '<span class="faint">(やること未記入)</span>'}</div>
             <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">${catTags}${dur}</div>
@@ -6043,6 +6067,19 @@ async function renderRoadmap() {
     </div>`;
 }
 function rmSetFilter(k, v) { window.RM_FILTER[k] = v; renderRoadmap(); }
+// ロードマップ画面から講師を選ぶ（ヘッダーの講師フィルタと同じ状態を書き換える）
+function rmSelectTeacher(tid) {
+  if (!tid) return;
+  CURRENT_TEACHER = tid;
+  try { localStorage.setItem('koushi_teacher', tid); } catch (e) {}
+  const input = document.getElementById('teacherFilter');
+  if (input) {
+    input.value = teacherIdToLabel.get(tid) || teacherMasterMap.get(tid)?.name || '';
+    if (typeof updateTeacherClearBtn === 'function') updateTeacherClearBtn();
+  }
+  window.RM.loaded = false;      // その講師の完了状況を取り直す
+  renderRoadmap();
+}
 function rmRefresh() { window.RM.loaded = false; renderRoadmap(); }
 // フェーズの開閉。同じものを押したら閉じる
 function rmTogglePhase(i) { window.RM_OPEN = (window.RM_OPEN === i ? -1 : i); renderRoadmap(); }
