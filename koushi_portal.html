@@ -1985,12 +1985,16 @@ function refreshCounts() {
 function go(page) {
   // 画面遷移時に開いてる全モーダル・ドロワーを閉じる（操作不能ゾーン防止）
   closeAllOverlays();
+  // 別の画面へ移る時だけ先頭に戻す。
+  // loadData() の完了時に go(state.page) が呼ばれるため、同じ画面で先頭に戻すと
+  // 読み込み中にスクロールしていた位置が勝手に飛ばされてしまう。
+  const movedToOtherPage = state.page !== page;
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
   const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
   (renderers[page] || (()=>{}))();
-  window.scrollTo({top:0});
+  if (movedToOtherPage) window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
 }
 
