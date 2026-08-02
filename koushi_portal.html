@@ -5764,7 +5764,7 @@ async function logoutPortal() {
 // フェーズごとのやることをチェックリストとして表示する。
 // チェックは講師IDごとに「ロードマップ進捗」タブへ保存される。
 window.RM = { tasks: [], done: {}, counts: {}, updatedAt: '', loaded: false, teacherId: '', busy: {} };
-window.RM_FILTER = { cat: '', hideDone: false };
+window.RM_FILTER = { hideDone: false };
 // 開いているフェーズ番号。'all' は全部開く、-1 は全部閉じる、undefined は初回（最初の未完了フェーズを開く）
 window.RM_OPEN = undefined;
 // カテゴリーごとの色（背景, 文字）
@@ -5853,10 +5853,6 @@ async function renderRoadmap() {
   // フェーズ順は取得順（Notionの並び）を保つ
   const phases = [];
   RM.tasks.forEach(t => { if (!phases.includes(t.phase)) phases.push(t.phase); });
-  const cats = [];
-  RM.tasks.forEach(t => String(t.category || '').split(',').forEach(c => {
-    c = c.trim(); if (c && !cats.includes(c)) cats.push(c);
-  }));
 
   const doneTotal = RM.tasks.filter(t => RM.done[t.key]).length;
   const pct = RM.tasks.length ? Math.round(doneTotal / RM.tasks.length * 100) : 0;
@@ -5868,14 +5864,6 @@ async function renderRoadmap() {
     window.RM_OPEN = firstIncomplete < 0 ? 0 : firstIncomplete;
   }
 
-  // 講師マスタと同じチップ（ラベル＋件数、選択中は黒背景）
-  const chip = (label, count, active, onclick) =>
-    `<button type="button" class="chip ${active ? 'active' : ''}" onclick="${onclick}">${rmEsc(label)} <span class="c">${count}</span></button>`;
-  const catCount = c => RM.tasks.filter(t => String(t.category || '').split(',').map(s => s.trim()).includes(c)).length;
-  const catChips = [chip('すべて', RM.tasks.length, !F.cat, `rmSetFilter('cat','')`)]
-    .concat(cats.map(c => chip(c, catCount(c), F.cat === c,
-      `rmSetFilter('cat',${JSON.stringify(c).replace(/"/g, '&quot;')})`))).join('');
-
   const canCheck = !!tid;
   const notice = canCheck ? '' : `<div class="hint" style="margin-top:8px">上の講師フィルタで講師を選ぶと、その講師のチェックを付けられます</div>`;
 
@@ -5884,9 +5872,8 @@ async function renderRoadmap() {
   phases.forEach((ph, i) => {
     const all = RM.tasks.filter(t => t.phase === ph);
     let list = all;
-    if (F.cat) list = list.filter(t => String(t.category || '').split(',').map(s => s.trim()).includes(F.cat));
     if (F.hideDone) list = list.filter(t => !RM.done[t.key]);
-    if (!list.length && (F.cat || F.hideDone)) return;
+    if (!list.length && F.hideDone) return;
     visible.push({ ph, i, all, list });
   });
 
@@ -6036,7 +6023,6 @@ async function renderRoadmap() {
         </div>
         ${notice}
         <div style="display:flex;flex-direction:column;gap:12px;border-top:1px solid var(--line2);padding-top:14px">
-          <div style="display:flex;gap:10px;align-items:flex-start"><span class="muted" style="font-size:12px;font-weight:700;min-width:72px;padding-top:11px;flex:none">カテゴリー</span><div class="chips">${catChips}</div></div>
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between">
             <label style="display:flex;gap:7px;align-items:center;font-size:12.5px;font-weight:600;color:var(--ink2);cursor:pointer">
               <input type="checkbox" ${F.hideDone ? 'checked' : ''} onchange="rmSetFilter('hideDone', this.checked)"> 完了したものを隠す
