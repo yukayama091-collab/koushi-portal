@@ -5785,6 +5785,8 @@ const RM_CAT_STYLE = {
   '解説動画アリ':  ['#f2f1ec', '#6b655d'],
 };
 const RM_CAT_FALLBACK = ['#f3f4f6', '#6b655d'];
+// 保存が終わるまでの仮の値。done[key] は真偽で完了判定に使うので空文字は入れられない
+const RM_PENDING = '保存中';
 
 function rmTargetTeacher() {
   // 講師本人は自分固定。MG/管理者は画面上部の講師フィルタで選んだ講師。
@@ -5945,7 +5947,7 @@ async function renderRoadmap() {
             style="width:16px;height:16px;margin-top:2px;accent-color:var(--brand);cursor:${canCheck ? 'pointer' : 'not-allowed'};opacity:${canCheck ? '1' : '.35'}">
           <div style="display:flex;flex-direction:column;gap:7px;min-width:0">
             <div style="font-size:13.5px;font-weight:700;line-height:1.6;color:${isDone ? 'var(--muted)' : 'var(--ink)'};${isDone ? 'text-decoration:line-through' : ''}">${rmEsc(t.task) || '<span class="faint">(やること未記入)</span>'}</div>
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">${catTags}${dur}</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">${catTags}${dur}${busy ? '<span style="font-size:10.5px;font-weight:700;color:var(--muted)">保存中…</span>' : ''}</div>
             ${t.note ? `<div style="font-size:12.5px;line-height:1.85;color:var(--ink2);white-space:pre-line">${rmEsc(t.note)}</div>` : ''}
             ${link}
           </div>
@@ -6100,7 +6102,9 @@ async function rmToggle(key, checked) {
   if (!tid) return;
   window.RM.busy[key] = true;
   // 先に画面へ反映してから保存する（保存に失敗したら元に戻す）
-  if (checked) window.RM.done[key] = ''; else delete window.RM.done[key];
+  // 完了かどうかは done[key] の真偽で見るので、空文字を入れると未完了扱いになってしまう。
+  // 保存が終わるまでは日時が無いため、真になるプレースホルダを入れておく。
+  if (checked) window.RM.done[key] = RM_PENDING; else delete window.RM.done[key];
   renderRoadmap();
   try {
     const actor = getActorInfo();
@@ -6111,9 +6115,10 @@ async function rmToggle(key, checked) {
     });
     const d = await r.json();
     if (!d || !d.ok) throw new Error((d && d.message) || '保存に失敗しました');
-    if (checked) window.RM.done[key] = d.updatedAt || '';
+    if (checked) window.RM.done[key] = d.updatedAt || RM_PENDING;
   } catch (e) {
-    if (checked) delete window.RM.done[key]; else window.RM.done[key] = '';
+    // 失敗したら元の状態へ戻す（外した操作の取り消しも真の値で戻す）
+    if (checked) delete window.RM.done[key]; else window.RM.done[key] = RM_PENDING;
     try { iosAlert('チェックを保存できませんでした。\n' + (e.message || e)); } catch (_) {}
   } finally {
     delete window.RM.busy[key];
