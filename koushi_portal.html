@@ -4981,8 +4981,16 @@ let _classCtx = null;
 let _openClassRetried = '';   // 同じクラスで lazy-load 再試行済みフラグ（無限ループ防止）
 function openClass(clsName){
   const list = viewStudents();
-  const cl = list.filter(s => s.cls === clsName);
-  if (!cl.length) return;
+  let cl = list.filter(s => s.cls === clsName);
+  if (!cl.length) {
+    // 講師マスタから開いた場合、ヘッダーの講師フィルタが別の講師のままだと
+    // スコープ内に該当クラスの生徒が居ないため何も起きなかった。全データから探し直す。
+    cl = viewStudents(allRows.filter(r => isValidClassName(r.className))).filter(s => s.cls === clsName);
+  }
+  if (!cl.length) {
+    try { iosAlert(`「${clsName}」の生徒が見つかりませんでした。\nクラス名が生徒データと一致していない可能性があります。`); } catch(e){}
+    return;
+  }
   const teacher = cl[0]?.teacher || '';
   // クラス内の代表 teacherId（「シート作成」ボタン等で使う）
   const classTeacherId = (cl.map(s => s.__row && s.__row.teacherId).filter(Boolean)[0]) || '';
