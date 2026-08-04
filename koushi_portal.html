@@ -734,7 +734,9 @@ table.tbl{ width:100%; border-collapse:collapse; }
 
 <div class="app">
   <div class="brandbox">
-    <img alt="株式会社Levela" src="/levela-logo-horizontal.jpg" style="height:auto;width:100%;max-width:180px;object-fit:contain;display:block" />
+    <!-- 相対パス: AWS(/instructor-dashboard/)でも GitHub Pages(/koushi-portal/)でも同じHTMLの隣を見るので両方で表示される。
+         以前の /levela-logo-horizontal.jpg はルート直下に実体が無く404だった。 -->
+    <img alt="株式会社Levela" src="levela-logo.png" style="height:auto;width:100%;max-width:180px;object-fit:contain;display:block" />
   </div>
 
   <header class="topbar">
