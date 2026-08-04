@@ -1267,16 +1267,75 @@ function populateLectureMaps(c) {
   }
   classLecturesMap.set(k, { tab: c.tab, lectures: c.lectures });
 }
-async function preloadTeacherLectures(tid) {
-  if (!tid || !CFG.webAppUrl) return;
+// GAS が混雑すると JSON ではなく Google のエラーページ(HTML)を返す。
+// resp.json() の例外は呼び出し側の catch に握り潰され「画面が空のまま」になるため、
+// HTML を明示的に検出して混雑(GAS_BUSY)として扱う。
+async function fetchJsonStrict(url, opts) {
+  const resp = await fetch(url, opts);
+  const text = await resp.text();
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  if (text.trim().charAt(0) === '<') throw new Error('GAS_BUSY');
+  try { return JSON.parse(text); } catch (e) { throw new Error('GAS_BUSY'); }
+}
+
+// 講義日程の永続キャッシュ。講義日は頻繁には変わらないので、ページを開くたびに
+// 全講師ぶんを取り直さないようにする（GAS への同時アクセス過多を防ぐ主要な対策）。
+const _LEC_CACHE_KEY = 'koushi_lectures_cache_v1';
+const _LEC_CACHE_TTL = 12 * 3600 * 1000; // 12時間
+let _lecPersist = null;
+function lecPersistLoad() {
+  if (_lecPersist) return _lecPersist;
+  try {
+    const p = JSON.parse(localStorage.getItem(_LEC_CACHE_KEY) || 'null');
+    _lecPersist = (p && p.ts && (Date.now() - p.ts < _LEC_CACHE_TTL) && p.v) ? p.v : {};
+  } catch (e) { _lecPersist = {}; }
+  return _lecPersist;
+}
+function lecPersistSave() {
+  try {
+    localStorage.setItem(_LEC_CACHE_KEY, JSON.stringify({ ts: Date.now(), v: _lecPersist || {} }));
+  } catch (e) { /* 容量超過時は永続化を諦めるだけ。動作は継続する */ }
+}
+function lecPersistClear() {
+  _lecPersist = {};
+  try { localStorage.removeItem(_LEC_CACHE_KEY); } catch (e) {}
+}
+// 保存するのは日付表示に必要な最小限(tab + lectures)のみ。
+// 生徒別の出欠(students)は容量が大きく、クラスを開いた時に都度取得するので持たない。
+function lecCompact(data) {
+  return { classes: (data.classes || []).map(c => ({ tab: c.tab, lectures: c.lectures })) };
+}
+
+// 先読み中の再描画をまとめる（1件取得するたびに全画面を描き直すとアイコンがちらつくため）
+let _lecRerenderTimer = null;
+function scheduleLectureRerender() {
+  if (_lecRerenderTimer) return;
+  _lecRerenderTimer = setTimeout(() => {
+    _lecRerenderTimer = null;
+    try { go(state.page); } catch (e) {}
+  }, 1500);
+}
+
+// opts.full=true で永続キャッシュを無視して完全なデータ(生徒別の出欠を含む)を取得する。
+// 戻り値: 'ok' | 'cache' | 'busy' | 'skip'
+async function preloadTeacherLectures(tid, opts) {
+  if (!tid || !CFG.webAppUrl) return 'skip';
   const sheetId = classSheetMap.get(tid);
-  if (!sheetId) return;
+  if (!sheetId) return 'skip';
+  const wantFull = !!(opts && opts.full);
+  let light = false;
   try {
     let data = lectureCache.get(sheetId);
     if (!data) {
-      const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=lectures&sheetId=${encodeURIComponent(sheetId)}`);
-      data = await resp.json();
-      lectureCache.set(sheetId, data);
+      const persisted = wantFull ? null : lecPersistLoad()[sheetId];
+      if (persisted) {
+        data = persisted;
+        light = true;   // 日付のみ。生徒別データは含まないので allRows への attach はしない
+      } else {
+        data = await fetchJsonStrict(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=lectures&sheetId=${encodeURIComponent(sheetId)}`);
+        lectureCache.set(sheetId, data);
+        if (data && data.classes) { lecPersistLoad()[sheetId] = lecCompact(data); lecPersistSave(); }
+      }
     }
     if (data && data.classes) {
       data.classes.forEach(populateLectureMaps);
@@ -1296,7 +1355,9 @@ async function preloadTeacherLectures(tid) {
             if (lec1) r.lec1Date = lec1;
             if (lec12) r.lec12Date = lec12;
             r.lecturesData = cls.lectures;
-            r.lecturesStudents = cls.students;   // 生徒×第N回 出欠/個別日程 セル参照用
+            // 生徒×第N回 出欠/個別日程 セル参照用。永続キャッシュ(軽量)には含まれないので、
+            // 無い場合は未設定のままにし、クラス/生徒を開いた時に full 取得させる。
+            if (cls.students) r.lecturesStudents = cls.students;
             r.lecturesTab = cls.tab;
             r.lecturesSheetId = sheetId;
           }
@@ -1304,32 +1365,76 @@ async function preloadTeacherLectures(tid) {
         // 第1回確定後に「今日>卒業予定日」を再評価
         applyGraduationOverrides();
       }
-      go(state.page);
+      scheduleLectureRerender();
     }
-  } catch (e) { console.warn('preloadTeacherLectures failed', e); }
+    return light ? 'cache' : 'ok';
+  } catch (e) {
+    if (String(e && e.message) === 'GAS_BUSY') return 'busy';
+    console.warn('preloadTeacherLectures failed', e);
+    return 'busy';
+  }
 }
 
-// 全校モード用: classSheetMap 全講師の講義データを chunk 並列で先読み → 順次 classLecturesMap に反映
+// 全校モード用: 講義データを少しずつ先読み → 順次 classLecturesMap に反映
+//
+// 【重要】ここは GAS への負荷を決める場所。以前は全講師(263件)を8並列で毎回叩いていたため、
+// 利用者が増えると GAS の同時実行上限を超えて全リクエストが数十秒かかる/エラーページを返す
+// 状態に陥っていた。次の3点で抑えている:
+//   1. 対象を「在学中の生徒がいる講師」だけに絞る（画面に出ない講師は取らない）
+//   2. 永続キャッシュ済みのぶんは叩かない（2回目以降のページ表示はゼロ件になる）
+//   3. 同時実行を2に落とし、バッチ間に待ちを入れ、連続失敗したら打ち切る
 let _preloadAllInFlight = false;
-async function preloadAllTeachersLecturesInBackground(chunkSize = 8) {
+const _LEC_FAIL_LIMIT = 3;      // 連続失敗でGAS混雑と判断して中断
+const _LEC_BATCH_PAUSE = 400;   // バッチ間の待ち(ms)
+async function preloadAllTeachersLecturesInBackground(chunkSize = 2) {
   if (_preloadAllInFlight) return;
   if (!CFG.webAppUrl || !CFG.token || !classSheetMap.size) return;
   _preloadAllInFlight = true;
   try {
-    const tids = [...classSheetMap.keys()];
-    let processed = 0, hits = 0;
+    // 1. 画面に出る範囲（scopedRows）の、在学中の生徒がいる講師だけを対象にする
+    const inScope = new Set();
+    try {
+      scopedRows().forEach(r => {
+        if (r && r.teacherId && !isGraduated(r)) inScope.add(r.teacherId);
+      });
+    } catch (e) { /* 初期化順で使えない場合は絞り込まない */ }
+    let tids = [...classSheetMap.keys()];
+    if (inScope.size) tids = tids.filter(t => inScope.has(t));
+    const target = tids.length;
+    // 2. 取得済み(メモリ or 永続キャッシュ)は通信せずに反映する。
+    //    ここも preloadTeacherLectures を通すことで、生徒への講義日の紐付け
+    //    (lec1Date/lecturesData 等)まで通常どおり行われる。
+    const persisted = lecPersistLoad();
+    const cached = [], toFetch = [];
+    tids.forEach(t => {
+      const s = classSheetMap.get(t);
+      if (!s) return;
+      if (lectureCache.has(s) || persisted[s]) cached.push(t); else toFetch.push(t);
+    });
+    for (let i = 0; i < cached.length; i++) {
+      await preloadTeacherLectures(cached[i]);   // 通信は発生しない
+      if (i % 20 === 19) await new Promise(r => setTimeout(r, 0)); // UIを固めない
+    }
+    const fromCache = cached.length;
+    if (fromCache) scheduleLectureRerender();
+    tids = toFetch;
+
+    let processed = 0, hits = 0, failStreak = 0, aborted = false;
     for (let i = 0; i < tids.length; i += chunkSize) {
       const batch = tids.slice(i, i + chunkSize);
-      await Promise.all(batch.map(async (tid) => {
-        try { await preloadTeacherLectures(tid); hits++; } catch(e) {}
-        processed++;
+      const results = await Promise.all(batch.map(async (tid) => {
+        try { return await preloadTeacherLectures(tid); } catch (e) { return 'busy'; }
       }));
-      // ダッシュボード表示中は徐々にリレンダー (直近3日間の講義に反映)
-      if (state.page === 'dashboard' && typeof renderDashboard === 'function') {
-        try { renderDashboard(); } catch(e){}
-      }
+      results.forEach(res => {
+        processed++;
+        if (res === 'busy') { failStreak++; } else { failStreak = 0; hits++; }
+      });
+      // 3. GAS が混雑しているときは追い打ちをかけずに中断する
+      if (failStreak >= _LEC_FAIL_LIMIT) { aborted = true; break; }
+      if (i + chunkSize < tids.length) await new Promise(r => setTimeout(r, _LEC_BATCH_PAUSE));
     }
-    console.log(`[preloadAll] processed=${processed}/${tids.length} hits=${hits}`);
+    scheduleLectureRerender();
+    console.log(`[preloadAll] 対象=${target} 取得=${processed} 成功=${hits} キャッシュ利用=${fromCache}${aborted ? ' (GAS混雑のため中断)' : ''}`);
   } finally {
     _preloadAllInFlight = false;
   }
@@ -1430,7 +1535,13 @@ async function loadData(forceRefresh, opts) {
   }
   const silent = !!(opts && opts.silent);
   // 講師シート(生徒管理シート)のキャッシュも更新ボタン押下で破棄して最新化
-  if (forceRefresh && lectureCache && typeof lectureCache.clear === 'function') lectureCache.clear();
+  // 破棄するのは利用者が「更新」を押した時だけ。起動1秒後の自動更新(silent)は
+  // forceRefresh=true で呼ばれるため、ここを silent でも通すと毎回キャッシュが消えて
+  // 全講師ぶんを取り直すことになる（GAS 過負荷の原因になるので必ず除外する）。
+  if (forceRefresh && !silent) {
+    if (lectureCache && typeof lectureCache.clear === 'function') lectureCache.clear();
+    lecPersistClear();
+  }
   if (!silent) $('#lastUpdated').textContent = '読み込み中…';
   const btnRefresh = document.getElementById('btnRefresh');
   if (btnRefresh && !silent) { btnRefresh.classList.add('loading'); btnRefresh.disabled = true; }
@@ -1465,7 +1576,16 @@ async function loadData(forceRefresh, opts) {
         throw new Error('通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。');
       }
       if (!resp.ok) throw new Error('サーバー側で一時的なエラーが発生しています。1〜2分待って再度お試しください。（HTTP ' + resp.status + '）');
-      data = await resp.json();
+      // 混雑時、GAS は JSON ではなく Google のエラーページ(HTML)を返すことがある。
+      // そのまま resp.json() すると原因の分からない例外になるので、混雑と判定して案内する。
+      const _text = await resp.text();
+      if (_text.trim().charAt(0) === '<') {
+        throw new Error('ただいまアクセスが集中しています。1〜2分待ってから画面右上の「更新」を押してください。');
+      }
+      try { data = JSON.parse(_text); }
+      catch (eJson) {
+        throw new Error('データの読み込みに失敗しました。1〜2分待ってから画面右上の「更新」を押してください。');
+      }
       // 3. 成功したら LS に保存
       try {
         localStorage.setItem(_LOADDATA_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
@@ -4674,11 +4794,12 @@ function openStudent(id){
   }
   const r = s.__row;
   // 生徒の講師の生徒管理シートが未取得なら、裏でフェッチして取得後に再描画
-  if (r && r.teacherId && !r.lecturesData && classSheetMap.get(r.teacherId)) {
-    preloadTeacherLectures(r.teacherId).then(() => {
+  if (r && r.teacherId && (!r.lecturesData || !r.lecturesStudents) && classSheetMap.get(r.teacherId)) {
+    // full=true: 出欠セル参照に生徒別データが要るので、軽量な永続キャッシュではなく実データを取る
+    preloadTeacherLectures(r.teacherId, { full: true }).then(() => {
       // モーダルがまだ同じ生徒で開いていれば再描画
       if (_studentEditCtx && _studentEditCtx.id === id) openStudent(id);
-    });
+    }).catch(() => {});
   }
   const expGrad = expectedGradDate(r);
   const expStr = expGrad ? fmt(expGrad) : '—';
@@ -4732,7 +4853,7 @@ function openStudent(id){
         }
       }
       // 「データ取得中」判定: 講師IDが分かっていて、生徒管理シートが登録されているが、まだ講義データが未取得
-      const isLoading = !!(r && r.teacherId && !r.lecturesData && classSheetMap.get(r.teacherId));
+      const isLoading = !!(r && r.teacherId && (!r.lecturesData || !r.lecturesStudents) && classSheetMap.get(r.teacherId));
       // 「取得不可」判定: 生徒管理シートが講師DBに登録されていない
       const notAvailable = !isLoading && !sample && !(r.teacherId && classSheetMap.get(r.teacherId));
       const attendanceRow = isLoading
