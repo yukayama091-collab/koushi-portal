@@ -6167,7 +6167,7 @@ function startTour() {
   const isInstructor = u.role === 'instructor';
   const isMg = u.role === 'lecturer_mg' || u.role === 'support_mg' || u.role === 'manager';
   const isAdmin = u.role === 'admin';
-  const ROLE_LABEL_MAP = {admin:'管理者', lecturer_mg:'講師MG', support_mg:'サポートMG', manager:'講師MG', instructor:'講師'};
+  const ROLE_LABEL_MAP = {admin:'管理者', sub_admin:'サブ管理者', lecturer_mg:'講師MG', support_mg:'サポートMG', manager:'講師MG', instructor:'講師'};
 
   // ロールに応じたステップ構成
   const commonSteps = [
@@ -6334,6 +6334,7 @@ function applyRoleUi() {
   }
   const ROLE_LABEL = {
     admin: '管理者',
+    sub_admin: 'サブ管理者',
     lecturer_mg: '講師MG',
     support_mg: 'サポートMG',
     manager: '講師MG',
