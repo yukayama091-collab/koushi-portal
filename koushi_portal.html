@@ -789,6 +789,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
         <div class="side-account-name" id="sideAccountName">未ログイン</div>
         <div class="side-account-role" id="sideAccountRole">—</div>
       </div>
+      <button type="button" class="side-account-btn" id="sideAccountRetry" onclick="retryWhoami()" style="display:none;width:100%;margin-bottom:2px">再試行</button>
       <div class="side-account-actions">
         <button type="button" class="side-account-btn" onclick="switchPortalAccount()" title="ログアウトして別のアカウントでログインします">アカウント切り替え</button>
         <button type="button" class="side-account-btn danger" onclick="logoutPortal()" title="このブラウザから完全にサインアウトします">ログアウト</button>
@@ -5764,24 +5765,48 @@ if (_gs) _gs.addEventListener('input', e => {
 go('dashboard');
 // 現在のユーザー情報（ロール・所属講師ID）— whoami で取得して role-based UI 制限
 window.CURRENT_USER = { role:'unknown', active:false, teacherId:null, name:'' };
-async function fetchWhoami() {
+// whoami の取得状態。'loading' | 'ok' | 'failed'
+window.WHOAMI_STATE = 'loading';
+
+async function fetchWhoami(attempt) {
   if (!CFG.webAppUrl || !CFG.token) return;
+  attempt = attempt || 1;
+  const MAX = 3;
+  window.WHOAMI_STATE = 'loading';
+  updateSideAccount();
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=whoami`);
-    const d = await r.json();
-    if (d && d.user) {
-      window.CURRENT_USER = d.user;
-      applyRoleUi();
-      updateSideAccount();
-      maybeShowTour();
-      // 担当講師が判明したら、現在ダッシュボード表示中なら再描画
-      if (state.page === 'dashboard' && (d.user.managedIds||[]).length && typeof renderDashboard === 'function') {
-        try { renderDashboard(); } catch(e) {}
-      }
+    // GAS は一時的に HTML のエラーページを返すことがあるので、JSONで無い場合も失敗扱い
+    const text = await r.text();
+    let d;
+    try { d = JSON.parse(text); } catch (e) { throw new Error('応答がJSONではありません'); }
+    if (!d || !d.user) throw new Error((d && d.message) || 'ユーザー情報が取れませんでした');
+
+    window.WHOAMI_STATE = 'ok';
+    window.CURRENT_USER = d.user;
+    applyRoleUi();
+    updateSideAccount();
+    maybeShowTour();
+    // 担当講師が判明したら、現在ダッシュボード表示中なら再描画
+    if (state.page === 'dashboard' && (d.user.managedIds||[]).length && typeof renderDashboard === 'function') {
+      try { renderDashboard(); } catch(e) {}
     }
-  } catch(e) { console.warn('whoami failed', e); }
-  updateSideAccount();
+    return;
+  } catch (e) {
+    console.warn(`whoami failed (${attempt}/${MAX})`, e);
+    if (attempt < MAX) {
+      // 一時的な失敗が多いので少し待って再試行する
+      await new Promise(r => setTimeout(r, attempt * 1200));
+      return fetchWhoami(attempt + 1);
+    }
+    // 最後まで失敗。権限が確定していないので管理系メニューは隠したままにする
+    window.WHOAMI_STATE = 'failed';
+    applyRoleUi();
+    updateSideAccount();
+  }
 }
+// 「再試行」から呼ぶ
+function retryWhoami() { fetchWhoami(1); }
 
 // ====== Discord クラスチャンネル対応表 ======
 // 講師DB「Discordチャンネル」タブ（GitHub Actions が定期更新）を読み、
@@ -5861,13 +5886,26 @@ function updateSideAccount() {
   if (!nameEl || !roleEl || !box) return;
   const u = window.CURRENT_USER || {};
   const signedIn = !!(CFG.token && u.active);
+  const retryBtn = document.getElementById('sideAccountRetry');
+  if (retryBtn) retryBtn.style.display = 'none';
   if (!signedIn) {
-    nameEl.textContent = CFG.token ? '確認中…' : '未ログイン';
-    roleEl.textContent = CFG.token ? '' : 'ログインしてください';
+    if (!CFG.token) {
+      nameEl.textContent = '未ログイン';
+      roleEl.textContent = 'ログインしてください';
+    } else if (window.WHOAMI_STATE === 'failed') {
+      // 失敗したまま「確認中…」で固まると原因が分からないので、状態と再試行を出す
+      nameEl.textContent = '権限を確認できません';
+      roleEl.textContent = '通信に失敗しました';
+      if (retryBtn) retryBtn.style.display = '';
+    } else {
+      nameEl.textContent = '確認中…';
+      roleEl.textContent = '';
+    }
     box.querySelectorAll('.side-account-btn').forEach(b => { b.style.display = CFG.token ? '' : 'none'; });
     return;
   }
   box.querySelectorAll('.side-account-btn').forEach(b => { b.style.display = ''; });
+  if (retryBtn) retryBtn.style.display = 'none';   // 成功したら再試行ボタンは消す
   nameEl.textContent = u.name || '(名前未設定)';
   nameEl.title = u.name || '';
   const parts = [ROLE_LABEL_JA[u.role] || u.role || ''];
@@ -6431,16 +6469,19 @@ function applyRoleUi() {
     const cl = document.getElementById('teacherFilterClear');
     if (cl) cl.style.display = 'none';
   }
-  // 講師: 講師マスタ・ユーザー管理・編集履歴を非表示
-  if (isInstructor) {
-    document.querySelectorAll('[data-page="teacherMaster"]').forEach(b => b.style.display = 'none');
-    document.querySelectorAll('[data-page="history"]').forEach(b => b.style.display = 'none');
-    document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
-  }
-  // MG（lecturer_mg / support_mg）・サブ管理者: ユーザー管理は非表示（admin のみ発行可能）
-  if (isLectMg || isSupMg || u.role === 'sub_admin') {
-    document.querySelectorAll('[data-page="users"]').forEach(b => b.style.display = 'none');
-  }
+  // 管理系メニューの表示可否を「隠す/出す」の両方向で毎回決める。
+  // 以前は該当ロールの時だけ隠す作りだったため、whoami が失敗して role が
+  // unknown のままだと全部見えてしまっていた（判定不能＝全部隠す、が安全）。
+  const roleKnown = !!(u.role && u.role !== 'unknown');
+  const canTeacherMaster = roleKnown && !isInstructor;
+  const canHistory       = roleKnown && !isInstructor;
+  const canUsers         = roleKnown && isAdmin;   // ユーザー管理は管理者のみ
+  const setNav = (page, show) => {
+    document.querySelectorAll(`[data-page="${page}"]`).forEach(b => { b.style.display = show ? '' : 'none'; });
+  };
+  setNav('teacherMaster', canTeacherMaster);
+  setNav('history', canHistory);
+  setNav('users', canUsers);
   // ヘッダーにロールバッジ (クリックで権限説明)
   let badge = document.getElementById('userRoleBadge');
   if (!badge) {
@@ -6557,6 +6598,12 @@ function showRoleInfoModal() {
   m.classList.add('open');
 }
 
+// ロールが確定するまで管理系メニューは隠しておく（判定不能＝見せない）
+if (CFG.token) {
+  ['teacherMaster', 'history', 'users'].forEach(pg => {
+    document.querySelectorAll(`[data-page="${pg}"]`).forEach(b => { b.style.display = 'none'; });
+  });
+}
 updateSideAccount();
 if (CFG.webAppUrl && CFG.token) {
   fetchWhoami();
