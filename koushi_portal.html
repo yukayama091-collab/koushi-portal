@@ -5881,6 +5881,38 @@ async function fetchWhoami(attempt) {
 // 「再試行」から呼ぶ
 function retryWhoami() { fetchWhoami(1); }
 
+// ====== 講師MG / サポMG のプルダウン用の名前一覧 ======
+// 講師DB の「講師MGリスト」「サポMGリスト」の C列（講師名）をそのまま選択肢にする。
+// コードに名前を持たないので、シートを直せば選択肢も変わる。
+window.MG_LISTS = { lecturer: [], support: [] };
+const MG_FIXED_OPTS = ['未確定', '無し'];
+// 表記ゆれの寄せ先（左を右として扱う）
+const MG_ALIAS = { 'はらペコ': '腹ぺこビバーク' };
+
+async function loadMgLists() {
+  if (!CFG.webAppUrl || !CFG.token) return;
+  try {
+    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=mg_lists`);
+    const d = await r.json();
+    if (d && d.ok) {
+      window.MG_LISTS = { lecturer: d.lecturer || [], support: d.support || [] };
+      if (state.page === 'teacherMaster' && typeof renderTeacherMaster === 'function') {
+        try { renderTeacherMaster(); } catch (e) {}
+      }
+    }
+  } catch (e) { console.warn('mg_lists failed', e); }
+}
+
+// プルダウンの選択肢を組み立てる。
+// 現在の値が一覧に無い場合は先頭に足す（足さないと <select> が先頭の名前を表示してしまうため）
+function mgOptions(kind, current) {
+  const base = (kind === 'lecturer' ? window.MG_LISTS.lecturer : window.MG_LISTS.support) || [];
+  const cur = MG_ALIAS[String(current || '').trim()] || String(current || '').trim();
+  const opts = base.concat(MG_FIXED_OPTS);
+  if (cur && opts.indexOf(cur) < 0) opts.unshift(cur);
+  return { options: opts, value: cur };
+}
+
 // ====== Discord クラスチャンネル対応表 ======
 // 講師DB「Discordチャンネル」タブ（GitHub Actions が定期更新）を読み、
 // クラス名 → Discord チャンネルURL を引けるようにする。
@@ -6681,6 +6713,7 @@ updateSideAccount();
 if (CFG.webAppUrl && CFG.token) {
   fetchWhoami();
   loadDiscordChannels();
+  loadMgLists();
   // 全ての const/let 宣言が初期化された後に loadData を実行 (TDZ回避)
   setTimeout(() => loadData(), 0);
 } else {
@@ -7481,7 +7514,13 @@ function tmTabContent(r, t){
     ${tmField("講師紹介シート","",{link:!!r.introSheet,linkurl:r.introSheet,linktext:"講師紹介シートを開く",key:'introSheet'})}
     ${tmField("紹介画像（Canva）","",{link:!!r.introImage,linkurl:r.introImage,linktext:"デザインを開く",key:'introImage'})}`;
   if(t===3) return `
-    <div class="field-row">${tmField("講師MG",r.mg,{sel:true,options:["こうし","こうき","うちこ","しゅうへい","かりん","未定","担当なし"],key:'mg'})}${tmField("サポMG",r.sup,{sel:true,options:["kenta","ゆん","おはな","次回ローンチ時","未定","担当なし"],key:'sup'})}</div>
+    <div class="field-row">${(() => {
+      // 選択肢は講師DBの「講師MGリスト」「サポMGリスト」のC列から作る
+      const a = mgOptions('lecturer', r.mg), b = mgOptions('support', r.sup);
+      return tmField("講師MG", a.value, {sel:true, options:a.options, key:'mg'})
+           + tmField("サポMG", b.value, {sel:true, options:b.options, key:'sup'});
+    })()}</div>
+    <div class="hint" style="margin:-6px 0 10px">講師MG・サポMGは元シート「SnsClub講師一覧」から15分ごとに同期されます。ここで変更しても同期で元に戻るため、変更は元シート側で行ってください。</div>
     <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス",{ro:true})}${tmField("1クラスの人数",r.perClass+" 名",{ro:true})}${tmField("当月ローンチ時期",r.launch,{key:'launch'})}</div>
     ${tmField("受け持ち可能な時間帯",r.slot,{key:'slot'})}
     <div class="field-row">${tmField("得意ジャンル",r.good,{key:'good'})}${tmField("苦手ジャンル",r.bad,{key:'bad'})}</div>`;
