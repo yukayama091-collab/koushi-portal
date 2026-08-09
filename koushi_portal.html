@@ -7520,7 +7520,7 @@ function tmTabContent(r, t){
       return tmField("講師MG", a.value, {sel:true, options:a.options, key:'mg'})
            + tmField("サポMG", b.value, {sel:true, options:b.options, key:'sup'});
     })()}</div>
-    <div class="hint" style="margin:-6px 0 10px">講師MG・サポMGは元シート「SnsClub講師一覧」から15分ごとに同期されます。ここで変更しても同期で元に戻るため、変更は元シート側で行ってください。</div>
+    <div class="hint" style="margin:-6px 0 10px">選択肢は講師DBの「講師MGリスト」「サポMGリスト」から読み込んでいます。ここでの変更はこのまま保存されます。</div>
     <div class="field-row three">${tmField("受け持ちクラス数",r.classes+" クラス",{ro:true})}${tmField("1クラスの人数",r.perClass+" 名",{ro:true})}${tmField("当月ローンチ時期",r.launch,{key:'launch'})}</div>
     ${tmField("受け持ち可能な時間帯",r.slot,{key:'slot'})}
     <div class="field-row">${tmField("得意ジャンル",r.good,{key:'good'})}${tmField("苦手ジャンル",r.bad,{key:'bad'})}</div>`;
