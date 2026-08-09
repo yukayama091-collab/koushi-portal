@@ -4095,16 +4095,12 @@ function openIssueTokenModal() {
       <datalist id="newTokTeacherList">${datalistOpts}</datalist>
       <div class="hint">講師ID または 名前で絞り込めます</div>
     </div>
-    <div class="field" id="newTokMgKindWrap" style="display:none"><label>区分</label>
-      <div style="display:flex;gap:16px;align-items:center;padding:4px 0">
-        <label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer">
-          <input type="radio" name="newTokMgKind" value="existing" checked onchange="applyMgKind()"> 既存の講師から
-        </label>
-        <label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer">
-          <input type="radio" name="newTokMgKind" value="new" onchange="applyMgKind()"> 新規
-        </label>
+    <div class="field" id="newTokMgKindWrap" style="display:none"><label>登録区分</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="fchip active" data-mgkind="existing" onclick="setMgKind('existing')" style="flex:1;justify-content:center">既存講師から登録</button>
+        <button type="button" class="fchip" data-mgkind="new" onclick="setMgKind('new')" style="flex:1;justify-content:center">新規採用MG</button>
       </div>
-      <div class="hint" id="newTokMgKindHint">既存の講師がMGになる場合は「既存の講師から」を選んでください。元の講師IDをそのまま使います。</div>
+      <div class="hint" id="newTokMgKindHint">既存講師から登録する場合、元の講師IDをそのまま使います</div>
     </div>
     <div class="field" id="newTokMgPersonWrap" style="display:none"><label id="newTokMgPersonLabel">MG本人</label>
       <input type="text" id="newTokMgPersonInput" list="newTokMgPersonList" placeholder="MGの名前で検索…" style="font:inherit;padding:8px;width:100%" autocomplete="off">
@@ -4189,14 +4185,29 @@ function openIssueTokenModal() {
       // 表示名リセット (前ロールの残存を避ける)
       const mgInput = document.getElementById('newTokMgPersonInput');
       if (mgInput) mgInput.value = '';
+      setMgKind(window.__mgKind || 'existing');
     }
     applyMgKind();
   };
-  // 「既存の講師から」「新規」の切り替え
+  // 「既存講師から登録」「新規採用MG」の切り替え（チップ2択）
+  window.__mgKind = 'existing';
+  window.setMgKind = function (kind) {
+    window.__mgKind = kind;
+    document.querySelectorAll('#newTokMgKindWrap [data-mgkind]').forEach(b => {
+      b.classList.toggle('active', b.dataset.mgkind === kind);
+    });
+    // 新規のときは、採番の案内を下の欄（アカウントリンクの下）に出すのでここは空にする
+    const hint = document.getElementById('newTokMgKindHint');
+    if (hint) {
+      hint.textContent = kind === 'existing' ? '元の講師IDをそのまま使います' : '';
+      hint.style.display = kind === 'existing' ? '' : 'none';
+    }
+    applyMgKind();
+  };
   window.applyMgKind = function () {
     const role = document.getElementById('newTokRole').value;
     const isMg = (role === 'lecturer_mg' || role === 'support_mg');
-    const kind = (document.querySelector('input[name="newTokMgKind"]:checked') || {}).value || 'existing';
+    const kind = window.__mgKind || 'existing';
     document.getElementById('newTokMgPersonWrap').style.display = (isMg && kind === 'existing') ? 'block' : 'none';
     document.getElementById('newTokMgNewWrap').style.display = (isMg && kind === 'new') ? 'block' : 'none';
   };
@@ -4320,7 +4331,7 @@ async function submitIssueToken(btnEl) {
   if (role === 'lecturer_mg' || role === 'support_mg') {
     managedIds = (window.__issueTokenSelectedManaged || []).slice();
     if (!managedIds.length) { iosAlert('担当する講師を1名以上選択してください'); return; }
-    mgKind = (document.querySelector('input[name="newTokMgKind"]:checked') || {}).value || 'existing';
+    mgKind = window.__mgKind || 'existing';
     if (mgKind === 'new') {
       mgName = (document.getElementById('newTokMgName').value || '').trim();
       mgAccount = (document.getElementById('newTokMgAccount').value || '').trim();
