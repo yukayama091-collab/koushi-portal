@@ -1315,6 +1315,10 @@ function scheduleLectureRerender() {
   if (_lecRerenderTimer) return;
   _lecRerenderTimer = setTimeout(() => {
     _lecRerenderTimer = null;
+    // 講師カードやモーダルを開いている間は描き直さない。
+    // 描き直すと開いていたカードが閉じたり、入力中の内容が消えてしまう。
+    // 閉じたあとに反映されるよう、少し待ってからやり直す。
+    if (isAnyOverlayOpen()) { scheduleLectureRerender(); return; }
     try { go(state.page); } catch (e) {}
   }, 1500);
 }
@@ -2106,12 +2110,14 @@ function refreshCounts() {
   if (b) { b.textContent = n; b.style.display = n ? '' : 'none'; }
 }
 function go(page) {
-  // 画面遷移時に開いてる全モーダル・ドロワーを閉じる（操作不能ゾーン防止）
-  closeAllOverlays();
   // 別の画面へ移る時だけ先頭に戻す。
   // loadData() の完了時に go(state.page) が呼ばれるため、同じ画面で先頭に戻すと
   // 読み込み中にスクロールしていた位置が勝手に飛ばされてしまう。
   const movedToOtherPage = state.page !== page;
+  // 画面遷移時に開いてる全モーダル・ドロワーを閉じる（操作不能ゾーン防止）。
+  // 同じ画面の再描画（データ読み込み完了など）では閉じない。閉じてしまうと、
+  // 開いていた講師カードが数秒後に勝手に消える。
+  if (movedToOtherPage) closeAllOverlays();
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
@@ -2134,6 +2140,13 @@ function autoCleanupEmptyOverlays() {
 // 起動2秒後 & 5秒後に自動チェック (レース状態で空overlayが残るケース対策)
 setTimeout(autoCleanupEmptyOverlays, 2000);
 setTimeout(autoCleanupEmptyOverlays, 5000);
+
+// モーダル・講師カードのいずれかが開いているか
+function isAnyOverlayOpen() {
+  if (document.querySelector('.overlay.open')) return true;
+  const drawer = document.getElementById('tmDrawer');
+  return !!(drawer && drawer.classList.contains('open'));
+}
 
 function closeAllOverlays() {
   // overlay系
