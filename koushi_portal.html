@@ -4095,10 +4095,32 @@ function openIssueTokenModal() {
       <datalist id="newTokTeacherList">${datalistOpts}</datalist>
       <div class="hint">講師ID または 名前で絞り込めます</div>
     </div>
+    <div class="field" id="newTokMgKindWrap" style="display:none"><label>区分</label>
+      <div style="display:flex;gap:16px;align-items:center;padding:4px 0">
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer">
+          <input type="radio" name="newTokMgKind" value="existing" checked onchange="applyMgKind()"> 既存の講師から
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;font-size:13px;cursor:pointer">
+          <input type="radio" name="newTokMgKind" value="new" onchange="applyMgKind()"> 新規
+        </label>
+      </div>
+      <div class="hint" id="newTokMgKindHint">既存の講師がMGになる場合は「既存の講師から」を選んでください。元の講師IDをそのまま使います。</div>
+    </div>
     <div class="field" id="newTokMgPersonWrap" style="display:none"><label id="newTokMgPersonLabel">MG本人</label>
       <input type="text" id="newTokMgPersonInput" list="newTokMgPersonList" placeholder="MGの名前で検索…" style="font:inherit;padding:8px;width:100%" autocomplete="off">
       <datalist id="newTokMgPersonList"></datalist>
       <div class="hint">MG本人を選ぶと、担当講師が自動で入ります (手動で追加/削除も可能)</div>
+    </div>
+    <div class="field" id="newTokMgNewWrap" style="display:none">
+      <label id="newTokMgNameLabel">講師MG名</label>
+      <input type="text" id="newTokMgName" placeholder="例: 山田太郎" style="font:inherit;padding:8px;width:100%" autocomplete="off">
+      <div style="height:10px"></div>
+      <label>アカウント名</label>
+      <input type="text" id="newTokMgAccount" placeholder="例: やまだ⌇30代からの資産形成" style="font:inherit;padding:8px;width:100%" autocomplete="off">
+      <div style="height:10px"></div>
+      <label>アカウントリンク</label>
+      <input type="url" id="newTokMgUrl" placeholder="https://www.instagram.com/..." style="font:inherit;padding:8px;width:100%" autocomplete="off">
+      <div class="hint" id="newTokMgNewHint">登録すると講師IDが自動で振られます</div>
     </div>
     <div class="field" id="newTokManagedWrap" style="display:none"><label>担当講師</label>
       <div id="newTokManagedChips" style="display:flex;flex-wrap:wrap;gap:6px;padding:6px;border:1px solid var(--line);border-radius:8px;min-height:42px;background:#fff;cursor:text" onclick="document.getElementById('newTokManagedInput').focus()">
@@ -4154,15 +4176,29 @@ function openIssueTokenModal() {
     const v = e.target.value;
     document.getElementById('newTokTeacherWrap').style.display = v === 'instructor' ? 'block' : 'none';
     document.getElementById('newTokManagedWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
-    document.getElementById('newTokMgPersonWrap').style.display = (v === 'lecturer_mg' || v === 'support_mg') ? 'block' : 'none';
-    if (v === 'lecturer_mg' || v === 'support_mg') {
+    const isMg = (v === 'lecturer_mg' || v === 'support_mg');
+    document.getElementById('newTokMgKindWrap').style.display = isMg ? 'block' : 'none';
+    if (isMg) {
       document.getElementById('newTokMgPersonLabel').textContent = v === 'lecturer_mg' ? '講師MG本人' : 'サポートMG本人';
       document.getElementById('newTokMgPersonInput').placeholder = v === 'lecturer_mg' ? '講師MGの名前で検索…' : 'サポMGの名前で検索…';
+      document.getElementById('newTokMgNameLabel').textContent = v === 'lecturer_mg' ? '講師MG名' : 'サポートMG名';
+      document.getElementById('newTokMgNewHint').textContent =
+        v === 'lecturer_mg' ? '登録すると講師IDが 2000 から順に振られます'
+                            : '登録すると講師IDが 3000 から順に振られます';
       buildMgPersonList(v);
       // 表示名リセット (前ロールの残存を避ける)
       const mgInput = document.getElementById('newTokMgPersonInput');
       if (mgInput) mgInput.value = '';
     }
+    applyMgKind();
+  };
+  // 「既存の講師から」「新規」の切り替え
+  window.applyMgKind = function () {
+    const role = document.getElementById('newTokRole').value;
+    const isMg = (role === 'lecturer_mg' || role === 'support_mg');
+    const kind = (document.querySelector('input[name="newTokMgKind"]:checked') || {}).value || 'existing';
+    document.getElementById('newTokMgPersonWrap').style.display = (isMg && kind === 'existing') ? 'block' : 'none';
+    document.getElementById('newTokMgNewWrap').style.display = (isMg && kind === 'new') ? 'block' : 'none';
   };
   // 初期表示でも反映
   document.getElementById('newTokRole').dispatchEvent(new Event('change'));
@@ -4280,9 +4316,24 @@ async function submitIssueToken(btnEl) {
     if (!teacherId) { iosAlert('講師を選択してください'); return; }
   }
   let managedIds = [];
+  let mgKind = '', mgName = '', mgAccount = '', mgUrl = '';
   if (role === 'lecturer_mg' || role === 'support_mg') {
     managedIds = (window.__issueTokenSelectedManaged || []).slice();
     if (!managedIds.length) { iosAlert('担当する講師を1名以上選択してください'); return; }
+    mgKind = (document.querySelector('input[name="newTokMgKind"]:checked') || {}).value || 'existing';
+    if (mgKind === 'new') {
+      mgName = (document.getElementById('newTokMgName').value || '').trim();
+      mgAccount = (document.getElementById('newTokMgAccount').value || '').trim();
+      mgUrl = (document.getElementById('newTokMgUrl').value || '').trim();
+      const label = role === 'lecturer_mg' ? '講師MG名' : 'サポートMG名';
+      if (!mgName) { iosAlert(`${label}を入力してください`); return; }
+    } else {
+      // 既存: MG本人として選ばれた講師の講師IDを引き継ぐ
+      const raw = (document.getElementById('newTokMgPersonInput').value || '').trim();
+      const nm = raw.replace(/\s*\(担当\d+名\)\s*$/, '').trim();
+      const t = (window.__issueTokenAllTeachers || []).find(x => String(x.name || '').trim() === nm);
+      if (t && t.tid) teacherId = String(t.tid);
+    }
   }
   const name = document.getElementById('newTokName').value.trim();
   const memo = document.getElementById('newTokMemo').value.trim();
@@ -4306,7 +4357,7 @@ async function submitIssueToken(btnEl) {
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
       method: 'POST', headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ role, teacherId, managedIds, name, memo })
+      body: JSON.stringify({ role, teacherId, managedIds, name, memo, mgKind, mgName, mgAccount, mgUrl })
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.message || d.error || '失敗');
@@ -4314,6 +4365,17 @@ async function submitIssueToken(btnEl) {
     const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(d.user.token)}`;
     showIssuedTokenModal(shareUrl, !!d.reused);
     renderUsers();
+    // MGリストへの記録結果を伝える（採番された講師IDはここでしか分からないため）
+    if (d.mg) {
+      const tid = (d.user && d.user.teacherId) || '';
+      if (d.mg.added) {
+        setTimeout(() => iosAlert(`「${d.mg.sheet}」に登録しました。\n講師ID: ${tid}（NO ${d.mg.no}・${d.mg.row}行目）`), 400);
+      } else if (d.mg.reason === 'already_listed') {
+        setTimeout(() => iosAlert(`「${d.mg.sheet}」には既に講師ID ${tid} の行（${d.mg.row}行目）があるため、追記しませんでした。`), 400);
+      } else if (d.mg.reason === 'sheet_not_found') {
+        setTimeout(() => iosAlert(`アカウントは発行しましたが、「${d.mg.sheet}」シートが見つからず記録できませんでした。`), 400);
+      }
+    }
   } catch(e) {
     iosAlert('発行エラー\n' + humanizeError(e));
   } finally {
