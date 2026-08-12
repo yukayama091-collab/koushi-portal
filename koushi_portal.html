@@ -2390,15 +2390,13 @@ function getUpcomingLecs(limit) {
 
 /* ═════════════ DASHBOARD ═════════════ */
 function renderDashboard(){
-  if (!allRows.length) {
-    // 読み込みが終わったのに0件なら「読み込み中」を出し続けない。
-    // 担当生徒がいない講師でも、ずっと回転し続けて固まったように見えるため。
+  // 読み込みが終わっていれば、生徒が0名でもダッシュボードの形はそのまま出す
+  // （各数字が0になるだけ）。読み込み中・未設定のときだけ差し替える。
+  if (!allRows.length && !window.DATA_LOADED) {
     const configured = !!(CFG.webAppUrl && CFG.token);
     const msg = !configured
       ? '右上の「設定」から受付窓口を設定してデータを読み込んでください'
-      : (window.DATA_LOADED
-        ? '表示できる生徒がいません。<br><span class="faint">担当クラスの生徒が登録されると、ここに表示されます。</span>'
-        : '<svg class="ic" style="animation:spin 1s linear infinite;vertical-align:-3px;margin-right:6px"><use href="#i-refresh"/></svg> 読み込み中…');
+      : '<svg class="ic" style="animation:spin 1s linear infinite;vertical-align:-3px;margin-right:6px"><use href="#i-refresh"/></svg> 読み込み中…';
     $('#page-dashboard').innerHTML = `
       <div class="page-head"><div><div class="page-title">ダッシュボード</div><div class="page-sub">${scopeLabel()}</div></div></div>
       <div class="card card-pad"><div class="empty">${msg}</div></div>`;
@@ -2891,7 +2889,7 @@ function clearTodoFilter() {
   renderTodo();
 }
 function renderTodo(){
-  if (!allRows.length) { $('#page-todo').innerHTML = (window.DATA_LOADED ? '<div class="empty">表示できる生徒がいません</div>' : '<div class="empty">データ未読み込み</div>'); return; }
+  if (!allRows.length && !window.DATA_LOADED) { $('#page-todo').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const allList = viewStudents();
   // 絞り込み前のリスト集合からプルダウンの選択肢を作る
   const classesOpts = [...new Set(allList.map(s => s.cls).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
@@ -2953,7 +2951,7 @@ function renderTodo(){
 
 /* ═════════════ SEARCH ═════════════ */
 function renderSearch(){
-  if (!allRows.length) { $('#page-search').innerHTML = (window.DATA_LOADED ? '<div class="empty">表示できる生徒がいません</div>' : '<div class="empty">データ未読み込み</div>'); return; }
+  if (!allRows.length && !window.DATA_LOADED) { $('#page-search').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const all = viewStudents();
   const classes = [...new Set(all.map(s => s.cls).filter(Boolean))].sort();
   // クラス単位の状態判定: 全員卒業 → 卒業クラス、それ以外（在校生1人以上）→ 在学クラス
@@ -3131,7 +3129,7 @@ function setClassesSort(mode) {
   renderClasses();
 }
 function renderClasses(){
-  if (!allRows.length) { $('#page-classes').innerHTML = (window.DATA_LOADED ? '<div class="empty">表示できる生徒がいません</div>' : '<div class="empty">データ未読み込み</div>'); return; }
+  if (!allRows.length && !window.DATA_LOADED) { $('#page-classes').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const all = viewStudents();
   const allClasses = [...new Set(all.map(s => s.cls).filter(Boolean))];
 
@@ -3256,7 +3254,7 @@ function renderClasses(){
 
 /* ═════════════ PROGRESS ═════════════ */
 function renderProgress(){
-  if (!allRows.length) { $('#page-progress').innerHTML = (window.DATA_LOADED ? '<div class="empty">表示できる生徒がいません</div>' : '<div class="empty">データ未読み込み</div>'); return; }
+  if (!allRows.length && !window.DATA_LOADED) { $('#page-progress').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const list = viewStudents();
   const started = list.filter(s => s.status!=='no_sp');
   const ok50 = list.filter(s => ['ok50','over80','grad'].includes(s.status)).length;
@@ -3362,7 +3360,7 @@ function clearTimelineFilter() {
 }
 
 function renderTimeline(){
-  if (!allRows.length) { $('#page-timeline').innerHTML = (window.DATA_LOADED ? '<div class="empty">表示できる生徒がいません</div>' : '<div class="empty">データ未読み込み</div>'); return; }
+  if (!allRows.length && !window.DATA_LOADED) { $('#page-timeline').innerHTML = '<div class="empty">データ未読み込み</div>'; return; }
   const allList = viewStudents();
   const classesOpts = [...new Set(allList.map(s => s.cls).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
   const teachersOpts = [...new Set(allList.map(s => s.teacher).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b),'ja'));
