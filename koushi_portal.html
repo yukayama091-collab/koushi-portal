@@ -8041,12 +8041,20 @@ async function tmSaveDrawer(btn) {
   const editKeys = ['name','real','account','gender','birth','genre','rank','type','extraRank',
                     'contract','contractEnd','active','retire','one','launch','slot','good','bad','mg','sup',
                     'introSheet','introImage'];
-  // Undo用: 保存前の値をサーバー側 (TM_DATA 最終取得値) からスナップショット
-  const preSaveSnapshot = TM_DATA.find(t => t.id === tmCurRec.id);
-  const undoRow = preSaveSnapshot ? { id: tmCurRec.id } : null;
-  if (undoRow) editKeys.forEach(k => { if (preSaveSnapshot[k] !== undefined) undoRow[k] = preSaveSnapshot[k]; });
+  // カードを開いた時点の控え。これと比べて、実際に直した項目だけを送る。
+  // 全項目を送ると、画面に出ていただけの値（AWS 側の古い値など）まで
+  // 講師DB に書き戻してしまい、シートの正しい値が壊れる。
+  const orig = window.__tmOrig;
+  const changedKeys = editKeys.filter(k => {
+    if (tmCurRec[k] === undefined) return false;
+    if (!orig) return true;
+    return String(tmCurRec[k] == null ? '' : tmCurRec[k]) !== String(orig[k] == null ? '' : orig[k]);
+  });
+  if (!changedKeys.length) { await iosAlert('変更はありません。'); return; }
+  const undoRow = orig ? { id: tmCurRec.id } : null;
+  if (undoRow) changedKeys.forEach(k => { undoRow[k] = orig[k] === undefined ? '' : orig[k]; });
   const row = { id: tmCurRec.id };
-  editKeys.forEach(k => { if (tmCurRec[k] !== undefined) row[k] = tmCurRec[k]; });
+  changedKeys.forEach(k => { row[k] = tmCurRec[k]; });
   const oldLabel = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '保存中…'; }
   try {
@@ -8073,6 +8081,7 @@ async function tmSaveDrawer(btn) {
     if (refreshed) {
       editKeys.forEach(k => { if (row[k] !== undefined) refreshed[k] = row[k]; });
       tmCurRec = refreshed;
+      try { window.__tmOrig = JSON.parse(JSON.stringify(refreshed)); } catch(e) {}
     }
     tmRenderDrawerBody();
     if (typeof renderTeacherList === 'function') renderTeacherList();
@@ -8093,6 +8102,7 @@ async function tmSaveDrawer(btn) {
           if (refreshed2) {
             editKeys.forEach(k => { if (undoRow[k] !== undefined) refreshed2[k] = undoRow[k]; });
             tmCurRec = refreshed2;
+            try { window.__tmOrig = JSON.parse(JSON.stringify(refreshed2)); } catch(e) {}
           }
           tmRenderDrawerBody();
           if (typeof renderTeacherList === 'function') renderTeacherList();
@@ -8129,6 +8139,9 @@ function openTeacherDrawer(id, isNew){
   const r = isNew ? {id:"（自動採番）",name:"",account:"",real:"",genre:"",rank:"シルバー",type:"通常",gender:"",birth:"",contract:"",active:"未稼働",one:false,grad:"",ongoing:"",mg:"未定",sup:"未定",classes:0,perClass:0,slot:"",good:"",bad:"",launch:"",students:0,ig:"",retire:false} : TM_DATA.find(t=>t.id===id);
   if(!r) return;
   tmCurRec = r;
+  // 開いた時点の値を控える。tmCurRec は TM_DATA の実体そのものなので、
+  // 控えを取らないと「どこを直したか」が分からず、保存時に全項目を送ることになる。
+  try { window.__tmOrig = isNew ? null : JSON.parse(JSON.stringify(r)); } catch(e) { window.__tmOrig = null; }
   const drawer = document.getElementById('tmDrawer');
   drawer.innerHTML = `
     <div class="dr-head">
