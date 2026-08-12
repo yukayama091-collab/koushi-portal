@@ -8061,12 +8061,15 @@ async function tmSaveDrawer(btn) {
       await iosAlert('変更はありません。');
       return;
     }
-    // AWS 中継キャッシュをクリアして次のフェッチが最新になるようにする
+    // AWS 中継キャッシュをクリアして、次に読み込む時は最新になるようにする
     try { await awsCacheClear(); } catch (e) { /* ignore */ }
-    // 講師マスタを再取得 → 一覧/ドロワーを再描画
-    try { await tmFetchIfNeeded(true); } catch(e) { console.warn(e); }
+    // 講師一覧の全件取り直しは30秒ほどかかるため、保存した行だけ手元で書き換える。
+    // 送った内容がそのまま保存された結果なので、取り直さなくても表示は最新になる。
     const refreshed = TM_DATA.find(t => t.id === tmCurRec.id);
-    if (refreshed) tmCurRec = refreshed;
+    if (refreshed) {
+      editKeys.forEach(k => { if (row[k] !== undefined) refreshed[k] = row[k]; });
+      tmCurRec = refreshed;
+    }
     tmRenderDrawerBody();
     if (typeof renderTeacherList === 'function') renderTeacherList();
     // Undo付きスナックバー
@@ -8082,9 +8085,11 @@ async function tmSaveDrawer(btn) {
           const ud = await undoResp.json();
           if (!ud || !ud.ok) throw new Error(ud && (ud.message || ud.error) || '失敗');
           try { await awsCacheClear(); } catch(e){}
-          try { await tmFetchIfNeeded(true); } catch(e){}
           const refreshed2 = TM_DATA.find(t => t.id === tmCurRec.id);
-          if (refreshed2) tmCurRec = refreshed2;
+          if (refreshed2) {
+            editKeys.forEach(k => { if (undoRow[k] !== undefined) refreshed2[k] = undoRow[k]; });
+            tmCurRec = refreshed2;
+          }
           tmRenderDrawerBody();
           if (typeof renderTeacherList === 'function') renderTeacherList();
           showSnackbar('元に戻しました', {});
