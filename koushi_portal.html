@@ -3775,20 +3775,39 @@ function copyToClipboard(text, btn) {
   });
 }
 
-// 全ユーザーに ログインID+パスワード を一括発行
+// アイパスを一括発行する。
+//   1) 一覧にいる人でアイパスが空の行を埋める
+//   2) 講師マスタに載っている講師（退職済を除く）でアカウントが無い人は行を作って発行する
+// 実行前に件数を出して確認する。
+const genAllPost = (extra) => fetch(
+  `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=generate_all_credentials`,
+  { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(withActor(extra || {})) }).then(r => r.json());
+
 async function generateAllCredentials() {
-  if (!await iosConfirm('ログインID/パスワード未発行のユーザー全員にアイパスを一括発行します。よろしいですか？', { okText:'発行', cancelText:'キャンセル' })) return;
-  showBusyOverlay('全ユーザーのアイパスを発行中…');
+  showBusyOverlay('対象を確認中…');
+  let pre;
   try {
-    const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=generate_all_credentials`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(withActor({}))
-    });
-    const d = await resp.json();
+    pre = await genAllPost({ preview: '1' });
+  } catch (e) {
+    hideBusyOverlay(); await iosAlert('エラー: ' + e.message); return;
+  }
+  hideBusyOverlay();
+  if (!pre || !pre.ok) { await iosAlert('確認に失敗しました: ' + ((pre && (pre.error||pre.message)) || '不明なエラー')); return; }
+  const fill = pre.generated || 0, make = pre.willCreate || 0;
+  if (!fill && !make) { await iosAlert('アイパスが未発行の人はいません。'); return; }
+  const lines = [];
+  if (fill) lines.push(`・一覧にいてアイパスが空の人: ${fill} 名`);
+  if (make) lines.push(`・アカウントがまだ無い講師: ${make} 名（新しく作成します）`);
+  if (!await iosConfirm(`アイパスを発行します。\n\n${lines.join('\n')}\n\n退職済の講師は対象外です。よろしいですか？`,
+                        { okText:'発行', cancelText:'キャンセル' })) return;
+  showBusyOverlay(`アイパスを発行中…（${fill + make} 名）`);
+  try {
+    const d = await genAllPost({});
     hideBusyOverlay();
     if (!d.ok) { await iosAlert('発行に失敗しました: ' + (d.error || d.message)); return; }
-    await iosAlert(`${d.generated} 名にアイパスを発行しました。\n一覧のパスワード欄でIDを確認できます。`);
+    const detail = d.created ? `\n（既存の空欄 ${d.filled || 0} 名 / 新規作成 ${d.created} 名）` : '';
+    await iosAlert(`${d.generated} 名にアイパスを発行しました。${detail}\n一覧のパスワード欄でIDを確認できます。`);
     renderUsers();
   } catch (e) {
     hideBusyOverlay();
