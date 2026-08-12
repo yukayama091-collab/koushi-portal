@@ -5923,6 +5923,10 @@ function mgOptions(kind, current) {
   const cur = MG_ALIAS[String(current || '').trim()] || String(current || '').trim();
   const opts = base.concat(MG_FIXED_OPTS);
   if (cur && opts.indexOf(cur) < 0) opts.unshift(cur);
+  // 未設定のときは空の選択肢を先頭に置く。
+  // これが無いと <select> は該当する選択肢が無いため一覧の先頭の名前を表示してしまい、
+  // 担当が決まっていない講師に別人の名前が出る（そのまま保存するとその名前が書き込まれる）。
+  if (!cur) opts.unshift('');
   return { options: opts, value: cur };
 }
 
