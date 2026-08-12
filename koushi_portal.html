@@ -2557,7 +2557,7 @@ function renderDashboard(){
         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
           <div class="searchbar" style="max-width:320px;min-width:240px;flex:1"><svg class="ic"><use href="#i-search"/></svg><input id="dashTQ" value="${(TF.q||'').replace(/"/g,'&quot;')}" placeholder="講師名・アカウントで絞り込み…"></div>
           ${dashTopFilterHtml({key:'genre', head:'ジャンル', placeholder:'全ジャンル', current:TF.genre, options:genreOpts, searchable:true})}
-          ${dashTopFilterHtml({key:'rank', head:'ランク', placeholder:'全ランク', current:TF.rank, options:rankOpts})}
+          ${dashTopFilterHtml({key:'rank', head:'講師ランク', placeholder:'全ランク', current:TF.rank, options:rankOpts})}
           ${dashTopFilterHtml({key:'type', head:'区分', placeholder:'通常/専属', current:TF.type, options:typeOpts})}
         </div>
         <div class="chips" id="dashTChips" style="margin-bottom:14px;flex-wrap:wrap">
@@ -7277,7 +7277,7 @@ async function renderTeacherMaster(){
             searchable:true
           })}
           ${tmTopFilterHtml({
-            key:'rank', head:'ランク', placeholder:'全ランク', current:tmFilter.rank || '',
+            key:'rank', head:'講師ランク', placeholder:'全ランク', current:tmFilter.rank || '',
             options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"].map(r=>({value:r,label:r}))
           })}
           ${tmTopFilterHtml({
@@ -7342,7 +7342,7 @@ const TM_TABLE_TABS = [
   { key:'basic', label:'基本情報', cols: [
     {h:'講師', td:r=>tmNameCell(r)},
     {h:'ジャンル', filter:{key:'genre', get:r=>r.genre}, td:r=>`<td style="white-space:nowrap">${tmGenreTag(r.genre)}</td>`},
-    {h:'ランク', filter:{key:'rank', get:r=>r.rank, order:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"]}, td:r=>`<td>${tmRankBadge(r.rank)}</td>`},
+    {h:'講師ランク', filter:{key:'rank', get:r=>r.rank, order:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"]}, td:r=>`<td>${tmRankBadge(r.rank)}</td>`},
     {h:'集客ランク', filter:{key:'extraRank', get:r=>r.extraRank}, td:r=>`<td>${r.extraRank?`<span class="tag">${tmEsc(r.extraRank.replace(/ランク$/,''))}</span>`:'<span class="faint">—</span>'}</td>`},
     {h:'区分', filter:{key:'type', get:r=>r.type, order:["通常","専属"]}, td:r=>`<td>${tmTypeBadge(r.type)}</td>`},
     {h:'本名', td:r=>`<td>${tmEsc(r.real)||'<span class="faint">—</span>'}</td>`},
@@ -7473,7 +7473,12 @@ function tmField(label,val,opts){
     return `<div class="field"><label>${label}</label>${opts.link?`<div class="linkfield"><a href="${tmEsc(opts.linkurl||'#')}" target="_blank">${tmIcon('ext',14)} ${tmEsc(opts.linktext||'リンクを開く')}</a></div>`:`<div class="linkfield empty">未設定</div>`}</div>`;
   }
   if(opts.sel){
-    const options = opts.options || [val||'—'];
+    const options = (opts.options || [val||'—']).slice();
+    // 実際の値が選択肢に無いと <select> は一覧の先頭を表示してしまい、
+    // そのまま保存すると画面に出ていた別の値が書き込まれる。
+    // 値そのものを選択肢に加えて防ぐ（空欄のときは空の選択肢を足す）。
+    const cur = val == null ? '' : String(val);
+    if (options.indexOf(cur) < 0) options.unshift(cur);
     return `<div class="field"><label>${label}${req}</label><select${dk}>${options.map(o=>`<option ${o===val?'selected':''}>${tmEsc(o)}</option>`).join('')}</select></div>`;
   }
   if(opts.area) return `<div class="field"><label>${label}</label><textarea${dk}>${tmEsc(val)}</textarea></div>`;
@@ -7487,9 +7492,9 @@ function tmTabContent(r, t){
     <div class="field"><label>アカウントリンク</label>${r.ig?`<div class="linkfield"><a href="${tmEsc(r.ig)}" target="_blank">${tmIcon('ext',14)} ${tmEsc(r.ig)}</a></div>`:'<div class="linkfield empty">未設定</div>'}</div>
     <div class="field-row three">${tmField("性別",r.gender,{sel:true,options:["","男性","女性"],key:'gender'})}${tmField("生年月日",r.birth,{key:'birth'})}${tmField("講師ID",r.id,{ro:true})}</div>
     <div class="field-row three">${tmField("ジャンル",r.genre,{sel:true,req:true,options:["","暮らし","レシピ","ダイエット","スポット","Excel","美容","育児・教育","お金","ガジェット","エンタメ","筋トレ","健康"],key:'genre'})}
-      ${tmField("ランク",r.rank,{sel:true,req:true,options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"],key:'rank'})}
+      ${tmField("講師ランク",r.rank,{sel:true,req:true,options:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"],key:'rank'})}
       ${tmField("通常 / 専属",r.type,{sel:true,options:["通常","専属"],key:'type'})}</div>
-    <div class="field-row">${tmField("集客ランク",r.extraRank||"",{sel:true,options:["","Aランク","Bランク","Cランク","Dランク","Eランク"],key:'extraRank'})}<div></div></div>`;
+    <div class="field-row">${tmField("集客ランク",r.extraRank||"",{sel:true,options:["","マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"],key:'extraRank'})}<div></div></div>`;
   if(t===1) return `
     <div class="field-row">${tmField("契約日",r.contract,{key:'contract'})}${tmField("契約終了日",r.contractEnd||"",{key:'contractEnd'})}</div>
     <div class="field-row">${tmField("稼働状況",r.active,{sel:true,req:true,options:["稼働中","未稼働"],key:'active'})}${tmField("退職",r.retire?"退職済":"—",{sel:true,options:["—","退職済"],key:'retire'})}</div>
