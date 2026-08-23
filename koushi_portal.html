@@ -3596,7 +3596,8 @@ let _usersFilter = { q:'', role:'', dateFrom:'', dateTo:'', status:'all' };
 async function renderUsers(){
   const page = $('#page-users');
   const u = window.CURRENT_USER || {};
-  const isSuperAdmin = u.role === 'admin';
+  // 2026-08-24: 講師MG・サポートMG も管理者と同じ権限
+  const isSuperAdmin = ['admin','lecturer_mg','support_mg','manager'].indexOf(u.role) >= 0;
   const isSubAdmin = u.role === 'sub_admin';
   if (!isSuperAdmin && !isSubAdmin) {
     page.innerHTML = `<div class="page-head"><div><div class="page-title">ユーザー管理</div></div></div>
@@ -4504,7 +4505,7 @@ async function copyIssuedTokenUrl(btnEl) {
 /* ═════════════ GUIDE (使い方ガイド) ═════════════ */
 function renderGuide(){
   const u = window.CURRENT_USER || {};
-  const isAdminLike = u.role === 'admin' || u.role === 'sub_admin';
+  const isAdminLike = ['admin','sub_admin','lecturer_mg','support_mg','manager'].indexOf(u.role) >= 0;
   const sec = (num, title, imgFile, stepsHtml, note) => `
     <div class="card card-pad" id="guide-sec-${num}" style="scroll-margin-top:80px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -6479,7 +6480,8 @@ function startTour() {
   const u = window.CURRENT_USER || {};
   const isInstructor = u.role === 'instructor';
   const isMg = u.role === 'lecturer_mg' || u.role === 'support_mg' || u.role === 'manager';
-  const isAdmin = u.role === 'admin';
+  // 2026-08-24: 講師MG・サポートMG も管理者と同じ権限
+  const isAdmin = u.role === 'admin' || isMg;
   const ROLE_LABEL_MAP = {admin:'管理者', sub_admin:'サブ管理者', lecturer_mg:'講師MG', support_mg:'サポートMG', manager:'講師MG', instructor:'講師'};
 
   // ロールに応じたステップ構成
@@ -6527,7 +6529,7 @@ function startTour() {
   ] : [];
   const adminSteps = isAdmin ? [
     {
-      title: 'ユーザー管理（管理者専用）',
+      title: 'ユーザー管理',
       body: `<p>サイドバー「ユーザー管理」から、講師・講師MG・サポートMG・管理者の<b>共有URLを発行</b>できます。</p>
         <p>発行したURLを各ユーザーに送れば、初期設定なしで該当ロールのアクセス権でログインできます。</p>
         <p style="margin-top:6px;color:var(--muted)">編集履歴ページで誰が何を変更したかも追跡可能です。</p>`,
@@ -6610,7 +6612,8 @@ function applyRoleUi() {
   const isInstructor = u.role === 'instructor';
   const isLectMg = u.role === 'lecturer_mg' || u.role === 'manager';  // manager は後方互換
   const isSupMg = u.role === 'support_mg';
-  const isAdmin = u.role === 'admin';
+  // 2026-08-24: 講師MG・サポートMG も管理者と同じ権限として扱う
+  const isAdmin = u.role === 'admin' || isLectMg || isSupMg;
   const isMgOrAdmin = isAdmin || isLectMg || isSupMg;
   // 通常講師: 講師フィルタを自分にロック
   if (isInstructor && u.teacherId) {
@@ -6627,7 +6630,7 @@ function applyRoleUi() {
   const roleKnown = !!(u.role && u.role !== 'unknown');
   const canTeacherMaster = roleKnown && !isInstructor;
   const canHistory       = roleKnown && !isInstructor;
-  const canUsers         = roleKnown && isAdmin;   // ユーザー管理は管理者のみ
+  const canUsers         = roleKnown && isAdmin;   // ユーザー管理は管理者・講師MG・サポートMG
   const setNav = (page, show) => {
     document.querySelectorAll(`[data-page="${page}"]`).forEach(b => { b.style.display = show ? '' : 'none'; });
   };
@@ -6660,7 +6663,7 @@ function applyRoleUi() {
   badge.textContent = (ROLE_LABEL[u.role] || '未認証') + (u.name ? ' / ' + u.name : '');
   // 管理者のみバージョン表記を表示
   document.querySelectorAll('.version-tag').forEach(el => {
-    el.style.display = (u.role === 'admin') ? '' : 'none';
+    el.style.display = isAdmin ? '' : 'none';
   });
 }
 
@@ -6683,25 +6686,27 @@ function showRoleInfoModal() {
     },
     lecturer_mg: {
       title: '講師MG',
-      desc: '担当講師の情報を編集できます',
+      desc: '管理者と同じく全機能を利用できます',
       can: [
-        '担当講師の生徒・進捗の閲覧',
-        '担当講師の情報編集（保存でスプシに反映）',
-        '生徒管理シートの作成',
-        '講義出席・日程の編集',
+        'すべての講師・生徒データの閲覧・編集',
+        'ユーザーアカウントの発行・無効化',
+        '講師DBの一括CSVインポート/エクスポート',
         '編集履歴の閲覧',
-      ],
-      cannot: ['他のMGが担当する講師の編集', 'ユーザー管理', '一括インポート'],
+        'GAS設定・システム設定の変更',
+        '担当生徒詳細の同期などのメンテナンス操作',
+      ]
     },
     support_mg: {
       title: 'サポートMG',
-      desc: '担当講師の情報を閲覧・編集できます',
+      desc: '管理者と同じく全機能を利用できます',
       can: [
-        '担当講師の生徒・進捗の閲覧',
-        '担当講師の情報編集（保存でスプシに反映）',
-        '講義出席の編集',
-      ],
-      cannot: ['他のMGが担当する講師', 'ユーザー管理'],
+        'すべての講師・生徒データの閲覧・編集',
+        'ユーザーアカウントの発行・無効化',
+        '講師DBの一括CSVインポート/エクスポート',
+        '編集履歴の閲覧',
+        'GAS設定・システム設定の変更',
+        '担当生徒詳細の同期などのメンテナンス操作',
+      ]
     },
     instructor: {
       title: '講師',
