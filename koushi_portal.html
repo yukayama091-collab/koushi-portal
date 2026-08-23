@@ -1311,10 +1311,15 @@ function lecCompact(data) {
 
 // 先読み中の再描画をまとめる（1件取得するたびに全画面を描き直すとアイコンがちらつくため）
 let _lecRerenderTimer = null;
+// 講義データを使って表示している画面。先読みの反映が要るのはここだけ。
+// ユーザー管理・講師マスタ・ロードマップなどを描き直すと、
+// その画面が自前で読み込んだ内容まで毎回「読み込み中」に戻ってしまう。
+const LECTURE_PAGES = ['dashboard', 'todo', 'classes', 'progress', 'timeline'];
 function scheduleLectureRerender() {
   if (_lecRerenderTimer) return;
   _lecRerenderTimer = setTimeout(() => {
     _lecRerenderTimer = null;
+    if (LECTURE_PAGES.indexOf(state.page) < 0) return;
     // 講師カードやモーダルを開いている間は描き直さない。
     // 描き直すと開いていたカードが閉じたり、入力中の内容が消えてしまう。
     // 閉じたあとに反映されるよう、少し待ってからやり直す。
@@ -3666,13 +3671,16 @@ async function renderUsers(){
   document.getElementById('usersDateFrom').value = _usersFilter.dateFrom;
   document.getElementById('usersDateTo').value = _usersFilter.dateTo;
   document.getElementById('usersStatus').value = _usersFilter.status;
+  // 取得済みの一覧があれば先に描いておく。
+  // 描き直しのたびに「読み込み中」へ戻ると、一覧が消えて操作しづらいため。
+  if (_usersData.length) renderUserListTable();
   try {
     const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=list_tokens`);
     const d = await r.json();
     _usersData = (d && d.users) || [];
     renderUserListTable();
   } catch(e) {
-    $('#userListCard').innerHTML = `<div class="empty">読み込みエラー: ${e.message}</div>`;
+    if (!_usersData.length) $('#userListCard').innerHTML = `<div class="empty">読み込みエラー: ${e.message}</div>`;
   }
 }
 
