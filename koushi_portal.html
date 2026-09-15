@@ -1273,6 +1273,46 @@ function populateLectureMaps(c) {
 // GAS が混雑すると JSON ではなく Google のエラーページ(HTML)を返す。
 // resp.json() の例外は呼び出し側の catch に握り潰され「画面が空のまま」になるため、
 // HTML を明示的に検出して混雑(GAS_BUSY)として扱う。
+// ══════════════════════════════════════════════════════════════
+// 2026-09-16: 受付窓口(GAS)への読み取りは、Google側の都合で時々
+//   404 や HTML のエラーページが返る（内容は正しいのに受け取れない）。
+//   実測で1〜2割の頻度で起きるため、読み取りだけ自動でやり直す。
+//   書き込みはやり直すと二重登録になるので、ここでは再送しない。
+//   （講師ID 0019 のアカウントが2件できたのは、この二重送信が原因）
+// ══════════════════════════════════════════════════════════════
+async function gasGet(url, tries) {
+  const max = tries || 4;
+  let last = null;
+  for (let i = 0; i < max; i++) {
+    try {
+      return await fetchJsonStrict(url);
+    } catch (e) {
+      last = e;
+      if (i < max - 1) await new Promise(r => setTimeout(r, 400 * (i + 1)));
+    }
+  }
+  throw last || new Error('GAS_BUSY');
+}
+
+// 書き込みの送信。失敗しても再送しない（二重登録を防ぐため）。
+// Google 側の都合で応答だけ失われることがあり、その場合は
+// 「登録された可能性がある」と伝えて、一覧で確かめてもらう。
+class GasResponseLost extends Error {
+  constructor() { super('GAS_RESPONSE_LOST'); this.responseLost = true; }
+}
+async function gasPost(url, payload) {
+  let resp;
+  try {
+    resp = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+  } catch (e) { throw new GasResponseLost(); }
+  const text = await resp.text();
+  if (!resp.ok || text.trim().charAt(0) === '<') throw new GasResponseLost();
+  try { return JSON.parse(text); } catch (e) { throw new GasResponseLost(); }
+}
+
 async function fetchJsonStrict(url, opts) {
   const resp = await fetch(url, opts);
   const text = await resp.text();
@@ -1579,24 +1619,12 @@ async function loadData(forceRefresh, opts) {
     }
     // 2. キャッシュがなければ or 期限切れなら fetch
     if (!data) {
-      let resp;
+      // 読み取りなので、失敗しても取り直して構わない（gasGet が自動でやり直す）
       try {
-        const t0 = Date.now();
-        resp = await fetch(url);
+        data = await gasGet(url);
       } catch (e) {
-        console.error('[loadData] fetch error:', e.name, e.message, e);
-        throw new Error('通信に失敗しました。数秒待って画面右上の「更新」を押してください。ネットワークが不安定な可能性があります。');
-      }
-      if (!resp.ok) throw new Error('サーバー側で一時的なエラーが発生しています。1〜2分待って再度お試しください。（HTTP ' + resp.status + '）');
-      // 混雑時、GAS は JSON ではなく Google のエラーページ(HTML)を返すことがある。
-      // そのまま resp.json() すると原因の分からない例外になるので、混雑と判定して案内する。
-      const _text = await resp.text();
-      if (_text.trim().charAt(0) === '<') {
-        throw new Error('ただいまアクセスが集中しています。1〜2分待ってから画面右上の「更新」を押してください。');
-      }
-      try { data = JSON.parse(_text); }
-      catch (eJson) {
-        throw new Error('データの読み込みに失敗しました。1〜2分待ってから画面右上の「更新」を押してください。');
+        console.error('[loadData] fetch error:', e && e.name, e && e.message, e);
+        throw new Error('データの読み込みに失敗しました。数秒待って画面右上の「更新」を押してください。');
       }
       // 3. 成功したら LS に保存
       try {
@@ -2207,8 +2235,7 @@ async function openSnsClubEvents(){
       days: '30',
     });
     if (CFG.snsclubCalendarId) params.set('calendarId', CFG.snsclubCalendarId);
-    const resp = await fetch(`${CFG.webAppUrl}?${params.toString()}`);
-    const d = await resp.json();
+    const d = await gasGet(`${CFG.webAppUrl}?${params.toString()}`);
     renderSnsClubEvents(d);
   } catch (e) {
     body.innerHTML = `<div style="padding:24px;color:var(--danger)">読み込みに失敗しました: ${String(e.message || e)}</div>`;
@@ -3558,8 +3585,7 @@ async function renderHistory(){
     _historyLoading = true;
     renderShell('<div class="card card-pad"><div class="empty">読み込み中…</div></div>');
     try {
-      const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_edit_history&limit=200`);
-      const d = await resp.json();
+      const d = await gasGet(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_edit_history&limit=200`);
       _historyCache = d;
     } catch(e) {
       _historyCache = { error: String(e) };
@@ -3676,8 +3702,7 @@ async function renderUsers(){
   // 描き直しのたびに「読み込み中」へ戻ると、一覧が消えて操作しづらいため。
   if (_usersData.length) renderUserListTable();
   try {
-    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=list_tokens`);
-    const d = await r.json();
+    const d = await gasGet(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=list_tokens`);
     _usersData = (d && d.users) || [];
     renderUserListTable();
   } catch(e) {
@@ -4410,11 +4435,8 @@ async function submitIssueToken(btnEl) {
   }
   if (cancelBtn) cancelBtn.disabled = true;
   try {
-    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`, {
-      method: 'POST', headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ role, teacherId, managedIds, name, memo, mgKind, mgName, mgAccount, mgUrl })
-    });
-    const d = await r.json();
+    const d = await gasPost(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=issue_token`,
+      { role, teacherId, managedIds, name, memo, mgKind, mgName, mgAccount, mgUrl });
     if (!d.ok) throw new Error(d.message || d.error || '失敗');
     closeIssueTokenModal();
     const shareUrl = location.origin + location.pathname + `?u=${encodeURIComponent(CFG.webAppUrl)}&t=${encodeURIComponent(d.user.token)}`;
@@ -4432,7 +4454,15 @@ async function submitIssueToken(btnEl) {
       }
     }
   } catch(e) {
-    iosAlert('発行エラー\n' + humanizeError(e));
+    if (e && e.responseLost) {
+      // 送信は届いているかもしれない。押し直すと二重登録になるので、一覧で確認してもらう
+      closeIssueTokenModal();
+      await iosAlert('発行の結果を受け取れませんでした。\n\n登録されている可能性があるため、一覧を読み込み直します。'
+        + '\n一覧に無ければ、もう一度「新規発行」を押してください。');
+      renderUsers();
+    } else {
+      iosAlert('発行エラー\n' + humanizeError(e));
+    }
   } finally {
     if (btnEl) {
       btnEl.dataset.busy = '';
@@ -5007,8 +5037,7 @@ const studentMemoMap = new Map();  // mid → {memo, updatedBy, updatedAt}
 async function fetchStudentMemos() {
   if (!CFG.webAppUrl || !CFG.token) return;
   try {
-    const resp = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_student_memos`);
-    const d = await resp.json();
+    const d = await gasGet(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=get_student_memos`);
     if (d && d.memos) {
       studentMemoMap.clear();
       Object.keys(d.memos).forEach(mid => studentMemoMap.set(mid, d.memos[mid]));
@@ -5936,8 +5965,7 @@ const MG_ALIAS = { 'はらペコ': '腹ぺこビバーク' };
 async function loadMgLists() {
   if (!CFG.webAppUrl || !CFG.token) return;
   try {
-    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=mg_lists`);
-    const d = await r.json();
+    const d = await gasGet(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=mg_lists`);
     if (d && d.ok) {
       window.MG_LISTS = { lecturer: d.lecturer || [], support: d.support || [] };
       if (state.page === 'teacherMaster' && typeof renderTeacherMaster === 'function') {
@@ -5996,8 +6024,7 @@ async function loadDiscordChannels() {
   } catch(e) {}
   if (!CFG.webAppUrl || !CFG.token) return;
   try {
-    const r = await fetch(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=discord_channels`);
-    const d = await r.json();
+    const d = await gasGet(`${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=discord_channels`);
     if (!d || !d.channels) return;
     window.DISCORD_CH = d.channels;
     window.DISCORD_CH_UPDATED = d.updatedAt || '';
@@ -7054,8 +7081,7 @@ async function tmFetchIfNeeded(force){
     try {
       const awsUrl = `${CFG.webAppUrl}?token=${encodeURIComponent(CFG.token)}&action=aws_teachers${force?'&refresh=1':''}`;
       const t0 = Date.now();
-      const awsResp = await fetch(awsUrl);
-      const awsD = await awsResp.json();
+      const awsD = await gasGet(awsUrl);
       if (awsD && Array.isArray(awsD.rows)) {
         teachers = awsD.rows.map(tmMapAwsTeacher);
       } else if (awsD && awsD.error) {
@@ -7904,8 +7930,7 @@ async function loadDashboardLaunchSchedule(tid, tname) {
   if (!d) {
     try {
       const params = new URLSearchParams({ token: CFG.token, action: 'launch_history', tid: tid, name: tname || '' });
-      const resp = await fetch(`${CFG.webAppUrl}?${params.toString()}`);
-      d = await resp.json();
+      d = await gasGet(`${CFG.webAppUrl}?${params.toString()}`);
       _tmLaunchCache.set(tid, d);
     } catch (e) {
       body.innerHTML = `<div class="empty" style="padding:24px 0">取得エラー: ${humanizeError(e)}</div>`;
@@ -7945,8 +7970,7 @@ async function tmLoadLaunchHistory() {
   if (!d) {
     try {
       const params = new URLSearchParams({ token: CFG.token, action: 'launch_history', tid: tid, name: tname });
-      const resp = await fetch(`${CFG.webAppUrl}?${params.toString()}`);
-      d = await resp.json();
+      d = await gasGet(`${CFG.webAppUrl}?${params.toString()}`);
       _tmLaunchCache.set(tid, d);
     } catch (e) {
       container.innerHTML = `<div class="empty" style="padding:24px 0">取得エラー: ${humanizeError(e)}</div>`;
