@@ -8249,8 +8249,10 @@ async function tmSaveDrawer(btn) {
       await iosAlert('変更はありません。');
       return;
     }
-    // AWS 中継キャッシュをクリアして、次に読み込む時は最新になるようにする
-    try { await awsCacheClear(); } catch (e) { /* ignore */ }
+    // 2026-09-17: キャッシュのクリアは結果を待たない。
+    //   保存自体は済んでおり、待つと「保存中…」の表示が2〜3秒伸びるだけだった。
+    //   次に読み込む時までに終わっていればよい処理なので、裏で投げておく。
+    try { awsCacheClear().catch(() => {}); } catch (e) { /* ignore */ }
     // 講師一覧の全件取り直しは30秒ほどかかるため、保存した行だけ手元で書き換える。
     // 送った内容がそのまま保存された結果なので、取り直さなくても表示は最新になる。
     const refreshed = TM_DATA.find(t => t.id === tmCurRec.id);
