@@ -1349,22 +1349,32 @@ async function gasGet(url, tries) {
 class GasResponseLost extends Error {
   constructor() { super('GAS_RESPONSE_LOST'); this.responseLost = true; }
 }
+// 2026-09-17: 送信に上限時間を設ける。
+//   受付窓口が混んでいると90秒以上返らないことがあり、ボタンが「保存中…」の
+//   ままいつまでも止まって見えていた。時間切れも「応答が失われた」と同じ扱いにし、
+//   再送はせずに読み直して状態を確認してもらう。
+const GAS_POST_TIMEOUT_MS = 60000;
 async function gasPost(url, payload) {
   let resp;
+  const ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), GAS_POST_TIMEOUT_MS) : null;
   try {
     resp = await fetch(url, {
       method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: ac ? ac.signal : undefined
     });
   } catch (e) {
-    // 中継に届かなかった。届いたかどうか分からない送信は再送しない（二重登録防止）が、
-    // 以降の通信は受付窓口へ直接つなぐ
+    if (timer) clearTimeout(timer);
+    // 中継に届かなかった／時間切れ。届いたかどうか分からない送信は再送しない
+    // （二重登録防止）が、以降の通信は受付窓口へ直接つなぐ
     if (isRelayUrl(url)) markRelayDown(e && e.message);
     throw new GasResponseLost();
   }
   // 書き込みは「中継が受付窓口へ流したあとに応答だけ失った」可能性があるため直接つなぎ直さない
   // （二重書き込みになる）。以降の通信だけ直接に切り替える。
   if (isRelayUrl(url) && resp.status >= 500) markRelayDown('HTTP ' + resp.status);
+  if (timer) clearTimeout(timer);
   const text = await resp.text();
   if (!resp.ok || text.trim().charAt(0) === '<') throw new GasResponseLost();
   try { return JSON.parse(text); } catch (e) { throw new GasResponseLost(); }
