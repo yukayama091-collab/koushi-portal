@@ -8212,12 +8212,10 @@ async function tmSaveDrawer(btn) {
   const oldLabel = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '保存中…'; }
   try {
-    const resp = await fetch(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(withActor({ rows: [row], noBackup: true })),
-    });
-    const d = await resp.json();
+    // 中継経由（gasEndpoint）で送り、応答が失われた場合は gasPost が
+    // GasResponseLost を投げる。再送はしない（二重書き込み防止）
+    const d = await gasPost(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`,
+      withActor({ rows: [row], noBackup: true }));
     if (!d || !d.ok) {
       await iosAlert('保存に失敗しました\n' + humanizeError(d && (d.message || d.error) || '不明なエラー'));
       return;
@@ -8268,7 +8266,23 @@ async function tmSaveDrawer(btn) {
     });
   } catch (e) {
     console.error(e);
-    await iosAlert('エラー\n' + humanizeError(e));
+    if (e && e.responseLost) {
+      // 保存自体は済んでいることが多い。押し直すと二重に書き込むので、
+      // サーバーから読み直して実際にどうなったかを見せる
+      try { await awsCacheClear(); } catch (e2) {}
+      try { await tmFetchIfNeeded(true); } catch (e2) {}
+      const now = TM_DATA.find(t => t.id === tmCurRec.id);
+      if (now) {
+        tmCurRec = now;
+        try { window.__tmOrig = JSON.parse(JSON.stringify(now)); } catch (e2) {}
+      }
+      tmRenderDrawerBody();
+      if (typeof renderTeacherList === 'function') renderTeacherList();
+      await iosAlert('保存の結果を受け取れませんでした。\n\n保存は完了している可能性が高いため、'
+        + 'サーバーから読み直しました。\n画面の内容をご確認のうえ、反映されていなければもう一度保存してください。');
+    } else {
+      await iosAlert('エラー\n' + humanizeError(e));
+    }
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = oldLabel; }
   }
