@@ -1098,8 +1098,16 @@ if (CFG.token)    try { localStorage.setItem('koushi_token', CFG.token); } catch
 //   書き込み(POST)も中継を通すが、中継は再送しない（二重登録防止は従来どおり）。
 // ══════════════════════════════════════════════════════════════
 const RELAY_URL = (location.hostname === 'app.levela.co.jp') ? (location.origin + '/instructor-dashboard/api/gas') : '';
+/* 2026-09-17: 中継を一時的に使わない。
+   中継が「X-Portal-Cache: busy」で 90秒待ったあと 503 を返す状態になっており、
+   受付窓口へ直接つないだ方が速い（実測 メインデータ 直接 6〜9秒 / 中継 90秒で失敗）。
+   しかも中継が X-Portal-Relay: 1 を返すため、下の markRelayDown による
+   自動フォールバックが働かず、利用者には「長く待たされた末にエラー」に見える。
+   中継が直ったら、この定数を true に戻すだけで元どおり中継を使う。
+   中継の仕組み自体（下の関数群）はそのまま残してある。 */
+const RELAY_ENABLED = false;
 let _relayDownUntil = 0;
-function relayEnabled() { return !!RELAY_URL && CFG.webAppUrl === DEFAULT_WEBAPP_URL && Date.now() > _relayDownUntil; }
+function relayEnabled() { return RELAY_ENABLED && !!RELAY_URL && CFG.webAppUrl === DEFAULT_WEBAPP_URL && Date.now() > _relayDownUntil; }
 function gasEndpoint() { return relayEnabled() ? RELAY_URL : CFG.webAppUrl; }
 function isRelayUrl(u) { return !!RELAY_URL && String(u).indexOf(RELAY_URL) === 0; }
 function toDirectUrl(u) { return String(u).replace(RELAY_URL, CFG.webAppUrl); }
