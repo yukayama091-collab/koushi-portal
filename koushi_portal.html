@@ -1362,7 +1362,9 @@ async function gasPost(url, payload) {
     if (isRelayUrl(url)) markRelayDown(e && e.message);
     throw new GasResponseLost();
   }
-  if (isRelayUrl(url) && resp.status >= 500 && resp.headers.get('X-Portal-Relay') !== '1') markRelayDown('HTTP ' + resp.status);
+  // 書き込みは「中継が受付窓口へ流したあとに応答だけ失った」可能性があるため直接つなぎ直さない
+  // （二重書き込みになる）。以降の通信だけ直接に切り替える。
+  if (isRelayUrl(url) && resp.status >= 500) markRelayDown('HTTP ' + resp.status);
   const text = await resp.text();
   if (!resp.ok || text.trim().charAt(0) === '<') throw new GasResponseLost();
   try { return JSON.parse(text); } catch (e) { throw new GasResponseLost(); }
@@ -1378,9 +1380,13 @@ async function fetchJsonStrict(url, opts) {
     throw e;
   }
   const viaRelay = resp.headers.get('X-Portal-Relay') === '1';
-  if (isRelayUrl(url) && !viaRelay && resp.status >= 500) {
-    // nginx までは届いたが中継プロセスが応答していない
-    markRelayDown('HTTP ' + resp.status);
+  // 2026-09-17 修正: 中継が 5xx を返したら、X-Portal-Relay の有無によらず直接つなぎ直す。
+  //   以前は「中継プロセスが応答していない場合(=ヘッダが無い)」だけを対象にしていたため、
+  //   中継が自分で「今は応答できない」と返すケース（X-Portal-Relay: 1 + 503 busy）で
+  //   フォールバックが働かず、90秒待たされた末にエラーになっていた。
+  //   読み取りは取り直しても副作用がないので、そのまま受付窓口へ回す。
+  if (isRelayUrl(url) && resp.status >= 500) {
+    markRelayDown('HTTP ' + resp.status + (viaRelay ? ' (' + (resp.headers.get('X-Portal-Cache') || 'relay') + ')' : ''));
     return fetchJsonStrict(toDirectUrl(url), opts);
   }
   LAST_READ_SOURCE = viaRelay ? (resp.headers.get('X-Portal-Cache') || 'relay') : 'direct';
