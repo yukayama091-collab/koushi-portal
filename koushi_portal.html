@@ -1354,6 +1354,24 @@ class GasResponseLost extends Error {
 //   ままいつまでも止まって見えていた。時間切れも「応答が失われた」と同じ扱いにし、
 //   再送はせずに読み直して状態を確認してもらう。
 const GAS_POST_TIMEOUT_MS = 60000;
+/* 同じ内容を送り直しても結果が変わらない書き込み（講師情報の更新など）向け。
+   指定した値をそのまま入れるだけなので、応答が失われたときは送り直してよい。
+   新規発行のように「送るたびに増える」ものには使わない。 */
+async function gasPostIdempotent(url, payload, tries) {
+  const max = tries || 3;
+  let last = null;
+  for (let i = 0; i < max; i++) {
+    try {
+      return await gasPost(url, payload);
+    } catch (e) {
+      last = e;
+      if (!(e && e.responseLost)) throw e;       // 内容の誤りは繰り返さない
+      if (i < max - 1) await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
+  }
+  throw last;
+}
+
 async function gasPost(url, payload) {
   let resp;
   const ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -8223,10 +8241,18 @@ async function tmSaveDrawer(btn) {
   // 全項目を送ると、画面に出ていただけの値（AWS 側の古い値など）まで
   // 講師DB に書き戻してしまい、シートの正しい値が壊れる。
   const orig = window.__tmOrig;
+  // 退職・1on1 は、元の値が true/false なのに画面の選択肢は「退職済」「可」という
+  // 文字列なので、そのまま比べると毎回「変わった」ことになってしまう。
+  // 受付窓口と同じ規則でそろえてから比べる。
+  const YES_RE = /^(TRUE|true|True|退職|退職済|可|YES|yes|○|1)$/;
+  const normForCompare = (k, v) => {
+    if (k === 'retire' || k === 'one') return (v === true || YES_RE.test(String(v == null ? '' : v))) ? '1' : '0';
+    return String(v == null ? '' : v);
+  };
   const changedKeys = editKeys.filter(k => {
     if (tmCurRec[k] === undefined) return false;
     if (!orig) return true;
-    return String(tmCurRec[k] == null ? '' : tmCurRec[k]) !== String(orig[k] == null ? '' : orig[k]);
+    return normForCompare(k, tmCurRec[k]) !== normForCompare(k, orig[k]);
   });
   if (!changedKeys.length) { await iosAlert('変更はありません。'); return; }
   const undoRow = orig ? { id: tmCurRec.id } : null;
@@ -8238,7 +8264,8 @@ async function tmSaveDrawer(btn) {
   try {
     // 中継経由（gasEndpoint）で送り、応答が失われた場合は gasPost が
     // GasResponseLost を投げる。再送はしない（二重書き込み防止）
-    const d = await gasPost(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`,
+    // 同じ値を入れ直すだけなので、応答が失われた場合はやり直してよい
+    const d = await gasPostIdempotent(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=update_teacher`,
       withActor({ rows: [row], noBackup: true }));
     if (!d || !d.ok) {
       await iosAlert('保存に失敗しました\n' + humanizeError(d && (d.message || d.error) || '不明なエラー'));
