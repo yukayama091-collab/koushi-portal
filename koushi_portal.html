@@ -8244,7 +8244,7 @@ async function tmSaveDrawer(btn) {
   // 退職・1on1 は、元の値が true/false なのに画面の選択肢は「退職済」「可」という
   // 文字列なので、そのまま比べると毎回「変わった」ことになってしまう。
   // 受付窓口と同じ規則でそろえてから比べる。
-  const YES_RE = /^(TRUE|true|True|退職|退職済|可|YES|yes|○|1)$/;
+  const YES_RE = /^(TRUE|true|True|退職|退職済|退職済み|可|YES|yes|○|1)$/;
   const normForCompare = (k, v) => {
     if (k === 'retire' || k === 'one') return (v === true || YES_RE.test(String(v == null ? '' : v))) ? '1' : '0';
     return String(v == null ? '' : v);
@@ -8284,7 +8284,15 @@ async function tmSaveDrawer(btn) {
     // 送った内容がそのまま保存された結果なので、取り直さなくても表示は最新になる。
     const refreshed = TM_DATA.find(t => t.id === tmCurRec.id);
     if (refreshed) {
-      editKeys.forEach(k => { if (row[k] !== undefined) refreshed[k] = row[k]; });
+      // 画面の選択肢は「退職済」「可」という文字列だが、一覧の絞り込みや件数は
+      // true/false で判定している。そのまま入れると「—」(在籍) でも退職扱いに
+      // なってしまうので、受付窓口が保存した形（true/false）にそろえて反映する。
+      editKeys.forEach(k => {
+        if (row[k] === undefined) return;
+        refreshed[k] = (k === 'retire' || k === 'one')
+          ? (row[k] === true || YES_RE.test(String(row[k] == null ? '' : row[k])))
+          : row[k];
+      });
       tmCurRec = refreshed;
       try { window.__tmOrig = JSON.parse(JSON.stringify(refreshed)); } catch(e) {}
     }
@@ -8305,7 +8313,12 @@ async function tmSaveDrawer(btn) {
           try { await awsCacheClear(); } catch(e){}
           const refreshed2 = TM_DATA.find(t => t.id === tmCurRec.id);
           if (refreshed2) {
-            editKeys.forEach(k => { if (undoRow[k] !== undefined) refreshed2[k] = undoRow[k]; });
+            editKeys.forEach(k => {
+              if (undoRow[k] === undefined) return;
+              refreshed2[k] = (k === 'retire' || k === 'one')
+                ? (undoRow[k] === true || YES_RE.test(String(undoRow[k] == null ? '' : undoRow[k])))
+                : undoRow[k];
+            });
             tmCurRec = refreshed2;
             try { window.__tmOrig = JSON.parse(JSON.stringify(refreshed2)); } catch(e) {}
           }
