@@ -2469,13 +2469,31 @@ function saveSettings(){
 }
 
 /* ══════════════════ RENDERERS ══════════════════ */
+// 2026-09-30: クラス名から講義データを引く共通処理。
+//   講義データは classLecturesMap に入るが、そのキーは「生徒管理シートのタブ名」で、
+//   実測では全講師とも "A組" "B組" … と講師名が付かない。一方こちらが持っている
+//   クラス名は "あろA組" のように講師名付きなので、そのまま引くと必ず外れる。
+//   （今日の講義・直近3日間の講義が常に空だったのはこれが原因）
+//   さらにタブ名は講師をまたいで重複するため、キーを揃えても別の講師の日付を
+//   拾ってしまう。講師ごとに正しく結び付けてある allRows の lecturesData を先に見る。
+function lecturesForClass(cls) {
+  if (!cls) return null;
+  const ck = classKey(cls);
+  for (let i = 0; i < allRows.length; i++) {
+    const r = allRows[i];
+    if (r && r.lecturesData && r.className && classKey(r.className) === ck) {
+      return { tab: r.lecturesTab || cls, lectures: r.lecturesData };
+    }
+  }
+  return classLecturesMap.get(ck) || null;   // タブ名がクラス名と同じ講師のため
+}
 function getTodayLecs() {
   // 今日の講義一覧：講師の取得済み classLecturesMap から
   if (!CURRENT_TEACHER) return [];
   const list = [];
   const myCls = [...new Set(scopedRows().map(r => r.className).filter(Boolean))];
   myCls.forEach(cls => {
-    const cd = classLecturesMap.get(classKey(cls));
+    const cd = lecturesForClass(cls);
     if (!cd) return;
     (cd.lectures||[]).forEach((l, i) => {
       const d = parseDate(l.date);
@@ -2490,7 +2508,7 @@ function getTodayLecsAll() {
   const list = [];
   const cls = [...new Set(scopedRows().map(r => r.className).filter(Boolean))];
   cls.forEach(c => {
-    const cd = classLecturesMap.get(classKey(c));
+    const cd = lecturesForClass(c);
     if (!cd) return;
     (cd.lectures||[]).forEach((l, i) => {
       const d = parseDate(l.date);
@@ -2509,7 +2527,7 @@ function getLecsNextDays(nDays) {
   const list = [];
   const cls = [...new Set(scopedRows().map(r => r.className).filter(Boolean))];
   cls.forEach(c => {
-    const cd = classLecturesMap.get(classKey(c));
+    const cd = lecturesForClass(c);
     if (!cd) return;
     (cd.lectures||[]).forEach((l, i) => {
       const d = parseDate(l.date);
@@ -2529,7 +2547,7 @@ function getUpcomingLecs(limit) {
   const list = [];
   const allCls = [...new Set(scopedRows().map(r => r.className).filter(Boolean))];
   allCls.forEach(cls => {
-    const cd = classLecturesMap.get(classKey(cls));
+    const cd = lecturesForClass(cls);
     if (!cd) return;
     (cd.lectures||[]).forEach((l, i) => {
       const d = parseDate(l.date);
