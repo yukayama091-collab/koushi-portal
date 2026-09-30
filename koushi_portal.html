@@ -7184,18 +7184,24 @@ function tmMapAwsTeacher(a) {
     active: a.is_active === '稼働中' || a.is_active === '未稼働' ? a.is_active : '',
     retire: a.retired === true,
     extraRank: a.acquisition_rank || '',
-    one: false, // 現時点で AWS に無い
-    grad: '', // AWS の list には letters が無い。詳細で performance_class.graduated='○' から生成
-    ongoing: '', // 同上
+    // 2026-09-30: ここから下は AWS の講師一覧に列が無く、ずっと空のまま画面に出ていた。
+    //   受付窓口が講師DB（クラス情報管理 S〜X / ローンチ情報 Y・AA〜AC）を読んで
+    //   応答に足すようにしたので、受け取って表示する。
+    one: a.can_1on1 === true,
+    grad: a.graduated_classes || '',
+    ongoing: a.ongoing_classes || '',
+    studentSheet: a.student_mgmt_sheet || '',
+    introSheet: a.intro_sheet || '',
+    introImage: a.intro_image || '',
     mg: String(a.instructor_mg || '').replace(/^専[:：]\s*/, '').trim(),
     sup: String(a.support_mg || '').replace(/^専[:：]\s*/, '').trim(),
     classes: a.class_count || a.num_classes || 0,
     perClass: a.class_size || 0,
     students: a.total_students || a.student_count || 0,
-    slot: '',
-    good: '',
-    bad: '',
-    launch: '',
+    slot: a.available_hours || '',
+    good: a.strong_genre || '',
+    bad: a.weak_genre || '',
+    launch: a.launch_timing || '',
     profileImage: '',
   };
 }
