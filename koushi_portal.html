@@ -7184,6 +7184,19 @@ async function fetchAwsMeta_(refresh) {
 //   is_active, retired, acquisition_rank, instructor_mg, support_mg, num_classes,
 //   class_size, class_count, total_students, student_count, ...
 // Portal のスキーマ: id, name, account, ig, type, active, retire, extraRank, mg, sup, classes, ...
+// AWS が返す日付(ISO文字列)を、シート直読み経路と同じ yyyy/MM/dd にする。
+// シートの日付は JST の 0時 として入っているので、JST に寄せてから日付を取る。
+function fmtAwsDate(v) {
+  if (!v) return '';
+  const s = String(v).trim();
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;            // 想定外の形はそのまま出す
+  const j = new Date(d.getTime() + 9 * 60 * 60 * 1000);   // JST
+  const mm = String(j.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(j.getUTCDate()).padStart(2, '0');
+  return j.getUTCFullYear() + '/' + mm + '/' + dd;
+}
 function tmMapAwsTeacher(a) {
   // AWS の is_active は「稼働中/未稼働/担当なし」のいずれかが入る
   return {
@@ -7196,9 +7209,12 @@ function tmMapAwsTeacher(a) {
     rank: a.rank || '',  // 空欄は空のまま（勝手にシルバー化しない＝未設定として表示）
     type: a.employment_type || '通常',
     gender: a.gender || '',
-    birth: '', // list には無い。詳細エンドポイントで取得
-    contract: '',
-    contractEnd: '',
+    // 2026-09-30: AWS は birth_date / contract_date / contract_end_date を返しているのに
+    //   ここで固定の空にしていたため、画面では常に空だった（シートには値がある）。
+    //   値は ISO 文字列で来るので、シート直読み経路と同じ yyyy/MM/dd に揃える。
+    birth: fmtAwsDate(a.birth_date),
+    contract: fmtAwsDate(a.contract_date),
+    contractEnd: fmtAwsDate(a.contract_end_date),
     active: a.is_active === '稼働中' || a.is_active === '未稼働' ? a.is_active : '',
     retire: a.retired === true,
     extraRank: a.acquisition_rank || '',
