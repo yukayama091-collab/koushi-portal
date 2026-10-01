@@ -195,6 +195,8 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .tbl tr.flag:hover td{ background:var(--brand-soft); }
 .cell-actions{ display:flex; gap:6px; justify-content:flex-end; }
 .muted{ color:var(--muted); } .faint{ color:var(--faint); } .num{ font-variant-numeric:tabular-nums; }
+/* ユーザー管理: 講師の名前にカーソルを当てるとアカウント名が出る */
+.acct-hint{ border-bottom:1px dotted var(--faint); cursor:help; }
 .nowrap{ white-space:nowrap; }
 
 .bar{ height:7px; background:#eef0f2; border-radius:var(--r-pill); overflow:hidden; min-width:64px; }
@@ -3761,6 +3763,9 @@ let _usersFilter = { q:'', role:'', dateFrom:'', dateTo:'', status:'all' };
 
 async function renderUsers(){
   const page = $('#page-users');
+  // 名前のホバーにアカウント名を出すため、講師マスタを先に用意しておく。
+  // 取得済みなら通信は発生しない。失敗しても一覧自体は出す。
+  try { await tmFetchIfNeeded(); } catch (e) {}
   const u = window.CURRENT_USER || {};
   // 2026-08-24: 講師MG・サポートMG も管理者と同じ権限
   const isSuperAdmin = ['admin','lecturer_mg','support_mg','manager'].indexOf(u.role) >= 0;
@@ -3918,7 +3923,17 @@ function renderUserListTable() {
           ? (u.teacherId || '')
           : ((u.managedIds && u.managedIds.length) ? u.managedIds.join(', ') : '');
         const teacherCol = teacherTxt ? escTxt(teacherTxt) : '<span class="faint">—</span>';
-        const nameCol = u.name ? escTxt(u.name) : '<span class="faint">—</span>';
+        // 2026-10-01: 講師の行は、名前にカーソルを当てるとアカウント名が出るようにする。
+        //   どの「ゆき」さんか、どの「みぃ」さんかを一覧のまま見分けられるようにするため。
+        const tmRec = (u.role === 'instructor' && u.teacherId)
+          ? (TM_DATA.find(t => t.id === u.teacherId) || null)
+          : null;
+        const acctName = tmRec ? String(tmRec.account || '').trim() : '';
+        const nameCol = u.name
+          ? (acctName
+              ? `<span class="acct-hint" title="${escTxt(acctName)}">${escTxt(u.name)}</span>`
+              : escTxt(u.name))
+          : '<span class="faint">—</span>';
         const rowStyle = u.active ? '' : 'opacity:.45;background:#fafafa';
         const lidCol = u.loginId
           ? `<code style="font-size:12px;background:#f3f4f6;padding:3px 6px;border-radius:4px;font-family:monospace">${escTxt(u.loginId)}</code>`
