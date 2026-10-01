@@ -2022,8 +2022,11 @@ async function loadData(forceRefresh, opts) {
       .replace(/[\s　]+/g, '')
       .toLowerCase().trim();
     // 講師DB基本情報の name → tid マップ
+    // 2026-10-02: teacherMaster は権限で絞られる（講師は自分だけ）ため、
+    //   それだけだとクラス名からの引き当てができず、同名の別講師の生徒が混ざる。
+    //   受付窓口が絞らずに返す teacherNameIndex があればそちらを使う。
     const masterNameToTid = new Map();
-    (data.teacherMaster || []).forEach(t => {
+    (data.teacherNameIndex || data.teacherMaster || []).forEach(t => {
       if (t && t.tid && t.name) {
         const k = normalizeStem(t.name);
         if (k) masterNameToTid.set(k, t.tid);
