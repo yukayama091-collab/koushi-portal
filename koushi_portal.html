@@ -197,6 +197,10 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .muted{ color:var(--muted); } .faint{ color:var(--faint); } .num{ font-variant-numeric:tabular-nums; }
 /* ユーザー管理: 講師の名前にカーソルを当てるとアカウント名が出る */
 .acct-hint{ border-bottom:1px dashed var(--brand); cursor:help; }
+.help-tip{ display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px;
+  margin-left:5px; border-radius:50%; border:1px solid var(--faint); color:var(--muted);
+  font-size:10.5px; font-weight:700; line-height:1; cursor:help; vertical-align:middle; }
+.help-tip:hover{ border-color:var(--brand); color:var(--brand); background:var(--brand-soft); }
 .acct-hint:hover{ background:rgba(0,0,0,.04); border-radius:3px; }
 #acctTip{ position:fixed; z-index:9999; display:none; max-width:360px;
   background:#1f2937; color:#fff; font-size:12.5px; line-height:1.6;
@@ -3823,10 +3827,12 @@ function installAcctTip(){
   tip.id = 'acctTip';
   document.body.appendChild(tip);
   document.addEventListener('mouseover', e => {
-    const el = e.target.closest && e.target.closest('.acct-hint');
+    const el = e.target.closest && e.target.closest('.acct-hint, .help-tip');
     if (!el) return;
-    tip.innerHTML = '<span class="t">アカウント名</span>' +
-      String(el.dataset.acct || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const body = el.dataset.acct || el.dataset.tip || '';
+    const title = el.dataset.tipTitle || 'アカウント名';
+    tip.innerHTML = '<span class="t">' + title.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</span>' +
+      String(body).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     tip.classList.add('on');
     const r = el.getBoundingClientRect();
     let left = r.left;
@@ -3837,7 +3843,7 @@ function installAcctTip(){
     tip.style.top = Math.max(12, top) + 'px';
   });
   document.addEventListener('mouseout', e => {
-    if (e.target.closest && e.target.closest('.acct-hint')) tip.classList.remove('on');
+    if (e.target.closest && e.target.closest('.acct-hint, .help-tip')) tip.classList.remove('on');
   });
   window.addEventListener('scroll', () => tip.classList.remove('on'), true);
 }
@@ -7651,6 +7657,7 @@ function tmFiltered(){
 }
 
 async function renderTeacherMaster(){
+  installAcctTip();   // 列見出しの ? ツールチップ用
   const page = document.getElementById('page-teacherMaster');
   // 取得中なら完了を待つ（別経路で開始済みでも、必ず最新を待ってからレンダー）
   if (!tmLoaded && CFG.webAppUrl && CFG.token) {
@@ -7755,7 +7762,7 @@ const TM_TABLE_TABS = [
     {h:'本名', td:r=>`<td>${tmEsc(r.real)||'<span class="faint">—</span>'}</td>`},
     {h:'性別', filter:{key:'gender', get:r=>r.gender}, td:r=>`<td>${tmEsc(r.gender)||'<span class="faint">—</span>'}</td>`},
     {h:'生年月日', td:r=>`<td class="num">${tmEsc(r.birth)||'<span class="faint">—</span>'}</td>`},
-    {h:'稼働', filter:{key:'active', get:r=>r.active, order:["稼働中","未稼働"]}, td:r=>`<td>${tmActiveBadge(r.active)}</td>`},
+    {h:'稼働/未稼働 <span class="help-tip" data-tip-title="稼働/未稼働とは" data-tip="未稼働は講師MG、サポMG、ローンチのみ実施の講師、休職者(産休など)で、講師として生徒を持っていないメンバーを指します。退職者とは異なります。" onclick="event.stopPropagation()">?</span>', filter:{key:'active', get:r=>r.active, order:["稼働中","未稼働"]}, td:r=>`<td>${tmActiveBadge(r.active)}</td>`},
   ]},
   { key:'contract', label:'契約・稼働', cols: [
     {h:'講師', td:r=>tmNameCell(r)},
@@ -7797,7 +7804,7 @@ const TM_TABLE_TABS = [
     {h:'担当生徒数', td:r=>`<td class="num">${r.students}名</td>`},
     {h:'担当MG', filter:{key:'mg', get:r=>r.mg}, td:r=>`<td>${tmEsc(r.mg)||'<span class="faint">—</span>'}</td>`},
     {h:'進行クラス', td:r=>`<td>${tmClsChips('',r.ongoing)}</td>`},
-    {h:'稼働', filter:{key:'active', get:r=>r.active, order:["稼働中","未稼働"]}, td:r=>`<td>${tmActiveBadge(r.active)}</td>`},
+    {h:'稼働/未稼働 <span class="help-tip" data-tip-title="稼働/未稼働とは" data-tip="未稼働は講師MG、サポMG、ローンチのみ実施の講師、休職者(産休など)で、講師として生徒を持っていないメンバーを指します。退職者とは異なります。" onclick="event.stopPropagation()">?</span>', filter:{key:'active', get:r=>r.active, order:["稼働中","未稼働"]}, td:r=>`<td>${tmActiveBadge(r.active)}</td>`},
   ]},
 ];
 
