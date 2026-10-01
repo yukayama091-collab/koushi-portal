@@ -1539,6 +1539,48 @@ async function preloadTeacherLectures(tid, opts) {
   }
 }
 
+// 2026-10-01: 全講師ぶんの講義日程を1回で受け取る。
+//   以前は講師1人につき1回ずつ受付窓口を叩いていた（最大268回・1回3秒）。
+//   これが読み込みの遅さと、保存が混雑で黙って失敗することの最大の原因だった。
+//   受付窓口が「講義キャッシュ」を持つようになったので、まとめて受け取る。
+//   生徒ごとの出欠は入っていないので、クラスを開いた時だけ個別に取りに行く。
+//   戻り値: 反映できた講師IDの集合
+async function preloadLecturesBulk() {
+  const covered = new Set();
+  if (!CFG.webAppUrl || !CFG.token) return covered;
+  let d;
+  try {
+    d = await gasGet(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=lectures_all`);
+  } catch (e) { console.warn('[lectures_all] 取得できず', e); return covered; }
+  if (!d || !d.teachers) return covered;
+  Object.keys(d.teachers).forEach(tid => {
+    const rec = d.teachers[tid];
+    if (!rec || !Array.isArray(rec.classes) || !rec.classes.length) return;
+    rec.classes.forEach(populateLectureMaps);
+    if (allRows.length) {
+      allRows.forEach(r => {
+        if (r.teacherId !== tid) return;
+        const letter = classLetter(r.className);
+        if (!letter) return;
+        const cls = rec.classes.find(c => classLetter(c.tab) === letter);
+        if (!cls || !cls.lectures) return;
+        const lec1 = cls.lectures[0] && cls.lectures[0].date ? parseDate(cls.lectures[0].date) : null;
+        const lec12 = cls.lectures[11] && cls.lectures[11].date ? parseDate(cls.lectures[11].date) : null;
+        if (lec1) r.lec1Date = lec1;
+        if (lec12) r.lec12Date = lec12;
+        r.lecturesData = cls.lectures;
+        r.lecturesTab = cls.tab;
+        r.lecturesSheetId = rec.sheetId || '';
+      });
+    }
+    covered.add(tid);
+  });
+  try { applyGraduationOverrides(); } catch (e) {}
+  scheduleLectureRerender();
+  console.log(`[lectures_all] ${covered.size}名ぶんを1回で取得`);
+  return covered;
+}
+
 // 全校モード用: 講義データを少しずつ先読み → 順次 classLecturesMap に反映
 //
 // 【重要】ここは GAS への負荷を決める場所。以前は全講師(263件)を8並列で毎回叩いていたため、
@@ -1568,9 +1610,13 @@ async function preloadAllTeachersLecturesInBackground(chunkSize = 2) {
     // 2. 取得済み(メモリ or 永続キャッシュ)は通信せずに反映する。
     //    ここも preloadTeacherLectures を通すことで、生徒への講義日の紐付け
     //    (lec1Date/lecturesData 等)まで通常どおり行われる。
+    // まず全員ぶんを1回で取りに行く。取れたぶんは個別に叩かない。
+    let bulk = new Set();
+    try { bulk = await preloadLecturesBulk(); } catch (e) {}
     const persisted = lecPersistLoad();
     const cached = [], toFetch = [];
     tids.forEach(t => {
+      if (bulk.has(t)) return;                 // まとめ取得で足りている
       const s = classSheetMap.get(t);
       if (!s) return;
       if (lectureCache.has(s) || persisted[s]) cached.push(t); else toFetch.push(t);
