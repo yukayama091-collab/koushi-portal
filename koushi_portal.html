@@ -4185,6 +4185,17 @@ function openEditUserModal(row) {
       <div class="field"><label>メモ</label>
         <input type="text" id="euMemo" value="${escTxt(target.memo||'')}" style="font:inherit;padding:8px;width:100%;box-sizing:border-box">
       </div>
+      <!-- 2026-10-02: 担当講師の欄が無く、編集画面からは設定できなかった。
+           「追加できたのにダッシュボードに出ない」の原因がこれ。 -->
+      <div class="field" id="euManagedField">
+        <label>担当講師</label>
+        <div id="euManagedChips" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:7px 8px;min-height:40px;background:#fff">
+          <input type="text" id="euManagedInput" list="euManagedList" placeholder="講師名か講師IDで追加"
+                 style="flex:1;min-width:150px;border:none;outline:none;font:inherit;font-size:13px;padding:2px">
+        </div>
+        <datalist id="euManagedList"></datalist>
+        <div class="muted" style="font-size:11.5px;margin-top:4px">講師MG・サポートMGのダッシュボードに出る担当講師です。× で外せます。</div>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
         <button class="btn btn-ghost" onclick="document.getElementById('editUserModal').classList.remove('open')" type="button">キャンセル</button>
         <button class="btn btn-primary" onclick="saveEditUser(${row})" type="button">保存</button>
@@ -4193,6 +4204,61 @@ function openEditUserModal(row) {
   </div>`;
   m.classList.add('open');
   m.dataset.originalRole = target.role;
+  euSetupManaged(target);
+}
+
+// 編集モーダルの担当講師欄。新規発行の仕組みとは別に、こちらだけで完結させる。
+window.__editUserManaged = [];
+function euSetupManaged(target) {
+  const all = [...(teacherMasterMap || new Map()).values()]
+    .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ja'));
+  window.__euAllTeachers = all;
+  window.__editUserManaged = (target.managedIds || []).map(x => String(x).trim()).filter(Boolean);
+  const dl = document.getElementById('euManagedList');
+  if (dl) dl.innerHTML = all.map(t =>
+    `<option value="${t.tid} ${(t.name || '').replace(/"/g, '&quot;')}">`).join('');
+  euRenderManagedChips();
+  const inp = document.getElementById('euManagedInput');
+  if (!inp || inp.dataset.bound) return;
+  inp.dataset.bound = '1';
+  const tryAdd = v => {
+    if (!v) return;
+    const m2 = String(v).match(/^(\d+)/);
+    const tid = m2 ? m2[1] : String(v).trim();
+    const found = (window.__euAllTeachers || []).find(t => t.tid === tid);
+    if (!found || window.__editUserManaged.includes(found.tid)) { inp.value = ''; return; }
+    window.__editUserManaged.push(found.tid);
+    euRenderManagedChips();
+    inp.value = '';
+  };
+  inp.addEventListener('input', e => {
+    if (e.target.value && (window.__euAllTeachers || []).some(t => `${t.tid} ${t.name || ''}` === e.target.value)) tryAdd(e.target.value);
+  });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); tryAdd(inp.value); }
+    if (e.key === 'Backspace' && !inp.value && window.__editUserManaged.length) {
+      window.__editUserManaged.pop(); euRenderManagedChips();
+    }
+  });
+}
+function euRenderManagedChips() {
+  const wrap = document.getElementById('euManagedChips');
+  if (!wrap) return;
+  const inp = document.getElementById('euManagedInput');
+  wrap.querySelectorAll('.eu-chip').forEach(el => el.remove());
+  const all = window.__euAllTeachers || [];
+  window.__editUserManaged.forEach(tid => {
+    const t = all.find(x => x.tid === tid);
+    const chip = document.createElement('span');
+    chip.className = 'eu-chip';
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:var(--brand-soft);color:var(--brand);border-radius:6px;font-size:12px;font-weight:700';
+    chip.innerHTML = `${tid} ${((t && t.name) || '').replace(/[<>]/g, '')} <span style="cursor:pointer;font-weight:900;font-size:14px" onclick="euRemoveManaged('${tid}')">×</span>`;
+    wrap.insertBefore(chip, inp);
+  });
+}
+function euRemoveManaged(tid) {
+  window.__editUserManaged = window.__editUserManaged.filter(x => x !== tid);
+  euRenderManagedChips();
 }
 function euRegenPw() {
   const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
@@ -4219,15 +4285,26 @@ async function saveEditUser(row) {
       if (!d.ok) { await iosAlert('ロール変更に失敗: ' + (d.error||d.message)); return; }
     }
     // 2. 名前/ログインID/パスワード/メモ 変更 (update_user action)
+    const managedIds = (window.__editUserManaged || []).slice();
     const r2 = await fetch(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=update_user_fields`, {
       method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify(withActor({ row: row, name: name, loginId: loginId, password: password, memo: memo }))
+      body: JSON.stringify(withActor({ row: row, name: name, loginId: loginId, password: password, memo: memo, managedIds: managedIds }))
     });
     const d2 = await r2.json();
     if (!d2.ok) { await iosAlert('保存に失敗: ' + (d2.error||d2.message)); return; }
     document.getElementById('editUserModal').classList.remove('open');
     showSnackbar('ユーザーを更新しました', 2000);
-    renderUsers();
+    await renderUsers();
+    // 2026-10-02: 書き込んだつもりで入っていない事故があったので、保存後に読み直して確かめる。
+    try {
+      const after = (_usersData || []).find(u => u.row === row);
+      const got = ((after && after.managedIds) || []).map(String).sort().join(',');
+      const want = managedIds.map(String).sort().join(',');
+      if (got !== want) {
+        await iosAlert('担当講師が保存されていません。\n\n送った内容: ' + (want || '(なし)') +
+                       '\n保存された内容: ' + (got || '(なし)') + '\n\nもう一度お試しください。');
+      }
+    } catch (e) {}
   } catch (e) {
     await iosAlert('エラー: ' + e.message);
   }
