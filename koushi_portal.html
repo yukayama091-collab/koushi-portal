@@ -424,6 +424,10 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .fchip.active .n{ opacity:.85; }
 .fchip.danger.active{ background:var(--brand); border-color:var(--brand); }
 .select-min{ height:38px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 12px; font:inherit; font-size:13px; color:var(--ink); }
+#page-launchPlan .lp-input, .lp-box .lp-input{ height:34px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 10px; font:inherit; font-size:13px; color:var(--ink); }
+.lp-input:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+.lp-form{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.lp-form .lp-reason{ flex:1 1 220px; min-width:180px; }
 .select-min:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
 
 @media (max-width:1080px){
@@ -778,6 +782,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="search" onclick="go('search')" title="生徒の検索・管理"><svg class="ic"><use href="#i-search"/></svg> 生徒管理</button>
     <button class="nav" data-page="classes" onclick="go('classes')" title="開始月別のクラス集計"><svg class="ic"><use href="#i-book"/></svg> クラス一覧</button>
     <button class="nav" data-page="progress" onclick="go('progress')" title="状況別の生徒詳細"><svg class="ic"><use href="#i-trending"/></svg> 進捗キャッチアップ</button>
+    <button class="nav" data-page="launchPlan" onclick="go('launchPlan')" title="次回ローンチの予定と判断（講師MG専用）" style="display:none"><svg class="ic"><use href="#i-calendar"/></svg> 今回のローンチ</button>
     <div class="nav-pop-wrap">
       <button class="nav" type="button" title="SnsClubサービス">
         <svg class="ic"><use href="#i-layers"/></svg> SnsClubサービス
@@ -823,6 +828,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-users" class="page"></div>
       <div id="page-teacherMaster" class="page"></div>
       <div id="page-roadmap" class="page"></div>
+      <div id="page-launchPlan" class="page"></div>
       <div id="page-help" class="page"></div>
       <div id="page-guide" class="page"></div>
     </div>
@@ -2361,7 +2367,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, launchPlan:renderLaunchPlan, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
   (renderers[page] || (()=>{}))();
   if (movedToOtherPage) window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -7018,6 +7024,8 @@ function applyRoleUi() {
   setNav('teacherMaster', canTeacherMaster);
   setNav('history', canHistory);
   setNav('users', canUsers);
+  // 今回のローンチ（次回ローンチの判断）は講師MGだけ
+  setNav('launchPlan', roleKnown && isLectMg);
   // ヘッダーにロールバッジ (クリックで権限説明)
   let badge = document.getElementById('userRoleBadge');
   if (!badge) {
@@ -7075,6 +7083,7 @@ function showRoleInfoModal() {
         '編集履歴の閲覧',
         'GAS設定・システム設定の変更',
         '担当生徒詳細の同期などのメンテナンス操作',
+        '担当講師の次回ローンチ（する／しない・理由）の記録（講師MGのみ）',
       ]
     },
     support_mg: {
@@ -8324,7 +8333,7 @@ async function loadDashboardLaunchSchedule(tid, tname) {
     if (meta) meta.textContent = '';
     return;
   }
-  body.innerHTML = renderLaunchHistoryHtml(d);
+  body.innerHTML = renderLaunchHistoryHtml(d, 'dash');
   if (meta) {
     const launches = d.launches || [];
     const done = launches.filter(l => l.state === '実施済み').length;
@@ -8361,15 +8370,17 @@ async function tmLoadLaunchHistory() {
     }
     return;
   }
-  container.innerHTML = renderLaunchHistoryHtml(d);
+  container.innerHTML = renderLaunchHistoryHtml(d, 'tm');
 }
 
 // ローンチ履歴 → HTML 描画
 // データは講師DB「ローンチ明細」（講師IDで引く）。state = 予定／実施済み／結果未入力
-function renderLaunchHistoryHtml(d) {
+function renderLaunchHistoryHtml(d, scope) {
   const launches = d.launches || [];
+  // 次回ローンチの判断（講師MGだけ。受付窓口も講師MGにしか plan を返さない）
+  const planHtml = (d.plan && isLaunchMg() && d.teacher) ? lpPlanBoxHtml(Object.assign({ tid: d.teacher.tid }, d.plan), scope || 'tm', d.today) : '';
   if (!launches.length) {
-    return '<div class="empty" style="padding:24px 0">記録されているローンチはありません</div>';
+    return planHtml + '<div class="empty" style="padding:24px 0">記録されているローンチはありません</div>';
   }
   const done = launches.filter(l => l.state === '実施済み');
   const missing = launches.filter(l => l.state === '結果未入力');
@@ -8400,7 +8411,7 @@ function renderLaunchHistoryHtml(d) {
       <td class="num" style="text-align:right">${pctTxt(l.applyRate, false)}</td>
       <td class="num" style="text-align:right">${pctTxt(l.achieveRate, true)}</td>
     </tr>`).join('');
-  return `
+  return planHtml + `
     <div class="stack" style="gap:16px">
       <div class="dm-stats" style="grid-template-columns:repeat(3,1fr);margin:0">
         <div class="dm-stat"><div class="v">${done.length}</div><div class="l">実施済み</div></div>
@@ -8426,6 +8437,187 @@ function renderLaunchHistoryHtml(d) {
         申込率 = 申込 ÷ LINE流入、達成率 = 申込 ÷ 目標
       </div>
     </div>`;
+}
+
+
+// ══════════ 次回ローンチの判断（講師MG専用） ══════════
+// 次回予定月 = 前回ローンチ月 + 4か月（受付窓口が計算）。講師MGが「する／しない」と理由を残す。
+// 保存先は講師DB「次回ローンチ判断」。受付窓口側でも講師MG・担当講師かを確かめている。
+function isLaunchMg() {
+  const u = window.CURRENT_USER || {};
+  return !!u.active && (u.role === 'lecturer_mg' || u.role === 'manager');
+}
+function lpMonthLabel(ym) { return ym ? `${ym.slice(0,4)}年${Number(ym.slice(5,7))}月` : '—'; }
+function lpShiftMonth(ym, n) {
+  let y = Number(ym.slice(0,4)), m = Number(ym.slice(5,7)) + n;
+  while (m > 12) { m -= 12; y++; }
+  while (m < 1) { m += 12; y--; }
+  return `${y}/${String(m).padStart(2,'0')}`;
+}
+function lpDecisionBadge(dec) {
+  if (dec === 'する') return '<span class="badge" style="background:#ecfdf5;color:var(--ok);font-weight:700;font-size:11px">する</span>';
+  if (dec === 'しない') return '<span class="badge" style="background:#fef2f2;color:var(--danger);font-weight:700;font-size:11px">しない</span>';
+  return '<span class="badge" style="background:#f3f4f6;color:var(--muted);font-weight:700;font-size:11px">未回答</span>';
+}
+// 入力欄（する／しない＋しない理由＋保存）。scope は同じ講師が画面に2か所出ても id がぶつからないように付ける
+function lpFormHtml(t, scope) {
+  const k = `${scope}-${t.tid}`;
+  const dec = t.decision || '';
+  return `<div class="lp-form">
+      <select class="lp-input" id="lpDec-${k}" onchange="lpToggleReason('${k}')">
+        <option value=""${dec===''?' selected':''}>未回答</option>
+        <option value="する"${dec==='する'?' selected':''}>する</option>
+        <option value="しない"${dec==='しない'?' selected':''}>しない</option>
+      </select>
+      <input class="lp-input lp-reason" id="lpRsn-${k}" type="text" maxlength="300" placeholder="しない理由（必須）" value="${tmEsc(t.reason||'')}" style="${dec==='しない'?'':'display:none'}">
+      <button class="btn btn-primary btn-sm" type="button" onclick="lpSave('${tmEsc(t.tid)}','${tmEsc(t.nextMonth)}','${k}',this)">保存</button>
+    </div>
+    <div class="faint" id="lpMeta-${k}" style="font-size:11px;margin-top:6px">${t.at ? `最終更新 ${tmEsc(t.at)}（${tmEsc(t.by||'')}）` : ''}</div>`;
+}
+function lpToggleReason(k) {
+  const sel = document.getElementById('lpDec-' + k);
+  const inp = document.getElementById('lpRsn-' + k);
+  if (!sel || !inp) return;
+  inp.style.display = sel.value === 'しない' ? '' : 'none';
+  if (sel.value === 'しない') inp.focus();
+}
+function lpPlanBoxHtml(t, scope, today) {
+  const thisMonth = (today || '').slice(0, 7);
+  if (!t.lastDate) {
+    return `<div class="card card-pad lp-box" style="margin-bottom:16px">
+      <div class="card-title" style="font-size:14px">次回ローンチ</div>
+      <div class="faint" style="font-size:12.5px;margin-top:6px">まだローンチの記録がないため、次回予定月は出ません。</div></div>`;
+  }
+  const overdue = t.nextMonth && thisMonth && t.nextMonth < thisMonth && !(t.upcoming || []).length;
+  const up = (t.upcoming || []).length ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">登録済みの予定: ${t.upcoming.map(tmEsc).join('、')}</div>` : '';
+  return `<div class="card card-pad lp-box" style="margin-bottom:16px">
+      <div class="card-head" style="margin-bottom:10px"><div class="card-title" style="font-size:14px">次回ローンチ</div><span class="card-meta">講師MGのみ表示</span></div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px">
+        <div><div class="faint" style="font-size:11px">前回ローンチ</div><div style="font-weight:700">${tmEsc(t.lastDate)}${t.lastState==='結果未入力'?' <span class="faint" style="font-size:11px">（結果未入力）</span>':''}</div></div>
+        <div><div class="faint" style="font-size:11px">次回予定月</div><div style="font-weight:800;font-size:16px">${lpMonthLabel(t.nextMonth)}${overdue?' <span class="badge" style="background:#fffbeb;color:var(--warn);font-weight:700;font-size:11px">予定月を過ぎています</span>':''}</div>${up}</div>
+        <div><div class="faint" style="font-size:11px">判断</div><div id="lpBadge-${scope}-${tmEsc(t.tid)}">${lpDecisionBadge(t.decision)}</div></div>
+      </div>
+      ${lpFormHtml(t, scope)}
+    </div>`;
+}
+async function lpSave(tid, month, k, btn) {
+  const sel = document.getElementById('lpDec-' + k);
+  const inp = document.getElementById('lpRsn-' + k);
+  const decision = sel ? sel.value : '';
+  const reason = (inp ? inp.value : '').trim();
+  if (decision === 'しない' && !reason) { await iosAlert('しない理由を入力してください'); if (inp) inp.focus(); return; }
+  const oldLbl = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '保存中…'; }
+  try {
+    const d = await gasPostIdempotent(`${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=set_launch_plan`,
+      withActor({ tid, month, decision, reason }));
+    if (!d || !d.ok) { await iosAlert('保存できませんでした\n' + humanizeError((d && (d.message || d.error)) || '不明なエラー')); return; }
+    // 手元の控えを更新（一覧・講師カードの両方）
+    const patch = { decision: d.decision, reason: d.reason, by: d.by, at: d.at };
+    if (LP.data) (LP.data.teachers || []).forEach(t => { if (t.tid === tid && t.nextMonth === month) Object.assign(t, patch); });
+    const c = _tmLaunchCache.get(tid);
+    if (c && c.plan && c.plan.nextMonth === month) Object.assign(c.plan, patch);
+    document.querySelectorAll(`[id^="lpBadge-"][id$="-${tid}"]`).forEach(el => { el.innerHTML = lpDecisionBadge(d.decision); });
+    document.querySelectorAll(`[id^="lpMeta-"][id$="-${tid}"]`).forEach(el => { el.textContent = `最終更新 ${d.at}（${d.by || ''}）`; });
+    if (inp) inp.value = d.reason || '';
+    showSnackbar('保存しました', 2000);
+    if (state.page === 'launchPlan') lpRenderSummary();
+  } catch (e) {
+    await iosAlert(e && e.responseLost
+      ? '応答が返ってきませんでした。保存されている可能性があります。画面を更新して確かめてください。'
+      : '保存できませんでした\n' + humanizeError(e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldLbl; }
+  }
+}
+
+// 「今回のローンチ」画面
+const LP = { data: null, month: '', loading: false };
+async function lpLoad(force) {
+  if (LP.data && !force) return LP.data;
+  const params = new URLSearchParams({ token: CFG.token, action: 'launch_plan_list' });
+  const d = await gasGet(`${gasEndpoint()}?${params.toString()}`);
+  if (!d || !d.ok) throw new Error((d && (d.message || d.error)) || '読み込めませんでした');
+  LP.data = d;
+  if (!LP.month) LP.month = d.thisMonth;
+  return d;
+}
+function lpRowsFor(month) {
+  const d = LP.data || { teachers: [] };
+  const list = (d.teachers || []).filter(t => !t.retire && t.nextMonth);
+  const due = list.filter(t => t.nextMonth === month);
+  // 今月を見ているときだけ、予定月を過ぎてもまだローンチしていない講師を一緒に出す
+  const overdue = month === d.thisMonth ? list.filter(t => t.nextMonth < d.thisMonth && !(t.upcoming || []).length) : [];
+  const noLaunch = (d.teachers || []).filter(t => !t.retire && !t.nextMonth).length;
+  return { due, overdue, noLaunch };
+}
+function lpRenderSummary() {
+  const el = document.getElementById('lpSummary');
+  if (!el) return;
+  const { due, overdue } = lpRowsFor(LP.month);
+  const all = due.concat(overdue);
+  const n = v => all.filter(t => (t.decision || '') === v).length;
+  el.innerHTML = `
+    <div class="dm-stat"><div class="v">${all.length}</div><div class="l">対象の講師</div></div>
+    <div class="dm-stat"><div class="v" style="color:var(--ok)">${n('する')}</div><div class="l">する</div></div>
+    <div class="dm-stat"><div class="v" style="color:var(--danger)">${n('しない')}</div><div class="l">しない</div></div>
+    <div class="dm-stat"><div class="v" style="color:var(--muted)">${n('')}</div><div class="l">未回答</div></div>`;
+}
+function lpMove(n) { LP.month = n === 0 ? (LP.data ? LP.data.thisMonth : LP.month) : lpShiftMonth(LP.month, n); renderLaunchPlan(); }
+async function renderLaunchPlan(force) {
+  const page = document.getElementById('page-launchPlan');
+  if (!page) return;
+  const head = `<div class="page-head"><div><div class="page-title">今回のローンチ</div>
+    <div class="page-sub">前回ローンチから4か月後が次回予定月です。担当講師ごとに、ローンチするかしないかを記録します。</div></div></div>`;
+  if (!isLaunchMg()) {
+    page.innerHTML = head + `<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">この画面は講師MGでログインしたときだけ使えます</div>`;
+    return;
+  }
+  if (!LP.data || force) {
+    page.innerHTML = head + `<div class="loading" style="padding:40px;text-align:center;color:var(--muted)">読み込み中…</div>`;
+    try { await lpLoad(true); }
+    catch (e) {
+      page.innerHTML = head + `<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">読み込めませんでした: ${tmEsc(humanizeError(e))}</div>`;
+      return;
+    }
+    if (state.page !== 'launchPlan') return;
+  }
+  const { due, overdue, noLaunch } = lpRowsFor(LP.month);
+  const rowHtml = t => `<tr>
+      <td style="white-space:nowrap"><div style="font-weight:700;color:var(--ink)">${tmEsc(t.name || '—')}</div><div class="faint" style="font-size:11px">${tmEsc(t.tid)}</div></td>
+      <td style="white-space:nowrap">${tmEsc(t.lastDate)}${t.lastState==='結果未入力'?'<div class="faint" style="font-size:11px">結果未入力</div>':''}</td>
+      <td style="white-space:nowrap;font-weight:700">${lpMonthLabel(t.nextMonth)}</td>
+      <td style="white-space:nowrap">${(t.upcoming||[]).length ? t.upcoming.map(tmEsc).join('<br>') : '<span class="faint">—</span>'}</td>
+      <td style="white-space:nowrap" id="lpBadge-lp-${tmEsc(t.tid)}">${lpDecisionBadge(t.decision)}</td>
+      <td style="min-width:320px">${lpFormHtml(t, 'lp')}</td>
+    </tr>`;
+  const table = (rows, title, note) => `
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px">
+      <div class="card-head" style="padding:14px 18px;border-bottom:1px solid var(--line);margin:0">
+        <div class="card-title" style="font-size:14px">${title}</div><span class="card-meta">${rows.length} 名${note ? ' / ' + note : ''}</span>
+      </div>
+      ${rows.length ? `<div style="overflow-x:auto"><table class="tbl" style="width:100%">
+        <thead><tr><th>講師</th><th>前回ローンチ</th><th>次回予定月</th><th>登録済みの予定</th><th>判断</th><th>ローンチする／しない</th></tr></thead>
+        <tbody>${rows.map(rowHtml).join('')}</tbody></table></div>`
+      : '<div class="empty" style="padding:24px 0">該当する講師はいません</div>'}
+    </div>`;
+  const isThis = LP.month === LP.data.thisMonth;
+  page.innerHTML = head + `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <button class="btn btn-ghost btn-sm" type="button" onclick="lpMove(-1)">前の月</button>
+      <div style="font-size:18px;font-weight:800;min-width:110px;text-align:center">${lpMonthLabel(LP.month)}</div>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="lpMove(1)">次の月</button>
+      ${isThis ? '' : '<button class="btn btn-ghost btn-sm" type="button" onclick="lpMove(0)">今月に戻る</button>'}
+      <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto" onclick="renderLaunchPlan(true)">最新にする</button>
+    </div>
+    <div class="dm-stats" id="lpSummary" style="grid-template-columns:repeat(4,1fr);margin:0"></div>
+    ${table(due, `${lpMonthLabel(LP.month)}が次回予定月の講師`)}
+    ${isThis ? table(overdue, '予定月を過ぎて、まだローンチしていない講師', '次の予定も未登録') : ''}
+    <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.6;margin-top:12px">
+      対象は担当講師のみ（退職者を除く）。ローンチ実績がない担当講師 ${noLaunch} 名は表示していません。<br>
+      出典: 講師DB「ローンチ明細」「次回ローンチ判断」
+    </div>`;
+  lpRenderSummary();
 }
 
 // 講師ドロワーの保存 — update_teacher を呼んでスプシに書き戻す
