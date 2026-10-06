@@ -1144,6 +1144,7 @@ function showNotice(message, ms) {
   el.textContent = message;
   el.style.display = 'block';
   clearTimeout(el._t);
+  if (ms === 0) return;          // 0 は消さない（状態の説明に使う）
   el._t = setTimeout(() => { el.style.display = 'none'; }, ms || 8000);
 }
 let CURRENT_TEACHER = localStorage.getItem('koushi_teacher') || '';
@@ -1255,8 +1256,13 @@ function isGraduated(r) {
   // 仕様: 投稿プログラムの完了状態は卒業判定に使わない。卒業日に到達したら卒業。
   // (1) 公式の卒業生マスタ（卒業生情報タブ）に登録されている → 確定で卒業
   if (r.isOfficialGraduate) return true;
-  // (2) 生徒情報シートの Z列「卒業生」 → 即卒業
+  // (2) 生徒情報シートの「卒業生」列 → 即卒業
   if (r.isStudentSheetGrad) return true;
+  // (2b) 卒業生マスタに載っている → 卒業。担当講師が講師DBに未登録でも卒業は卒業。
+  if (r.isGradMasterListed) return true;
+  // (2c) 要サポート生徒分析が「卒業生」と言っている → 卒業。
+  //      卒業日が空や未来のままでも、卒業生と書かれていれば現役生には出さない。
+  if (r.grad && r.grad.status === '卒業生') return true;
   // (3) 要サポート生徒分析の「卒業日」が今日以前 → 卒業（status='現役生' でも可）
   if (r.grad && r.grad.gradDate) {
     const d = parseDate(r.grad.gradDate);
@@ -1920,6 +1926,8 @@ async function loadData(forceRefresh, opts) {
     // ただし講師DBに存在しない講師の卒業生は除外（仕様: 講師DB未登録講師は反映しない）
     const gradOfficialById = new Map();
     const gradOfficialByName = new Map();
+    // 卒業生マスタに載っている名前（講師DB登録の有無を問わない）。卒業判定だけに使う。
+    const gradMasterNames = new Set();
     let gradSkippedCount = 0;
     const GR = data.graduates;
     if (GR && GR.header) {
@@ -1932,6 +1940,12 @@ async function loadData(forceRefresh, opts) {
         const name = grNm>=0 ? String(r[grNm]||'').trim() : '';
         const tIdRaw = grTId>=0 ? String(r[grTId]||'').trim() : '';
         const tid = (tIdRaw && tIdRaw !== 'DB未登録') ? tIdRaw : '';
+        // 卒業期や講師名は講師DB登録の講師ぶんだけ使う（従来どおり）。
+        // ただし「卒業しているかどうか」は講師の登録状況と関係ないので、
+        // ここで名前だけは先に拾っておく。拾わないと、講師DB未登録の講師の
+        // 卒業生が現役生として「やること」に並ぶ（なかいるみ／ととG組 がそれ）。
+        const nkAll = normName(name);
+        if (nkAll) gradMasterNames.add(nkAll);
         // 講師DBに登録のない講師は除外
         if (!tid || !knownTeacherIds.has(tid)) { gradSkippedCount++; return; }
         const meta = {
@@ -1989,6 +2003,7 @@ async function loadData(forceRefresh, opts) {
       r.isStudentSheetCancel = !!meta.isStudentSheetCancel;
       r.studentSheetGradValue = meta.studentSheetGradValue || '';
       // 卒業生マスタは「卒業判定」「卒業期」だけ使う
+      r.isGradMasterListed = gradMasterNames.has(normName(r.name));
       const gm = gradOfficialById.get(r.id) || gradOfficialByName.get(normName(r.name));
       if (gm) {
         r.isOfficialGraduate = true;
@@ -2125,6 +2140,13 @@ async function loadData(forceRefresh, opts) {
     // 生徒メモ: 全生徒分を裏でロード
     fetchStudentMemos().catch(e => console.warn('memo fetch failed', e));
     window.DATA_LOADED = true;   // 0件でも「読み込み中」を出し続けないための目印
+    // 講師MG・サポMG は担当講師ぶんだけを見る。担当が未登録だと画面が空になるので、
+    // 「データが無い」のではなく「担当講師が未登録」だと分かるように出す。
+    if (data && (data.scopedRole === 'support_mg' || data.scopedRole === 'lecturer_mg'
+                 || data.scopedRole === 'manager')
+        && Array.isArray(data.allowedTeacherIds) && data.allowedTeacherIds.length === 0) {
+      showNotice('担当講師が未登録のため、表示できる講師がありません。管理者に担当講師の登録を依頼してください。', 0);
+    }
     refreshCounts();
     if (!silent) go(state.page);
     // 「更新」を押したが受付窓口から取り直せず、中継が前回取得分を返した場合はその旨を知らせる
@@ -3137,10 +3159,11 @@ function renderTodo(){
   const groups = [
     {key:'stagnant', cls:'urgent', title:'停滞中（最優先）', ico:'i-octagon', col:'var(--danger)', metric:'停滞日数', unit:'日', val:s=>s.days, desc:s=>`最終ステップ ${s.step} から ${s.days}日 進捗なし`},
     {key:'stuck',    cls:'warn',   title:'つまずき',         ico:'i-zap',     col:'var(--warn)',   metric:'停滞日数', unit:'日', val:s=>s.days, desc:s=>`${s.step} で停滞中（${s.days}日）`},
-    {key:'over80',   cls:'grad',   title:'卒業対応',         ico:'i-grad',    col:'var(--ok)',     metric:'投稿数', unit:'件', val:s=>s.posts, desc:s=>`80日達成済み・卒業手続きの確認`},
+    // 2026-10-05: 「卒業対応」(80日達成済み) をここから外した。
+    //   この画面は現役生の対応だけを並べる。卒業手続きは別の流れ。
     {key:'no_sp',    cls:'idle',   title:'未開始',           ico:'i-clock',   col:'var(--faint)',  metric:'登録から', unit:'日', val:s=>s.days, desc:s=>`投稿プログラム未開始（登録 ${s.days}日）`},
   ];
-  const total = list.filter(s => ['stagnant','stuck','over80','no_sp'].includes(s.status)).length;
+  const total = list.filter(s => ['stagnant','stuck','no_sp'].includes(s.status)).length;
   const filterActive = !!(todoFilter.cls || todoFilter.teacher);
   $('#page-todo').innerHTML = `
     <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
@@ -4926,7 +4949,7 @@ function renderGuide(){
         <li>講師を選択している場合は、その講師の<b>ローンチスケジュール</b>（過去／今回／予定）も表示されます。</li>`)}
 
       ${sec(4, 'やること', '03_todo.png', `
-        <li>対応が必要な生徒が<b>優先度順</b>（停滞中 → つまずき → 卒業対応）に並びます。</li>
+        <li>対応が必要な生徒が<b>優先度順</b>（停滞中 → つまずき → 未開始）に並びます。現役生だけが対象で、卒業生は出ません。</li>
         <li>上部のセレクトで<b>クラス・講師で絞り込み</b>ができます。</li>
         <li>カードをクリックすると生徒詳細が開き、状況を確認できます。</li>`)}
 
@@ -5012,8 +5035,6 @@ function renderHelp(){
             <div><div class="nm">停滞中</div><div class="ds">最終ステップから <b>15日以上</b> 進捗なし。最優先で連絡を取る対象。</div></div></div>
           <div class="help-item"><span class="help-ico ic-warn"><svg class="ic"><use href="#i-zap"/></svg></span>
             <div><div class="nm">つまずき</div><div class="ds">同じステップで <b>3〜14日</b> 足踏み。声かけで前進できることが多い。</div></div></div>
-          <div class="help-item"><span class="help-ico ic-ok"><svg class="ic"><use href="#i-grad"/></svg></span>
-            <div><div class="nm">卒業対応</div><div class="ds"><b>80日達成済み</b>。卒業手続き・次フェーズの案内を行う。</div></div></div>
           <div class="help-item"><span class="help-ico ic-gray"><svg class="ic"><use href="#i-clock"/></svg></span>
             <div><div class="nm">未開始</div><div class="ds">登録済みだが<b>投稿プログラム未着手</b>。初回の立ち上げ支援を。</div></div></div>
         </div>
@@ -6868,7 +6889,7 @@ function startTour() {
         <ul style="margin-top:8px;padding-left:18px;line-height:1.9">
           <li><b style="color:var(--danger)">停滞中</b>（15日以上進捗なし）</li>
           <li><b style="color:var(--warn)">つまずき</b>（3〜14日進捗なし）</li>
-          <li>卒業対応・未開始</li>
+          <li>未開始</li>
         </ul>
         <p style="margin-top:10px;color:var(--muted)">クリックで生徒詳細が開き、停滞ステップが赤マーカーで明示されます。</p>`,
     },
