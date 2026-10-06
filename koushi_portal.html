@@ -8333,6 +8333,7 @@ async function loadDashboardLaunchSchedule(tid, tname) {
     if (meta) meta.textContent = '';
     return;
   }
+  body.dataset.tid = tid;
   body.innerHTML = renderLaunchHistoryHtml(d, 'dash');
   if (meta) {
     const launches = d.launches || [];
@@ -8379,12 +8380,18 @@ function renderLaunchHistoryHtml(d, scope) {
   const launches = d.launches || [];
   // 次回ローンチの判断（講師MGだけ。受付窓口も講師MGにしか plan を返さない）
   const planHtml = (d.plan && isLaunchMg() && d.teacher) ? lpPlanBoxHtml(Object.assign({ tid: d.teacher.tid }, d.plan), scope || 'tm', d.today) : '';
-  if (!launches.length) {
-    return planHtml + '<div class="empty" style="padding:24px 0">記録されているローンチはありません</div>';
+  if (!launches.length && !(d.canEdit && isLaunchMg() && LH_EDIT && d.teacher && LH_EDIT.tid === d.teacher.tid)) {
+    const addBtn = (d.canEdit && isLaunchMg() && d.teacher)
+      ? `<div style="margin-top:10px"><button class="btn btn-primary btn-sm" type="button" onclick="lhEdit('${scope||'tm'}','${tmEsc(d.teacher.tid)}','new')">予定を追加</button></div>` : '';
+    return planHtml + `<div class="empty" style="padding:24px 0">記録されているローンチはありません${addBtn}</div>`;
   }
   const done = launches.filter(l => l.state === '実施済み');
   const missing = launches.filter(l => l.state === '結果未入力');
   const planned = launches.filter(l => l.state === '予定');
+  // 編集は講師MGだけ（受付窓口が canEdit を講師MG・担当講師のときだけ返す）
+  const canEdit = !!d.canEdit && isLaunchMg() && !!d.teacher;
+  const tidE = canEdit ? d.teacher.tid : '';
+  const ed = (canEdit && LH_EDIT && LH_EDIT.tid === tidE && LH_EDIT.scope === (scope || 'tm')) ? LH_EDIT : null;
   const totalApply = done.reduce((s, l) => s + (l.apply || 0), 0);
   const unit = '<span style="font-size:10.5px;color:var(--muted);font-weight:600">名</span>';
   const numTxt = v => v != null ? `${Number(v).toLocaleString()} ${unit}` : '<span class="faint">—</span>';
@@ -8397,11 +8404,16 @@ function renderLaunchHistoryHtml(d, scope) {
   const badge = l => {
     const st = l.state === '予定' ? 'background:#eff6ff;color:var(--info)'
       : l.state === '結果未入力' ? 'background:#fffbeb;color:var(--warn)'
+      : l.state === '中止' ? 'background:#f3f4f6;color:var(--faint);text-decoration:line-through'
       : 'background:#f3f4f6;color:var(--muted)';
     const cur = l.status === 'current' ? ` <span class="badge" style="background:#fef2f2;color:var(--danger);font-weight:800;font-size:11px">今回</span>` : '';
     return `<span class="badge" style="${st};font-weight:700;font-size:11px">${tmEsc(l.state || '—')}</span>${cur}`;
   };
-  const rowsHtml = launches.slice().reverse().map(l => `<tr${l.status==='current'?' style="background:#fffdf7"':''}>
+  const sc = scope || 'tm';
+  const opCell = l => !canEdit ? '' : `<td style="text-align:right;white-space:nowrap">${l.state === '中止'
+      ? `<button class="btn btn-ghost btn-sm" type="button" onclick="lhSave('${sc}','${tidE}',${l.row},'${l.date}','restore',this)">中止を取り消す</button>`
+      : `<button class="btn btn-ghost btn-sm" type="button" onclick="lhEdit('${sc}','${tidE}',${l.row})">編集</button>`}</td>`;
+  const rowsHtml = (ed && ed.row === 'new' ? lhEditRowHtml(sc, tidE, null) : '') + launches.slice().reverse().map(l => (ed && ed.row === l.row) ? lhEditRowHtml(sc, tidE, l) : `<tr${l.status==='current'?' style="background:#fffdf7"':''}${l.state==='中止'?' class="faint"':''}>
       <td style="font-weight:700;color:var(--ink);white-space:nowrap">${tmEsc(l.date)}</td>
       <td style="white-space:nowrap">${badge(l)}</td>
       <td>${tmEsc(l.mg) || '<span class="faint">—</span>'}</td>
@@ -8410,6 +8422,7 @@ function renderLaunchHistoryHtml(d, scope) {
       <td class="num" style="text-align:right">${numTxt(l.apply)}</td>
       <td class="num" style="text-align:right">${pctTxt(l.applyRate, false)}</td>
       <td class="num" style="text-align:right">${pctTxt(l.achieveRate, true)}</td>
+      ${opCell(l)}
     </tr>`).join('');
   return planHtml + `
     <div class="stack" style="gap:16px">
@@ -8421,12 +8434,12 @@ function renderLaunchHistoryHtml(d, scope) {
       <div class="card" style="padding:0;overflow:hidden">
         <div class="card-head" style="padding:14px 18px;border-bottom:1px solid var(--line);margin:0">
           <div class="card-title" style="font-size:14px"><svg class="ic"><use href="#i-calendar"/></svg> ローンチ履歴</div>
-          <span class="card-meta">合計 ${launches.length} 件 / 申込累計 ${totalApply.toLocaleString()} 名</span>
+          <span class="card-meta">合計 ${launches.length} 件 / 申込累計 ${totalApply.toLocaleString()} 名${canEdit && !ed ? ` <button class="btn btn-primary btn-sm" type="button" style="margin-left:10px" onclick="lhEdit('${sc}','${tidE}','new')">予定を追加</button>` : ''}</span>
         </div>
         <div style="overflow-x:auto">
         <table class="tbl" style="width:100%">
           <thead><tr>
-            <th>ローンチ日</th><th>状態</th><th>講師MG</th><th style="text-align:right">目標</th><th style="text-align:right">LINE流入</th><th style="text-align:right">申込</th><th style="text-align:right">申込率</th><th style="text-align:right">達成率</th>
+            <th>ローンチ日</th><th>状態</th><th>講師MG</th><th style="text-align:right">目標</th><th style="text-align:right">LINE流入</th><th style="text-align:right">申込</th><th style="text-align:right">申込率</th><th style="text-align:right">達成率</th>${canEdit ? '<th></th>' : ''}
           </tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
@@ -8439,6 +8452,76 @@ function renderLaunchHistoryHtml(d, scope) {
     </div>`;
 }
 
+
+
+// ══════════ ローンチ明細の編集（講師MG専用） ══════════
+// 編集中の行。{ scope, tid, row }（row は明細の行番号、新規は 'new'）
+let LH_EDIT = null;
+function lhRerender(tid) {
+  const d = _tmLaunchCache.get(tid);
+  if (!d) return;
+  const tm = document.getElementById('tmLaunchHistoryContainer');
+  if (tm && tm.dataset.tid === tid) tm.innerHTML = renderLaunchHistoryHtml(d, 'tm');
+  const db = document.getElementById('dashLaunchScheduleBody');
+  if (db && db.dataset.tid === tid) db.innerHTML = renderLaunchHistoryHtml(d, 'dash');
+}
+function lhEdit(scope, tid, row) {
+  LH_EDIT = row === null ? null : { scope, tid, row };
+  lhRerender(tid);
+  const first = document.getElementById(`lhD-${scope}`);
+  if (first) first.focus();
+}
+function lhEditRowHtml(sc, tid, l) {
+  const v = x => (x == null ? '' : x);
+  const isNew = !l;
+  const inp = (id, val, ph) => `<input class="lp-input" id="lh${id}-${sc}" type="number" min="0" step="1" inputmode="numeric" value="${v(val)}" placeholder="${ph}" style="width:84px;text-align:right">`;
+  const dateVal = l ? l.date.replace(/\//g, '-') : '';
+  return `<tr style="background:#f8fafc">
+      <td><input class="lp-input" id="lhD-${sc}" type="date" value="${dateVal}" style="width:150px"></td>
+      <td colspan="2" style="font-size:11.5px;color:var(--muted)">${isNew ? '新しいローンチ' : '結果は日付が過ぎてから入れられます'}</td>
+      <td style="text-align:right">${inp('T', l && l.target, '目標')}</td>
+      <td style="text-align:right">${inp('I', l && l.inflow, '流入')}</td>
+      <td style="text-align:right">${inp('A', l && l.apply, '申込')}</td>
+      <td colspan="3" style="text-align:right;white-space:nowrap">
+        <button class="btn btn-primary btn-sm" type="button" onclick="lhSave('${sc}','${tid}',${isNew ? "'new'" : l.row},'${isNew ? '' : l.date}','${isNew ? 'add' : 'update'}',this)">保存</button>
+        ${isNew ? '' : `<button class="btn btn-ghost btn-sm" type="button" onclick="lhSave('${sc}','${tid}',${l.row},'${l.date}','cancel',this)">中止にする</button>`}
+        <button class="btn btn-ghost btn-sm" type="button" onclick="lhEdit('${sc}','${tid}',null)">キャンセル</button>
+      </td>
+    </tr>`;
+}
+async function lhSave(sc, tid, row, origDate, op, btn) {
+  const g = id => { const el = document.getElementById(`lh${id}-${sc}`); return el ? el.value.trim() : ''; };
+  const payload = { op, tid, row: row === 'new' ? null : row, origDate };
+  if (op === 'add' || op === 'update') {
+    const date = g('D').replace(/-/g, '/');
+    if (!/^\d{4}\/\d{2}\/\d{2}$/.test(date)) { await iosAlert('ローンチ日を入力してください'); return; }
+    Object.assign(payload, { date, target: g('T'), inflow: g('I'), apply: g('A') });
+  }
+  if (op === 'cancel') {
+    const ok = await iosConfirm(`${origDate} のローンチを「中止」にします。記録は残り、あとで取り消せます。`, { okText:'中止にする', cancelText:'戻る' });
+    if (!ok) return;
+  }
+  const oldLbl = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '保存中…'; }
+  try {
+    const url = `${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=set_launch_row`;
+    // 追加は送るたびに行が増えるので再送しない。更新・中止は同じ値を入れ直すだけなので再送してよい
+    const d = op === 'add' ? await gasPost(url, withActor(payload)) : await gasPostIdempotent(url, withActor(payload));
+    if (!d || !d.ok) { await iosAlert('保存できませんでした\n' + humanizeError((d && (d.message || d.error)) || '不明なエラー')); return; }
+    delete d.saved;
+    _tmLaunchCache.set(tid, d);
+    LH_EDIT = null;
+    LP.data = null;   // 今回のローンチ一覧は次に開いたとき取り直す
+    lhRerender(tid);
+    showSnackbar(op === 'add' ? '予定を追加しました' : op === 'cancel' ? '中止にしました' : op === 'restore' ? '中止を取り消しました' : '保存しました', 2000);
+  } catch (e) {
+    await iosAlert(e && e.responseLost
+      ? '応答が返ってきませんでした。保存されている可能性があります。講師カードを開き直して確かめてください。'
+      : '保存できませんでした\n' + humanizeError(e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = oldLbl; }
+  }
+}
 
 // ══════════ 次回ローンチの判断（講師MG専用） ══════════
 // 次回予定月 = 前回ローンチ月 + 4か月（受付窓口が計算）。講師MGが「する／しない」と理由を残す。
