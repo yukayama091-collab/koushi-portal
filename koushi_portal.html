@@ -4982,7 +4982,7 @@ function renderGuide(){
         <li>講師マスタの行をクリックすると<b>詳細画面</b>が開きます。</li>
         <li>タブで情報を切替: <b>基本情報／契約・稼働／クラス運営／ローンチ／ローンチ履歴／担当生徒</b>。</li>
         <li>各項目を編集して左下の<b>「保存する」</b>を押すと講師DB（スプレッドシート）に反映されます。</li>
-        <li><b>ローンチ履歴</b>タブでは過去・今回・予定のローンチと目標人数を確認できます。</li>
+        <li><b>ローンチ履歴</b>タブでは過去・今回・予定のローンチと、目標・LINE流入・申込数・達成率を確認できます。</li>
         <li><b>担当生徒</b>タブからそのまま生徒詳細に移動できます。</li>`)}
 
       ${sec(10, '生徒の詳細・個別メモ', '09_student_detail.png', `
@@ -8327,10 +8327,9 @@ async function loadDashboardLaunchSchedule(tid, tname) {
   body.innerHTML = renderLaunchHistoryHtml(d);
   if (meta) {
     const launches = d.launches || [];
-    const past = launches.filter(l => l.status === 'past').length;
-    const cur = launches.filter(l => l.status === 'current').length;
-    const fut = launches.filter(l => l.status === 'future').length;
-    meta.textContent = `過去 ${past} / 今回 ${cur} / 予定 ${fut}`;
+    const done = launches.filter(l => l.state === '実施済み').length;
+    const fut = launches.filter(l => l.state === '予定').length;
+    meta.textContent = `実施 ${done} / 予定 ${fut}`;
   }
 }
 
@@ -8366,58 +8365,65 @@ async function tmLoadLaunchHistory() {
 }
 
 // ローンチ履歴 → HTML 描画
+// データは講師DB「ローンチ明細」（講師IDで引く）。state = 予定／実施済み／結果未入力
 function renderLaunchHistoryHtml(d) {
   const launches = d.launches || [];
   if (!launches.length) {
     return '<div class="empty" style="padding:24px 0">記録されているローンチはありません</div>';
   }
-  // status別に分類
-  const past = launches.filter(l => l.status === 'past');
-  const current = launches.filter(l => l.status === 'current');
-  const future = launches.filter(l => l.status === 'future');
-  const totalTarget = past.concat(current).reduce((s, l) => s + (l.target||0), 0);
-  const rowsHtml = (arr, label, color) => arr.map(l => {
-    const badge = l.status === 'current'
-      ? `<span class="badge" style="background:#fef2f2;color:${'var(--danger)'};font-weight:800;font-size:11px">今回</span>`
-      : l.status === 'past'
-        ? `<span class="badge" style="background:#f3f4f6;color:var(--muted);font-weight:700;font-size:11px">確定</span>`
-        : `<span class="badge" style="background:#eff6ff;color:var(--info);font-weight:700;font-size:11px">予定</span>`;
-    const targetTxt = l.target != null ? `${l.target.toLocaleString()} <span style="font-size:10.5px;color:var(--muted);font-weight:600">名</span>` : '<span class="faint">—</span>';
-    const resultTxt = l.studentCount != null ? `${l.studentCount.toLocaleString()} <span style="font-size:10.5px;color:var(--muted);font-weight:600">名</span>` : '<span class="faint">—</span>';
-    const rate = (l.target && l.studentCount != null) ? Math.round((l.studentCount / l.target) * 100) : null;
-    const rateHtml = rate != null
-      ? `<span style="font-size:13px;font-weight:800;color:${rate>=100?'var(--ok)':rate>=80?'var(--info)':rate>=50?'var(--warn)':'var(--danger)'}">${rate}%</span>`
-      : '<span class="faint">—</span>';
-    return `<tr>
-      <td style="font-weight:700;color:var(--ink)">${l.date}</td>
-      <td>${badge}</td>
-      <td class="num">${targetTxt}</td>
-      <td class="num">${resultTxt}</td>
-      <td class="num" style="text-align:right">${rateHtml}</td>
-    </tr>`;
-  }).join('');
+  const done = launches.filter(l => l.state === '実施済み');
+  const missing = launches.filter(l => l.state === '結果未入力');
+  const planned = launches.filter(l => l.state === '予定');
+  const totalApply = done.reduce((s, l) => s + (l.apply || 0), 0);
+  const unit = '<span style="font-size:10.5px;color:var(--muted);font-weight:600">名</span>';
+  const numTxt = v => v != null ? `${Number(v).toLocaleString()} ${unit}` : '<span class="faint">—</span>';
+  const pctTxt = (v, colored) => {
+    if (v == null) return '<span class="faint">—</span>';
+    const pct = Math.round(v * 1000) / 10;
+    const col = !colored ? 'var(--ink)' : pct>=100?'var(--ok)':pct>=80?'var(--info)':pct>=50?'var(--warn)':'var(--danger)';
+    return `<span style="font-size:13px;font-weight:800;color:${col}">${pct}%</span>`;
+  };
+  const badge = l => {
+    const st = l.state === '予定' ? 'background:#eff6ff;color:var(--info)'
+      : l.state === '結果未入力' ? 'background:#fffbeb;color:var(--warn)'
+      : 'background:#f3f4f6;color:var(--muted)';
+    const cur = l.status === 'current' ? ` <span class="badge" style="background:#fef2f2;color:var(--danger);font-weight:800;font-size:11px">今回</span>` : '';
+    return `<span class="badge" style="${st};font-weight:700;font-size:11px">${tmEsc(l.state || '—')}</span>${cur}`;
+  };
+  const rowsHtml = launches.slice().reverse().map(l => `<tr${l.status==='current'?' style="background:#fffdf7"':''}>
+      <td style="font-weight:700;color:var(--ink);white-space:nowrap">${tmEsc(l.date)}</td>
+      <td style="white-space:nowrap">${badge(l)}</td>
+      <td>${tmEsc(l.mg) || '<span class="faint">—</span>'}</td>
+      <td class="num" style="text-align:right">${numTxt(l.target)}</td>
+      <td class="num" style="text-align:right">${numTxt(l.inflow)}</td>
+      <td class="num" style="text-align:right">${numTxt(l.apply)}</td>
+      <td class="num" style="text-align:right">${pctTxt(l.applyRate, false)}</td>
+      <td class="num" style="text-align:right">${pctTxt(l.achieveRate, true)}</td>
+    </tr>`).join('');
   return `
     <div class="stack" style="gap:16px">
       <div class="dm-stats" style="grid-template-columns:repeat(3,1fr);margin:0">
-        <div class="dm-stat"><div class="v">${past.length}</div><div class="l">過去ローンチ</div></div>
-        <div class="dm-stat"><div class="v" style="color:var(--danger)">${current.length}</div><div class="l">今回</div></div>
-        <div class="dm-stat"><div class="v" style="color:var(--info)">${future.length}</div><div class="l">今後の予定</div></div>
+        <div class="dm-stat"><div class="v">${done.length}</div><div class="l">実施済み</div></div>
+        <div class="dm-stat"><div class="v" style="color:var(--warn)">${missing.length}</div><div class="l">結果未入力</div></div>
+        <div class="dm-stat"><div class="v" style="color:var(--info)">${planned.length}</div><div class="l">今後の予定</div></div>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
         <div class="card-head" style="padding:14px 18px;border-bottom:1px solid var(--line);margin:0">
           <div class="card-title" style="font-size:14px"><svg class="ic"><use href="#i-calendar"/></svg> ローンチ履歴</div>
-          <span class="card-meta">合計 ${launches.length} 件 / 目標累計 ${totalTarget.toLocaleString()} 名</span>
+          <span class="card-meta">合計 ${launches.length} 件 / 申込累計 ${totalApply.toLocaleString()} 名</span>
         </div>
+        <div style="overflow-x:auto">
         <table class="tbl" style="width:100%">
           <thead><tr>
-            <th>日付</th><th>状態</th><th style="text-align:right">目標</th><th style="text-align:right">実績</th><th style="text-align:right">達成率</th>
+            <th>ローンチ日</th><th>状態</th><th>講師MG</th><th style="text-align:right">目標</th><th style="text-align:right">LINE流入</th><th style="text-align:right">申込</th><th style="text-align:right">申込率</th><th style="text-align:right">達成率</th>
           </tr></thead>
-          <tbody>${rowsHtml(launches, '', '')}</tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>
+        </div>
       </div>
       <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.6">
-        目標: 講師DB「講師ローンチスケジュール」シートの予定申込数<br>
-        実績: 現時点で連携未実装（0件表示）
+        出典: 講師DB「ローンチ明細」<br>
+        申込率 = 申込 ÷ LINE流入、達成率 = 申込 ÷ 目標
       </div>
     </div>`;
 }
