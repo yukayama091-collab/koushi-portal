@@ -425,6 +425,21 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .fchip.danger.active{ background:var(--brand); border-color:var(--brand); }
 .select-min{ height:38px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 12px; font:inherit; font-size:13px; color:var(--ink); }
 #page-launchList .lp-input, #page-launchPlan .lp-input, .lp-box .lp-input{ height:34px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 10px; font:inherit; font-size:13px; color:var(--ink); }
+.rv-layout{ display:grid; grid-template-columns:230px 1fr; gap:20px; align-items:start; }
+.rv-list{ display:flex; flex-direction:column; gap:4px; position:sticky; top:0; }
+.rv-item{ display:flex; flex-direction:column; gap:3px; text-align:left; padding:8px 10px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; font:inherit; font-size:12.5px; color:var(--ink); cursor:pointer; }
+.rv-item:hover{ background:var(--soft); }
+.rv-item.active{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+.rv-item.off{ color:var(--faint); }
+.rv-item .badge{ align-self:flex-start; }
+.rv-text{ white-space:pre-wrap; word-break:break-word; background:var(--soft); border-radius:var(--r-input); padding:14px 16px; font-size:13.5px; line-height:1.75; }
+.rv-shots{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.rv-shots figure{ margin:0; }
+.rv-shots img{ width:100%; border:1px solid var(--line); border-radius:var(--r-input); background:var(--soft); display:block; }
+.rv-shots figcaption{ font-size:12px; font-weight:700; color:var(--muted); margin-bottom:6px; }
+.rv-form textarea{ width:100%; box-sizing:border-box; min-height:96px; border:1px solid var(--line); border-radius:var(--r-input); padding:10px 12px; font:inherit; font-size:13.5px; resize:vertical; }
+.rv-form textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+@media (max-width:760px){ .rv-layout{ grid-template-columns:1fr; } .rv-list{ position:static; flex-direction:row; overflow-x:auto; padding-bottom:4px; } .rv-item{ flex:0 0 150px; } .rv-shots{ grid-template-columns:1fr; } }
 .lp-input:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
 .lp-form{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .lp-form .lp-reason{ flex:1 1 220px; min-width:180px; }
@@ -782,6 +797,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="search" onclick="go('search')" title="生徒の検索・管理"><svg class="ic"><use href="#i-search"/></svg> 生徒管理</button>
     <button class="nav" data-page="classes" onclick="go('classes')" title="開始月別のクラス集計"><svg class="ic"><use href="#i-book"/></svg> クラス一覧</button>
     <button class="nav" data-page="progress" onclick="go('progress')" title="状況別の生徒詳細"><svg class="ic"><use href="#i-trending"/></svg> 進捗キャッチアップ</button>
+    <button class="nav" data-page="reviews" onclick="go('reviews')" title="生徒の提出物を確認して合格／要修正を付ける" style="display:none"><svg class="ic"><use href="#i-check"/></svg> 提出物の確認</button>
     <button class="nav" data-page="launchPlan" onclick="go('launchPlan')" title="次回ローンチの予定と判断（講師MG専用）" style="display:none"><svg class="ic"><use href="#i-calendar"/></svg> 今回のローンチ</button>
     <button class="nav" data-page="launchList" onclick="go('launchList')" title="全講師のローンチを日付順に一覧" style="display:none"><svg class="ic"><use href="#i-calendar"/></svg> ローンチ一覧</button>
     <div class="nav-pop-wrap">
@@ -831,6 +847,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-roadmap" class="page"></div>
       <div id="page-launchPlan" class="page"></div>
       <div id="page-launchList" class="page"></div>
+      <div id="page-reviews" class="page"></div>
       <div id="page-help" class="page"></div>
       <div id="page-guide" class="page"></div>
     </div>
@@ -900,6 +917,20 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <button class="btn btn-ghost" onclick="closeModal('snsClubEventsModal')">閉じる</button>
       <a class="btn btn-primary" href="https://calendar.google.com/calendar/u/0/r/month" target="_blank" rel="noopener">Googleカレンダーで開く</a>
     </div>
+  </div>
+</div>
+
+<!-- SnsClub 提出物の確認 -->
+<div class="overlay" id="reviewModal" onclick="if(event.target===this)closeModal('reviewModal')">
+  <div class="modal wide" style="max-width:min(1040px,95vw)">
+    <div class="modal-head">
+      <div>
+        <div class="modal-eyebrow" id="rvEyebrow">提出物の確認</div>
+        <div class="modal-title" id="rvTitle">読み込み中…</div>
+      </div>
+      <button class="modal-x" onclick="closeModal('reviewModal')"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="modal-body" id="rvBody" style="max-height:74vh"></div>
   </div>
 </div>
 
@@ -2369,7 +2400,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, launchPlan:renderLaunchPlan, launchList:renderLaunchList, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, launchPlan:renderLaunchPlan, launchList:renderLaunchList, reviews:renderReviews, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
   (renderers[page] || (()=>{}))();
   if (movedToOtherPage) window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -7030,6 +7061,8 @@ function applyRoleUi() {
   setNav('launchPlan', roleKnown && isLectMg);
   // ローンチ一覧は講師マスタを見られる人（範囲は受付窓口が担当講師ぶんに絞る）
   setNav('launchList', canTeacherMaster);
+  // 提出物の確認はログインした人なら開ける（見える生徒と判定できるかは受付窓口が決める）
+  setNav('reviews', roleKnown && u.role !== 'demo');
   // ヘッダーにロールバッジ (クリックで権限説明)
   let badge = document.getElementById('userRoleBadge');
   if (!badge) {
@@ -8566,6 +8599,194 @@ async function renderLaunchList(force) {
     <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.6;margin-top:12px">
       出典: 講師DB「ローンチ明細」。件数に「中止」は含めません。
     </div>`;
+}
+
+// ══════════ 提出物の確認（SnsClubアプリ連携） ══════════
+// 生徒がアプリで提出したワークシート／突破ミッションを見て、合格／要修正をアプリへ送る。
+// 鍵は受付窓口(SnsclubReview.gs)が持ち、署名して中継する。見える生徒と判定できるかも受付窓口が決める
+// （講師は自分の生徒、講師MGは受け持ち講師の生徒。管理者・サポートMGは見るだけ）。
+const RV = { data: null, cur: null, sel: '' };
+const RV_STATUS = {
+  NOT_SUBMITTED:      { label: '未提出', css: 'background:#f3f4f6;color:var(--faint)' },
+  AWAITING_REVIEW:    { label: '確認待ち', css: 'background:#fffbeb;color:var(--warn)' },
+  REVISION_REQUESTED: { label: '要修正', css: 'background:#fef2f2;color:var(--danger)' },
+  PASSED:             { label: '合格', css: 'background:#ecfdf5;color:var(--ok)' }
+};
+const rvKey = t => !t ? '' : t.type === 'WORKSHEET' ? 'WORKSHEET:' + t.step_content_id : 'ISLAND_BOSS:' + t.island_id;
+const rvPts = t => t && t.type === 'ISLAND_BOSS' ? 150 : 15;
+const rvBadge = st => { const s = RV_STATUS[st] || { label: st || '—', css: 'background:#f3f4f6;color:var(--muted)' };
+  return `<span class="badge" style="${s.css};font-weight:700;font-size:11px;white-space:nowrap">${s.label}</span>`; };
+function rvTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso); if (isNaN(d)) return tmEsc(iso);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+const RV_ERR = {
+  not_configured: 'SnsClubアプリとの接続設定がまだです。管理者に連絡してください',
+  forbidden: '担当外の生徒です',
+  STUDENT_NOT_FOUND: 'この生徒はまだSnsClubアプリに登録されていません。翌日以降にもう一度試してください',
+  SUBMISSION_NOT_FOUND: 'この提出物はまだ提出されていません',
+  REVIEW_TARGET_NOT_ALLOWED: 'この提出物は判定の対象外です',
+  UNAUTHORIZED: 'SnsClubアプリとの接続で認証に失敗しました。管理者に連絡してください',
+  RATE_LIMITED: '短時間に操作が集中しています。少し待ってからもう一度試してください',
+  note_too_long: 'コメントは500字以内にしてください',
+  no_reviewer_id: 'ログイン中のアカウントに講師IDが登録されていないため判定を送れません。管理者に連絡してください'
+};
+const rvErrText = d => RV_ERR[d && d.error] || (d && (d.message || d.error)) || '不明なエラー';
+async function rvPost(action, payload) {
+  const url = `${gasEndpoint()}?token=${encodeURIComponent(CFG.token)}&action=${action}`;
+  return gasPostIdempotent(url, withActor(payload || {}));
+}
+
+async function renderReviews(force) {
+  const page = document.getElementById('page-reviews');
+  if (!page) return;
+  const head = `<div class="page-head"><div><div class="page-title">提出物の確認</div>
+    <div class="page-sub">生徒がSnsClubアプリで提出したワークシートと突破ミッションを確認し、「合格」か「要修正」を付けます。結果とコメントはすぐ生徒の画面に出ます。</div></div></div>`;
+  if (!CFG.webAppUrl || !CFG.token) { page.innerHTML = head + '<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">ログインしてください</div>'; return; }
+  if (!RV.data || force) {
+    page.innerHTML = head + '<div class="loading" style="padding:40px;text-align:center;color:var(--muted)">読み込み中…</div>';
+    try {
+      const d = await rvPost('snsclub_pending');
+      if (!d || !d.ok) throw new Error(rvErrText(d));
+      RV.data = d;
+    } catch (e) { page.innerHTML = head + `<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">読み込めませんでした: ${tmEsc(humanizeError(e))}</div>`; return; }
+    if (state.page !== 'reviews') return;
+  }
+  const d = RV.data;
+  const isInst = (window.CURRENT_USER || {}).role === 'instructor';
+  // 講師MG・管理者はヘッダーで講師を選ぶとその講師の生徒だけにする
+  const items = (d.items || []).filter(it => isInst || !CURRENT_TEACHER || it.tid === CURRENT_TEACHER);
+  const tName = tid => { const t = (typeof TM_DATA !== 'undefined' && TM_DATA) ? TM_DATA.find(x => x.id === tid) : null; return t ? t.name : ''; };
+  const rows = items.map(it => `<tr>
+      <td class="num" style="white-space:nowrap">${rvTime(it.submitted_at)}</td>
+      <td><a href="javascript:void(0)" onclick="rvOpen('${tmEsc(it.student_id)}','${tmEsc(rvKey(it.target))}')" style="font-weight:700;color:var(--ink)">${tmEsc(it.name || '（名前未登録）')}</a>
+        <div class="faint" style="font-size:11px">${tmEsc(it.student_id)}</div></td>
+      ${isInst ? '' : `<td>${tmEsc(tName(it.tid) || it.cls || '')}<div class="faint" style="font-size:11px">${tmEsc(it.tid || '講師不明')}</div></td>`}
+      <td>${tmEsc(it.title)}</td>
+      <td class="num" style="text-align:right">${it.version != null ? it.version + ' 回目' : '—'}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn ${it.canJudge ? 'btn-primary' : 'btn-ghost'} btn-sm" type="button" onclick="rvOpen('${tmEsc(it.student_id)}','${tmEsc(rvKey(it.target))}')">${it.canJudge ? '確認する' : '見る'}</button></td>
+    </tr>`).join('');
+  const viewOnly = !d.canJudgeRole ? `<div class="card card-pad" style="margin-bottom:16px;font-size:12.5px;color:var(--muted)">このアカウントでは提出物を見ることはできますが、合格／要修正は付けられません。付けられるのは担当講師と、その講師を受け持つ講師MGです。</div>` : '';
+  const queued = d.queued ? `<div class="card card-pad" style="margin-bottom:16px;font-size:12.5px;color:var(--warn)">SnsClubアプリに届かなかった判定が ${d.queued} 件あります。自動で再送しています。</div>` : '';
+  page.innerHTML = head + viewOnly + queued + `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <div style="font-size:13px;color:var(--muted)">確認待ち <b style="font-size:18px;color:var(--ink)">${items.length}</b> 件（提出が古い順）</div>
+      <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto" onclick="renderReviews(true)">最新にする</button>
+    </div>
+    ${items.length ? `<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="tbl" style="width:100%">
+      <thead><tr><th>提出日時</th><th>生徒</th>${isInst ? '' : '<th>講師</th>'}<th>提出物</th><th style="text-align:right">提出</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div></div>`
+      : '<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">確認待ちの提出物はありません</div>'}
+    <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.6;margin-top:12px">出典: SnsClubアプリ。生徒が要修正のあと提出し直すと、もう一度ここに並びます。</div>`;
+}
+
+// 1人の生徒の提出物（対象10件）を開く。画像のURLは300秒で切れるので開くたびに取り直す
+async function rvOpen(mid, sel) {
+  RV.sel = sel || '';
+  document.getElementById('rvEyebrow').textContent = '提出物の確認';
+  document.getElementById('rvTitle').textContent = '読み込み中…';
+  document.getElementById('rvBody').innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted)">読み込み中…</div>';
+  openModal('reviewModal');
+  try {
+    const d = await rvPost('snsclub_submissions', { student_id: mid });
+    if (!d || !d.ok) throw new Error(rvErrText(d));
+    RV.cur = d;
+    if (!RV.sel) { const w = (d.submissions || []).find(s => s.status === 'AWAITING_REVIEW'); RV.sel = w ? rvKey(w.target) : rvKey((d.submissions[0] || {}).target); }
+    rvRenderModal();
+  } catch (e) {
+    document.getElementById('rvTitle').textContent = '読み込めませんでした';
+    document.getElementById('rvBody').innerHTML = `<div style="padding:30px;text-align:center;color:var(--muted)">${tmEsc(humanizeError(e))}</div>`;
+  }
+}
+function rvSelect(k) { RV.sel = k; rvRenderModal(); }
+function rvRenderModal() {
+  const d = RV.cur; if (!d) return;
+  document.getElementById('rvEyebrow').textContent = `${d.student_id}${d.cls ? '　' + d.cls : ''}`;
+  document.getElementById('rvTitle').textContent = d.name || d.student_id;
+  const subs = d.submissions || [];
+  const s = subs.find(x => rvKey(x.target) === RV.sel) || subs[0];
+  const list = subs.map(x => `<button type="button" class="rv-item${rvKey(x.target) === rvKey(s.target) ? ' active' : ''}${x.status === 'NOT_SUBMITTED' ? ' off' : ''}" onclick="rvSelect('${tmEsc(rvKey(x.target))}')">
+      <span style="font-weight:700;line-height:1.4">${tmEsc(x.title)}</span>${rvBadge(x.status)}</button>`).join('');
+  let content = '';
+  const c = s.content;
+  if (!c) content = '<div class="rv-text" style="color:var(--faint)">まだ提出されていません</div>';
+  else if (c.kind === 'SCREENSHOTS') {
+    const img = (v, cap) => { const u = v && (v.url || (typeof v === 'string' ? v : '')); return `<figure><figcaption>${cap}</figcaption>${u
+      ? `<img src="${tmEsc(u)}" alt="${cap}" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'rv-text',textContent:'画像を表示できません。表示期限（5分）が切れた場合は「取り直す」を押してください'}))">`
+      : '<div class="rv-text" style="color:var(--faint)">画像なし</div>'}</figure>`; };
+    content = `<div class="rv-shots">${img(c.before, '見直し前')}${img(c.after, '見直し後')}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--muted);margin:14px 0 6px">生徒の改善メモ</div>
+      <div class="rv-text">${tmEsc(c.improvement_note || '') || '<span style="color:var(--faint)">記入なし</span>'}</div>`;
+  } else {
+    content = `<div class="rv-text">${tmEsc(c.text || '') || '<span style="color:var(--faint)">記入なし</span>'}</div>`;
+  }
+  const rv = s.review || {};
+  const last = rv.result ? `<div class="card card-pad" style="margin-top:14px;font-size:12.5px">
+      <div style="display:flex;gap:8px;align-items:center">${rvBadge(rv.result)}<span class="faint">${rvTime(rv.reviewed_at)} に判定</span></div>
+      ${rv.note ? `<div style="margin-top:8px;white-space:pre-wrap;line-height:1.7">${tmEsc(rv.note)}</div>` : ''}</div>` : '';
+  const submitted = s.status !== 'NOT_SUBMITTED';
+  let form = '';
+  if (submitted && d.canJudge) {
+    const again = s.status !== 'AWAITING_REVIEW';
+    form = `<div class="rv-form" style="margin-top:18px;border-top:1px solid var(--line2);padding-top:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">${again ? '判定を変更する' : '判定する'}</div>
+      ${again ? '<div style="font-size:12px;color:var(--muted);margin-bottom:8px">すでに判定済みです。変更すると、生徒の画面も新しい判定に置き換わります。</div>' : ''}
+      <textarea id="rvNote" maxlength="500" placeholder="生徒へのコメント（任意・500字以内）。どちらの判定でも、生徒の画面にそのまま表示されます" oninput="document.getElementById('rvNoteN').textContent=this.value.length"></textarea>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <span class="faint" style="font-size:11.5px"><span id="rvNoteN">0</span> / 500</span>
+        <button class="btn btn-ghost" type="button" style="margin-left:auto" onclick="rvSend('REVISION_REQUESTED', this)">要修正にする</button>
+        <button class="btn btn-primary" type="button" onclick="rvSend('PASSED', this)">合格にする</button>
+      </div></div>`;
+  } else if (submitted) {
+    form = '<div style="margin-top:16px;font-size:12px;color:var(--muted)">合格／要修正を付けられるのは、担当講師とその講師を受け持つ講師MGだけです。</div>';
+  }
+  document.getElementById('rvBody').innerHTML = `<div class="rv-layout">
+    <div class="rv-list">${list}</div>
+    <div style="min-width:0">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+        <div style="font-size:16px;font-weight:800">${tmEsc(s.title)}</div>${rvBadge(s.status)}
+        <span class="faint" style="font-size:12px">${submitted ? `${rvTime(s.submitted_at)} 提出（${s.version} 回目）` : ''}　合格で ${rvPts(s.target)}pt</span>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto" onclick="rvOpen('${tmEsc(d.student_id)}','${tmEsc(rvKey(s.target))}')">取り直す</button>
+      </div>
+      ${content}${last}${form}
+    </div></div>`;
+}
+
+async function rvSend(result, btn) {
+  const d = RV.cur; if (!d) return;
+  const s = (d.submissions || []).find(x => rvKey(x.target) === RV.sel); if (!s) return;
+  const note = (document.getElementById('rvNote') || {}).value || '';
+  if (note.trim().length > 500) { await iosAlert('コメントは500字以内にしてください'); return; }
+  const label = result === 'PASSED' ? '合格' : '要修正';
+  const ok = await iosConfirm(`${d.name || d.student_id} さんの「${s.title}」を「${label}」にします。\n結果${note.trim() ? 'とコメント' : ''}はすぐ生徒の画面に出ます。`, { okText: label + 'にする', cancelText: '戻る' });
+  if (!ok) return;
+  const btns = document.querySelectorAll('#rvBody .rv-form button');
+  btns.forEach(b => b.disabled = true);
+  const old = btn.innerHTML; btn.innerHTML = '送信中…';
+  try {
+    const r = await rvPost('snsclub_review', { student_id: d.student_id, target: s.target, result, note: note.trim(), submission_version: s.version });
+    if (r && r.ok) {
+      showSnackbar(r.queued ? 'SnsClubアプリに今は届かないため、自動で再送します'
+        : r.ignored ? 'もっと新しい判定がすでに届いているため、この判定は使われませんでした'
+        : result === 'PASSED' ? `合格を送りました（${r.points_awarded != null ? r.points_awarded : rvPts(s.target)}pt）` : '要修正を送りました', 3000);
+      RV.data = null;
+      if (state.page === 'reviews') renderReviews();
+      rvOpen(d.student_id, RV.sel);
+      return;
+    }
+    if (r && r.error === 'SUBMISSION_VERSION_MISMATCH') {
+      await iosAlert('確認しているあいだに、生徒が提出し直しました。最新の内容を表示し直すので、もう一度確認してください。');
+      rvOpen(d.student_id, RV.sel);
+      return;
+    }
+    await iosAlert('送れませんでした\n' + rvErrText(r));
+  } catch (e) {
+    await iosAlert('送れませんでした\n' + humanizeError(e));
+  }
+  btns.forEach(b => b.disabled = false);
+  btn.innerHTML = old;
 }
 
 // ══════════ ローンチ明細の編集（講師MG専用） ══════════
