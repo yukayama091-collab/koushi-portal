@@ -424,7 +424,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
 .fchip.active .n{ opacity:.85; }
 .fchip.danger.active{ background:var(--brand); border-color:var(--brand); }
 .select-min{ height:38px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 12px; font:inherit; font-size:13px; color:var(--ink); }
-#page-launchList .lp-input, #page-launchPlan .lp-input, .lp-box .lp-input{ height:34px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 10px; font:inherit; font-size:13px; color:var(--ink); }
+#page-launchList .lp-input, #page-launchPlan .lp-input, #page-launchStats .lp-input, .lp-box .lp-input{ height:34px; border:1px solid var(--line); border-radius:var(--r-input); background:#fff; padding:0 10px; font:inherit; font-size:13px; color:var(--ink); }
 .lp-input:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
 .lp-form{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .lp-form .lp-reason{ flex:1 1 220px; min-width:180px; }
@@ -784,6 +784,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
     <button class="nav" data-page="progress" onclick="go('progress')" title="状況別の生徒詳細"><svg class="ic"><use href="#i-trending"/></svg> 進捗キャッチアップ</button>
     <button class="nav" data-page="launchPlan" onclick="go('launchPlan')" title="次回ローンチの予定と判断（講師MG専用）" style="display:none"><svg class="ic"><use href="#i-calendar"/></svg> 今回のローンチ</button>
     <button class="nav" data-page="launchList" onclick="go('launchList')" title="全講師のローンチを日付順に一覧" style="display:none"><svg class="ic"><use href="#i-calendar"/></svg> ローンチ一覧</button>
+    <button class="nav" data-page="launchStats" onclick="go('launchStats')" title="入社からのローンチ実施間隔（講師MG専用）" style="display:none"><svg class="ic"><use href="#i-calendar"/></svg> ローンチ実績</button>
     <div class="nav-pop-wrap">
       <button class="nav" type="button" title="SnsClubサービス">
         <svg class="ic"><use href="#i-layers"/></svg> SnsClubサービス
@@ -831,6 +832,7 @@ table.tbl{ width:100%; border-collapse:collapse; }
       <div id="page-roadmap" class="page"></div>
       <div id="page-launchPlan" class="page"></div>
       <div id="page-launchList" class="page"></div>
+      <div id="page-launchStats" class="page"></div>
       <div id="page-help" class="page"></div>
       <div id="page-guide" class="page"></div>
     </div>
@@ -2369,7 +2371,7 @@ function go(page) {
   state.page = page;
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-'+page));
   $$('.nav').forEach(n => n.classList.toggle('active', n.dataset.page === page));
-  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, launchPlan:renderLaunchPlan, launchList:renderLaunchList, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
+  const renderers = { dashboard:renderDashboard, todo:renderTodo, search:renderSearch, classes:renderClasses, progress:renderProgress, timeline:renderTimeline, teacherMaster:renderTeacherMaster, roadmap:renderRoadmap, launchPlan:renderLaunchPlan, launchList:renderLaunchList, launchStats:renderLaunchStats, history:renderHistory, users:renderUsers, help:renderHelp, guide:renderGuide };
   (renderers[page] || (()=>{}))();
   if (movedToOtherPage) window.scrollTo({top:0});
   if (window.innerWidth <= 860) closeSidebar();
@@ -2991,6 +2993,7 @@ function renderDashboard(){
           <div style="min-width:0;flex:1">
             <div style="font-size:15px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${label}</div>
             <div class="faint" style="font-size:11.5px;font-weight:600;margin-top:2px">講師ID ${tid}</div>
+            ${tm.expert ? '<div style="margin-top:5px"><span class="badge badge-ok" style="font-weight:800;font-size:11px">エキスパート講師</span></div>' : ''}
           </div>
         </div>
         <div style="border-top:1px solid var(--line2);padding-top:10px;display:flex;flex-direction:column;gap:8px">
@@ -4897,9 +4900,32 @@ async function copyIssuedTokenUrl(btnEl) {
 }
 
 /* ═════════════ GUIDE (使い方ガイド) ═════════════ */
+// 2026-10-13: 権限ごとに出し分ける。
+//   見えない画面の手順を読ませても迷わせるだけなので、
+//   その人が実際に開けるページだけを並べる。
+//   どの画面が誰に見えるかは applyRoleUi() が唯一の出どころ。ここを直すときは必ず両方見る。
+const GUIDE_ROLE_LABEL = {
+  admin:       ['管理者',      '全機能とユーザー管理が使えます。データは全講師ぶんが見えます。'],
+  sub_admin:   ['サブ管理者',  'ユーザー管理以外の全機能が使えます。データは全講師ぶんが見えます。'],
+  lecturer_mg: ['講師MG',      '担当講師ぶんのデータが見えます。「今回のローンチ」「ローンチ実績」は講師MGだけの画面です。'],
+  support_mg:  ['サポMG',      '担当講師ぶんのデータが見えます。'],
+  instructor:  ['講師',        'あなた自身のクラスと生徒だけが見えます。'],
+};
+
 function renderGuide(){
   const u = window.CURRENT_USER || {};
-  const isAdminLike = ['admin','sub_admin','lecturer_mg','support_mg','manager'].indexOf(u.role) >= 0;
+  // manager は講師MGの旧称
+  const role = u.role === 'manager' ? 'lecturer_mg' : (u.role || 'unknown');
+  const isInstructor = role === 'instructor';
+  const isLectMg = role === 'lecturer_mg';
+  const isSupMg = role === 'support_mg';
+  const isAdmin = role === 'admin';
+  const isSubAdmin = role === 'sub_admin';
+  // 判定できないときは講師と同じ範囲にしておく（見せすぎない側に倒す）
+  const known = !!GUIDE_ROLE_LABEL[role];
+  const seesTeacherMaster = known && !isInstructor;
+  const seesUsers = isAdmin || isLectMg || isSupMg;
+
   const sec = (num, title, imgFile, stepsHtml, note) => `
     <div class="card card-pad" id="guide-sec-${num}" style="scroll-margin-top:80px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
@@ -4916,105 +4942,165 @@ function renderGuide(){
       </div>
     </div>`;
 
-  const tocItems = [
-    [1,'ログイン'],[2,'画面の基本構成'],[3,'ダッシュボード'],[4,'やること'],[5,'生徒管理（検索）'],
-    [6,'クラス一覧'],[7,'進捗キャッチアップ'],[8,'講師マスタ'],[9,'講師の詳細・編集'],[10,'生徒の詳細・個別メモ'],
-    ...(isAdminLike ? [[11,'ユーザー管理（管理者のみ）']] : []),
-    [12,'困ったときは']
-  ];
+  // 見える範囲の説明。同じ画面でも人によって書くことが変わるので文を分ける。
+  const scopeLine = isInstructor
+    ? '<li><b>講師フィルター</b>: あなた自身に固定されています（変更できません）。</li>'
+    : (isLectMg || isSupMg)
+      ? '<li><b>講師フィルター</b>（検索窓の右）: 担当講師の中から選べます。空欄にすると担当講師ぜんぶが対象になります。</li>'
+      : '<li><b>講師フィルター</b>（検索窓の右）: 講師名を選ぶと、全ページがその講師のデータに絞られます。空欄にすると全校表示に戻ります。</li>';
 
-  $('#page-guide').innerHTML = `
-    <div class="page-head">
-      <div><div class="page-title">使い方ガイド</div><div class="page-sub">初めての方向け ／ 各画面の操作手順</div></div>
-    </div>
-    <div class="stack" style="gap:18px">
-      <div class="card card-pad">
-        <div style="font-size:14px;font-weight:800;color:var(--ink);margin-bottom:10px">目次</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px">
-          ${tocItems.map(([n,t]) => `<button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('guide-sec-${n}').scrollIntoView({behavior:'smooth'})">${n}. ${t}</button>`).join('')}
-        </div>
-        <div style="font-size:11.5px;color:var(--faint);margin-top:12px">画像はクリックで拡大できます（画像内の名前などは保護のためぼかしています）</div>
-      </div>
-
-      ${sec(1, 'ログイン', '01_login.png', `
+  // 節の定義。roles に挙げた権限にだけ出す。番号は出す順に振り直す。
+  const defs = [
+    { roles: 'all', title: 'ログイン', img: '01_login.png',
+      steps: `
         <li>管理者から共有された<b>ログインID</b>と<b>パスワード</b>を入力して「ログイン」を押します。</li>
         <li>共有URL（アイパス付きリンク）を受け取った場合は、そのURLを開くだけで自動ログインされます。</li>
         <li>一度ログインすると、同じブラウザでは次回から自動でログイン状態になります。</li>`,
-        'アイパスが分からない場合は管理者（マスター管理者）に確認してください。')}
+      note: 'アイパスが分からない場合は管理者（マスター管理者）に確認してください。' },
 
-      ${sec(2, '画面の基本構成', '02_dashboard.png', `
-        <li><b>左サイドバー</b>: ページの切り替え（ダッシュボード／やること／生徒管理 など）。</li>
-        <li><b>上部の検索窓</b>: 生徒名・クラス・講師ID・講師名でどのページからでも検索できます。</li>
-        <li><b>講師フィルター</b>（検索窓の右）: 講師名を選ぶと、全ページがその講師のデータに絞られます。空欄にすると全校表示に戻ります。</li>
+    { roles: 'all', title: '画面の基本構成', img: '02_dashboard.png',
+      steps: `
+        <li><b>左サイドバー</b>: ページの切り替え。あなたの権限で使える画面だけが並びます。</li>
+        <li><b>上部の検索窓</b>: 生徒名・クラス${seesTeacherMaster ? '・講師ID・講師名' : ''}で、どのページからでも検索できます。</li>
+        ${scopeLine}
         <li><b>更新ボタン</b>（右上）: 最新データを取り直します。10分以上経つと赤く点滅してお知らせします。</li>
-        <li><b>歯車アイコン</b>: 接続設定（受付窓口URL・合言葉）を変更できます。通常は触る必要はありません。</li>`)}
+        <li>ヘッダー右の<b>権限バッジ</b>をクリックすると、あなたにできることの一覧が出ます。</li>` },
 
-      ${sec(3, 'ダッシュボード', '02_dashboard.png', `
+    { roles: 'all', title: 'ダッシュボード', img: '02_dashboard.png',
+      steps: `
         <li>上段の<b>KPIカード</b>（在学中のクラス／50日達成率／卒業済み／要フォロー）はクリックすると該当の一覧に移動します。</li>
         <li><b>要対応（今日のフォロー）</b>: 停滞・つまずき中の生徒が経過日数順に表示されます。行をクリックで生徒詳細が開きます。</li>
         <li><b>直近3日間の講義</b>: 本日から3日間の講義予定。クリックでクラス詳細が開きます。</li>
         <li><b>プログラム達成状況</b>: 生徒のステータス別の分布をドーナツチャートで表示します。</li>
-        <li>講師を選択している場合は、その講師の<b>ローンチスケジュール</b>（過去／今回／予定）も表示されます。</li>`)}
+        ${(isLectMg || isSupMg) ? `<li><b>担当講師</b>のカードが並びます。カードを押すと、その講師にデータを絞れます。要対応の人数が赤いバッジで出ます。</li>
+        <li>担当講師が<b>エキスパート講師</b>の場合は、講師IDの下にその印が出ます。</li>` : ''}
+        ${isInstructor ? '' : '<li>講師を選択している場合は、その講師の<b>ローンチスケジュール</b>（過去／今回／予定）も表示されます。</li>'}` },
 
-      ${sec(4, 'やること', '03_todo.png', `
+    { roles: 'all', title: 'やること', img: '03_todo.png',
+      steps: `
         <li>対応が必要な生徒が<b>優先度順</b>（停滞中 → つまずき → 未開始）に並びます。現役生だけが対象で、卒業生は出ません。</li>
         <li>上部のセレクトで<b>クラス・講師で絞り込み</b>ができます。</li>
-        <li>カードをクリックすると生徒詳細が開き、状況を確認できます。</li>`)}
+        <li>カードをクリックすると生徒詳細が開き、状況を確認できます。</li>` },
 
-      ${sec(5, '生徒管理（検索）', '04_search.png', `
-        <li>検索窓に<b>生徒名・クラス名・講師ID・講師名</b>のいずれかを入力すると即座に絞り込まれます。</li>
-        <li>講師IDは「0086」でも「86」でもヒットします。</li>
+    { roles: 'all', title: '生徒管理（検索）', img: '04_search.png',
+      steps: `
+        <li>検索窓に<b>生徒名・クラス名${seesTeacherMaster ? '・講師ID・講師名' : ''}</b>のいずれかを入力すると即座に絞り込まれます。</li>
+        ${seesTeacherMaster ? '<li>講師IDは「0086」でも「86」でもヒットします。</li>' : ''}
         <li>検索結果は<b>クラスごとにグルーピング</b>され、停滞・つまずき・卒業済みの件数バッジが付きます。</li>
-        <li>講師IDや講師名で検索した場合、結果の上部に<b>講師ヒットカード</b>が表示され、クリックで講師マスタに移動できます。</li>
-        <li>生徒の行をクリックすると詳細（進捗・出欠・ガントチャート）が開きます。</li>`)}
+        ${seesTeacherMaster ? '<li>講師IDや講師名で検索した場合、結果の上部に<b>講師ヒットカード</b>が表示され、クリックで講師マスタに移動できます。</li>' : ''}
+        <li>生徒の行をクリックすると詳細（進捗・出欠・ガントチャート）が開きます。</li>` },
 
-      ${sec(6, 'クラス一覧', '05_classes.png', `
+    { roles: 'all', title: 'クラス一覧', img: '05_classes.png',
+      steps: `
         <li>クラスが<b>開始月別</b>に一覧表示されます。並び順は「月別／クラス名／講師名」で切替できます。</li>
         <li>クラスをクリックすると、講義の実施状況（第1〜12回）と生徒の出欠一覧が開きます。</li>
         <li>クラス詳細では講義日の入力・出欠の変更ができ、その場で生徒管理シートに保存されます。</li>
-        <li>生徒管理シートが未作成の講師には「作成」ボタンが表示され、ワンクリックでシートを自動作成できます。</li>`)}
+        ${isInstructor ? '' : '<li>生徒管理シートが未作成の講師には「作成」ボタンが表示され、ワンクリックでシートを自動作成できます。</li>'}` },
 
-      ${sec(7, '進捗キャッチアップ', '06_progress.png', `
+    { roles: 'all', title: '進捗キャッチアップ', img: '06_progress.png',
+      steps: `
         <li>生徒を<b>ステータス別</b>（停滞中／つまずき／在学中／50日達成 など）にカードで一覧できます。</li>
         <li>フォローの優先順位づけや、状況の全体把握に使います。</li>
-        <li>カードをクリックすると生徒詳細が開きます。</li>`)}
+        <li>カードをクリックすると生徒詳細が開きます。</li>` },
 
-      ${sec(8, '講師マスタ', '07_teacher_master.png', `
-        <li>全講師の情報（ジャンル・ランク・稼働状況・担当MGなど）を一覧・編集できます。</li>
-        <li>表示は<b>テーブル／カード</b>の2種類。右上のボタンで切替できます。</li>
-        <li>検索窓・ジャンル・ランクなどの<b>ドロップダウンで絞り込み</b>ができます。列ヘッダーのクリックでも絞り込めます。</li>
-        <li><b>CSVダウンロード／アップロード</b>で一括編集も可能です。</li>
-        <li>右上の<b>「+ 新規講師」</b>から新しい講師を登録できます（講師IDは自動採番）。</li>`)}
-
-      ${sec(9, '講師の詳細・編集', '08_teacher_drawer.png', `
-        <li>講師マスタの行をクリックすると<b>詳細画面</b>が開きます。</li>
-        <li>タブで情報を切替: <b>基本情報／契約・稼働／クラス運営／ローンチ／ローンチ履歴／担当生徒</b>。</li>
-        <li>各項目を編集して左下の<b>「保存する」</b>を押すと講師DB（スプレッドシート）に反映されます。</li>
-        <li><b>ローンチ履歴</b>タブでは過去・今回・予定のローンチと、目標・LINE流入・申込数・達成率を確認できます。</li>
-        <li><b>担当生徒</b>タブからそのまま生徒詳細に移動できます。</li>`)}
-
-      ${sec(10, '生徒の詳細・個別メモ', '09_student_detail.png', `
+    { roles: 'all', title: '生徒の詳細・個別メモ', img: '09_student_detail.png',
+      steps: `
         <li>どのページからでも生徒をクリックすると詳細が開きます。</li>
         <li>上段に<b>進捗・投稿数・完了ステップ・講義出欠</b>のサマリが表示されます。</li>
         <li><b>投稿プログラム進行（ガント）</b>で日別の進捗が確認できます。</li>
         <li>下部の<b>個別メモ</b>に自由にメモを書いて「保存」できます。メモはポータル利用者全員で共有され、最終更新者と時刻が表示されます。</li>
-        <li>「編集」ボタンから生徒情報（ステータス・卒業日など）を変更できます。</li>`)}
+        <li>「編集」ボタンから生徒情報（ステータス・卒業日など）を変更できます。</li>` },
 
-      ${isAdminLike ? sec(11, 'ユーザー管理（管理者のみ）', '10_users.png', `
-        <li>ポータルにアクセスできる<b>ユーザーの発行・管理</b>を行います（マスター管理者のみ）。</li>
+    { roles: ['admin','sub_admin','lecturer_mg','support_mg'], title: '講師マスタ', img: '07_teacher_master.png',
+      steps: `
+        <li>講師の情報（ジャンル・ランク・稼働状況・担当MG・エキスパート講師など）を一覧・編集できます。</li>
+        ${(isLectMg || isSupMg) ? '<li>ここに出るのは<b>あなたの担当講師だけ</b>です。担当が増えたら管理者に登録を依頼してください。</li>' : '<li>全講師が対象です。</li>'}
+        <li>表示は<b>テーブル／カード</b>の2種類。右上のボタンで切替できます。</li>
+        <li>検索窓・ジャンル・ランクなどの<b>ドロップダウンで絞り込み</b>ができます。列ヘッダーのクリックでも絞り込めます。</li>
+        <li><b>CSVダウンロード／アップロード</b>で一括編集も可能です。</li>
+        <li>右上の<b>「+ 新規講師」</b>から新しい講師を登録できます（講師IDは自動採番）。</li>`,
+      note: '「エキスパート講師」の追加・解除は講師DB「基本情報」T列で行います。シートを書き換えるとポータルにそのまま反映されます。' },
+
+    { roles: ['admin','sub_admin','lecturer_mg','support_mg'], title: '講師の詳細・編集', img: '08_teacher_drawer.png',
+      steps: `
+        <li>講師マスタの行をクリックすると<b>詳細画面</b>が開きます。</li>
+        <li>タブで情報を切替: <b>基本情報／契約・稼働／クラス運営／ローンチ／ローンチ履歴／担当生徒</b>。</li>
+        <li>各項目を編集して左下の<b>「保存する」</b>を押すと講師DB（スプレッドシート）に反映されます。</li>
+        <li><b>ローンチ履歴</b>タブでは過去・今回・予定のローンチと、目標・LINE流入・申込数・達成率を確認できます。</li>
+        <li><b>担当生徒</b>タブからそのまま生徒詳細に移動できます。</li>` },
+
+    { roles: ['lecturer_mg'], title: '今回のローンチ（講師MG専用）', img: '',
+      steps: `
+        <li>ローンチは4か月に1回です。前回ローンチ月の4か月後を<b>次回予定月</b>として出します。</li>
+        <li>担当講師ごとに<b>「する／しない」</b>を選び、しない場合は理由を残します。</li>
+        <li>ここで決めた内容が「ローンチ一覧」と講師カードの「ローンチ履歴」に反映されます。</li>`,
+      note: 'この画面は講師MGだけが使います。サポMG・管理者のサイドバーには出ません。' },
+
+    { roles: ['lecturer_mg'], title: 'ローンチ実績（講師MG専用）', img: '',
+      steps: `
+        <li>在籍中の講師が、<b>入社日 → 初回 → 2回目 → 3回目 …</b>とどの間隔でローンチしたかを並べます。担当外の講師も含む全講師ぶんです。</li>
+        <li>上の表で「初回→2回目」などの間隔を<b>4か月以内／5か月／6か月／7か月以上／未実施</b>に分けて数えます。</li>
+        <li>入社日は講師MGとのスレッドが作成された日です。直すときは講師DB「講師ローンチ実績」タブの入社日を書き換えます。</li>
+        <li>「CSVで保存」で講師ごとの一覧を持ち出せます。</li>`,
+      note: '数えるのは日付が過ぎた回だけです（予定・中止は数えません）。ローンチ履歴で結果を直すと、ここにも反映されます。' },
+
+    { roles: ['admin','sub_admin','lecturer_mg','support_mg'], title: 'ローンチ一覧', img: '',
+      steps: `
+        <li>${(isLectMg || isSupMg) ? '担当講師の' : '全講師の'}ローンチを<b>月ごとに日付順</b>で並べます。</li>
+        <li>講師MG・状態・講師名で絞り込めます。結果の入力は講師カードの「ローンチ履歴」から行います。</li>
+        <li><b>ランク</b>は直近ローンチの申込数から自動で判定されます。カーソルを合わせると、どの回の何件で決まったかが出ます。</li>
+        <li>件数の集計に「中止」の回は含みません。</li>`,
+      note: 'ランクの基準　S 400以上 ／ A 220〜399 ／ B 130〜219 ／ C 70〜129 ／ D 35〜69 ／ E 34以下。手入力ではなく申込数から決まるので、シートを直す必要はありません。' },
+
+    { roles: ['admin','sub_admin','lecturer_mg','support_mg'], title: '編集履歴', img: '',
+      steps: `
+        <li>ポータルから行われた編集が、日時・編集者・対象・変更前後つきで並びます。</li>
+        <li>「保存したのに戻っている」ような時に、誰がいつ何を変えたかを確認できます。</li>` },
+
+    { roles: ['admin','lecturer_mg','support_mg'], title: 'ユーザー管理', img: '10_users.png',
+      steps: `
+        <li>ポータルにアクセスできる<b>ユーザーの発行・管理</b>を行います。</li>
         <li><b>「+ 新規発行」</b>: ロール（講師／講師MG／サポートMG／サブ管理者／管理者）を選んでアカウントを作成します。講師を選ぶと表示名は自動入力されます。</li>
+        <li>講師MG・サポートMGを作るときは<b>担当講師</b>を必ず入れてください。空のままだとその人の画面には何も出ません。</li>
         <li><b>「アイパス一括発行」</b>: ログインID・パスワード未発行のユーザー全員に自動発行します。</li>
         <li>各行の<b>「アイパスコピー」</b>でログインID・パスワード・URLをまとめてコピーし、本人に共有できます。</li>
-        <li><b>「編集」</b>で表示名・ロール・ログインID・パスワード・メモを変更できます。</li>
+        <li><b>「編集」</b>で表示名・ロール・担当講師・ログインID・パスワード・メモを変更できます。</li>
         <li><b>「取消」</b>でそのユーザーのアクセスを無効化します。</li>`,
-        'ロールの違い: 管理者=全機能+ユーザー管理 ／ サブ管理者=ユーザー管理以外の全機能 ／ 講師MG・サポートMG=担当講師のみ ／ 講師=自分のデータのみ') : ''}
+      note: 'ロールの違い: 管理者=全機能+ユーザー管理 ／ サブ管理者=ユーザー管理以外 ／ 講師MG・サポMG=担当講師ぶんのデータ+ユーザー管理 ／ 講師=自分のデータのみ。講師MGには「今回のローンチ」「ローンチ実績」が加わります。' },
 
-      ${sec(12, '困ったときは', '', `
+    { roles: 'all', title: '困ったときは', img: '',
+      steps: `
         <li><b>データが古い気がする</b>: 右上の「更新」ボタンを押してください。スプレッドシートの変更が数分以内に反映されます。</li>
         <li><b>画面が真っ白・エラーが出る</b>: ブラウザで強制再読み込み（Mac: Cmd+Shift+R ／ Windows: Ctrl+Shift+R）を試してください。</li>
         <li><b>ログインできない</b>: アイパスを管理者に確認してください。無効化されている可能性もあります。</li>
-        <li><b>生徒・講師が見つからない</b>: 講師フィルターが設定されたままになっていないか確認してください（空欄で全校表示）。</li>
-        <li>その他の不明点は管理者（マスター管理者）まで連絡してください。</li>`)}
+        ${(isLectMg || isSupMg) ? '<li><b>担当している講師が出てこない</b>: 担当講師の登録が足りていない可能性があります。管理者に確認してください。</li>' : ''}
+        ${isInstructor ? '' : '<li><b>生徒・講師が見つからない</b>: 講師フィルターが設定されたままになっていないか確認してください（空欄で全表示）。</li>'}
+        <li>その他の不明点は管理者（マスター管理者）まで連絡してください。</li>` },
+  ];
+
+  const mine = defs.filter(d => d.roles === 'all'
+    ? true
+    : (known ? d.roles.indexOf(role) >= 0 : false));
+  const label = GUIDE_ROLE_LABEL[role] || ['権限を確認中', 'ログインし直すと正しいガイドが出ます。'];
+
+  $('#page-guide').innerHTML = `
+    <div class="page-head">
+      <div><div class="page-title">使い方ガイド</div><div class="page-sub">${label[0]}向け ／ あなたが使える画面の操作手順</div></div>
+    </div>
+    <div class="stack" style="gap:18px">
+      <div class="card card-pad">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+          <span class="badge badge-dark" style="font-weight:800">${label[0]}</span>
+          <span style="font-size:12.5px;color:var(--muted)">${label[1]}</span>
+        </div>
+        <div style="font-size:14px;font-weight:800;color:var(--ink);margin:14px 0 10px">目次</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${mine.map((d, i) => `<button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('guide-sec-${i+1}').scrollIntoView({behavior:'smooth'})">${i+1}. ${d.title}</button>`).join('')}
+        </div>
+        <div style="font-size:11.5px;color:var(--faint);margin-top:12px">画像はクリックで拡大できます（画像内の名前などは保護のためぼかしています）。このガイドには、あなたが開けない画面の説明は載りません。</div>
+      </div>
+
+      ${mine.map((d, i) => sec(i+1, d.title, d.img, d.steps, d.note)).join('')}
     </div>`;
 }
 
@@ -7030,6 +7116,8 @@ function applyRoleUi() {
   setNav('launchPlan', roleKnown && isLectMg);
   // ローンチ一覧は講師マスタを見られる人（範囲は受付窓口が担当講師ぶんに絞る）
   setNav('launchList', canTeacherMaster);
+  // ローンチ実績（入社からの実施間隔・全講師）は講師MGだけ
+  setNav('launchStats', roleKnown && isLectMg);
   // ヘッダーにロールバッジ (クリックで権限説明)
   let badge = document.getElementById('userRoleBadge');
   if (!badge) {
@@ -7212,9 +7300,9 @@ const TM_CHIPS = [["全員",t=>true],["稼働中",t=>t.active==="稼働中"],["�
 let tmView = 'table';
 let tmChipIdx = 0;
 let tmTableMode = 'basic';  // basic | contract | class | launch | students
-let tmFilter = { q:"", genre:"", rank:"", type:"", mg:"", sup:"", active:"", extraRank:"", gender:"", retire:"", one:"", slot:"", launch:"" };
+let tmFilter = { q:"", genre:"", rank:"", type:"", mg:"", sup:"", active:"", extraRank:"", expert:"", gender:"", retire:"", one:"", slot:"", launch:"" };
 function tmClearAllFilters() {
-  tmFilter = { q:"", genre:"", rank:"", type:"", mg:"", sup:"", active:"", extraRank:"", gender:"", retire:"", one:"", slot:"", launch:"" };
+  tmFilter = { q:"", genre:"", rank:"", type:"", mg:"", sup:"", active:"", extraRank:"", expert:"", gender:"", retire:"", one:"", slot:"", launch:"" };
   renderTeacherMaster();
 }
 function tmSetColumnFilter(key, val) {
@@ -7222,7 +7310,7 @@ function tmSetColumnFilter(key, val) {
   renderTeacherList();
 }
 function tmAnyFilterActive() {
-  return ['genre','rank','type','mg','sup','active','extraRank','gender','retire','one','slot','launch'].some(k => tmFilter[k]);
+  return ['genre','rank','type','mg','sup','active','extraRank','expert','gender','retire','one','slot','launch'].some(k => tmFilter[k]);
 }
 // 列ヘッダー用の絞り込みプルダウンHTML
 // トップフィルタ（クリック式・Notion風）
@@ -7435,6 +7523,8 @@ function tmMapAwsTeacher(a) {
     active: a.is_active === '稼働中' || a.is_active === '未稼働' ? a.is_active : '',
     retire: a.retired === true,
     extraRank: a.acquisition_rank || '',
+    // 2026-10-07: エキスパート講師（講師DB 基本情報 T列）
+    expert: a.is_expert === true,
     // 2026-09-30: ここから下は AWS の講師一覧に列が無く、ずっと空のまま画面に出ていた。
     //   受付窓口が講師DB（クラス情報管理 S〜X / ローンチ情報 Y・AA〜AC）を読んで
     //   応答に足すようにしたので、受け取って表示する。
@@ -7518,6 +7608,7 @@ async function tmFetchIfNeeded(force){
         t.students = t.students || 0;
         t.retire = !!t.retire;
         t.extraRank = t.extraRank || '';
+        t.expert = !!t.expert;
         t.profileImage = t.profileImage || '';
         TM_DATA.push(t);
       });
@@ -7673,6 +7764,7 @@ function tmFiltered(){
     if(tmFilter.genre && r.genre!==tmFilter.genre) return false;
     if(tmFilter.rank && r.rank!==tmFilter.rank) return false;
     if(tmFilter.extraRank && r.extraRank!==tmFilter.extraRank) return false;
+    if(tmFilter.expert && (r.expert?'該当':'—')!==tmFilter.expert) return false;
     if(tmFilter.type && r.type!==tmFilter.type) return false;
     if(tmFilter.gender && r.gender!==tmFilter.gender) return false;
     if(tmFilter.active && r.active!==tmFilter.active) return false;
@@ -7795,6 +7887,9 @@ const TM_TABLE_TABS = [
     {h:'ジャンル', filter:{key:'genre', get:r=>r.genre}, td:r=>`<td style="white-space:nowrap">${tmGenreTag(r.genre)}</td>`},
     {h:'講師ランク', filter:{key:'rank', get:r=>r.rank, order:["マスター","ダイヤモンド","プラチナ","ゴールド","シルバー","特別条件"]}, td:r=>`<td>${tmRankBadge(r.rank)}</td>`},
     {h:'集客ランク', filter:{key:'extraRank', get:r=>r.extraRank}, td:r=>`<td>${r.extraRank?`<span class="tag">${tmEsc(r.extraRank.replace(/ランク$/,''))}</span>`:'<span class="faint">—</span>'}</td>`},
+    {h:'エキスパート <span class="help-tip" data-tip-title="エキスパート講師とは" data-tip="講師DB「基本情報」T列で指定された講師です。追加・解除はシートのT列を書き換えてください。" onclick="event.stopPropagation()">?</span>',
+      filter:{key:'expert', get:r=>r.expert?'該当':'—', order:['該当','—']},
+      td:r=>`<td>${r.expert?'<span class="badge badge-ok" style="font-weight:700">エキスパート</span>':'<span class="faint">—</span>'}</td>`},
     {h:'区分', filter:{key:'type', get:r=>r.type, order:["通常","専属"]}, td:r=>`<td>${tmTypeBadge(r.type)}</td>`},
     {h:'本名', td:r=>`<td>${tmEsc(r.real)||'<span class="faint">—</span>'}</td>`},
     {h:'性別', filter:{key:'gender', get:r=>r.gender}, td:r=>`<td>${tmEsc(r.gender)||'<span class="faint">—</span>'}</td>`},
@@ -8459,6 +8554,20 @@ function renderLaunchHistoryHtml(d, scope) {
 
 
 
+// ローンチの「ランク」セル。直近の申込数から自動で決まるので、
+// どの回の何件で決まったのかをホバーで出す（手入力値と食い違っても追えるように）。
+function llRankCell(r) {
+  if (!r.rank) return '<span class="faint">—</span>';
+  const b = r.rankBasis;
+  const tip = b
+    ? `直近 ${b.date} の申込 ${Number(b.apply).toLocaleString()} 名から自動判定`
+    : '申込数が未入力のため判定できません';
+  const diff = (r.rankSheet && r.rankSheet !== r.rank)
+    ? `　シートの記入は「${r.rankSheet}」` : '';
+  return `<span class="tag help-tip" style="font-weight:700;cursor:help"
+    data-tip-title="ランクの根拠" data-tip="${tmEsc(tip + diff)}">${tmEsc(r.rank)}</span>`;
+}
+
 // ══════════ ローンチ一覧（全講師・日付順） ══════════
 // 見る専用。編集は講師カードの「ローンチ履歴」から（講師MGのみ）。
 const LL = { data: null, month: '', mg: '', state: '', q: '' };
@@ -8530,7 +8639,7 @@ async function renderLaunchList(force) {
         <tbody>${list.map(r => `<tr${r.state==='中止'?' class="faint"':''}>
           <td style="white-space:nowrap">${r.tid ? `<a href="javascript:void(0)" onclick="llOpenTeacher('${tmEsc(r.tid)}')" style="font-weight:700;color:var(--ink)">${tmEsc(r.name || '—')}</a>` : `<span style="font-weight:700">${tmEsc(r.name || '—')}</span>`}<div class="faint" style="font-size:11px">${tmEsc(r.tid || 'ID未登録')}</div></td>
           <td>${tmEsc(r.mg) || '<span class="faint">—</span>'}</td>
-          <td>${tmEsc(r.rank) || '<span class="faint">—</span>'}</td>
+          <td style="white-space:nowrap">${llRankCell(r)}</td>
           <td style="white-space:nowrap">${badge(r.state)}</td>
           <td class="num" style="text-align:right">${num(r.target)}</td>
           <td class="num" style="text-align:right">${num(r.inflow)}</td>
@@ -8564,7 +8673,171 @@ async function renderLaunchList(force) {
     </div>
     ${groups || '<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px;margin-top:16px">この月のローンチはありません</div>'}
     <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.6;margin-top:12px">
-      出典: 講師DB「ローンチ明細」。件数に「中止」は含めません。
+      出典: 講師DB「ローンチ明細」。件数に「中止」は含めません。<br>
+      ランクは直近ローンチの申込数から自動で判定します　S 400以上 ／ A 220〜399 ／ B 130〜219 ／ C 70〜129 ／ D 35〜69 ／ E 34以下
+    </div>`;
+}
+
+// ══════════ ローンチ実績（講師MG専用・全講師） ══════════
+// 入社日 → 初回 → 2回目 → 3回目 … の実施日と申込数、各回の間隔の分布。
+// データは受付窓口 launch_stats（講師DB「講師ローンチ実績」と同じ作り方）。見る専用。
+const LS = { data: null, scope: 'active', mg: '', q: '' };
+function lsMonths(a, b) { return (+b.slice(0, 4) - +a.slice(0, 4)) * 12 + (+b.slice(5, 7) - +a.slice(5, 7)); }
+function lsSet(k, v) { LS[k] = v; renderLaunchStats(); }
+// k回目 → k+1回目 の間隔を分ける。まだ次が無い人は、前回からの経過で「期限内」と「超過」に分ける
+function lsBuckets(rows, k, today) {
+  const b = { m4: 0, m5: 0, m6: 0, m7: 0, waitIn: 0, waitOver: 0 };
+  rows.forEach(r => {
+    if (r.count < k) return;
+    if (r.count > k) {
+      const g = r.gaps[k - 1];
+      if (g <= 4) b.m4++; else if (g === 5) b.m5++; else if (g === 6) b.m6++; else b.m7++;
+    } else {
+      if (lsMonths(r.launches[k - 1].date, today) <= 4) b.waitIn++; else b.waitOver++;
+    }
+  });
+  b.base = b.m4 + b.m5 + b.m6 + b.m7 + b.waitIn + b.waitOver;
+  return b;
+}
+function lsCsv() {
+  const d = LS.data; if (!d) return;
+  const H = ['講師ID','講師名','稼働状況','講師MG','入社日','現在のランク','累計ローンチ回数','入社→初回(月)'];
+  const max = Math.max(4, ...lsRows().map(r => r.count));
+  for (let i = 1; i <= max; i++) { H.push(`${i}回目ローンチ日`, `${i}回目申込数`); if (i > 1) H.push(`${i-1}回目→${i}回目(月)`); }
+  const esc = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v; };
+  const lines = [H.map(esc).join(',')];
+  lsRows().forEach(r => {
+    const a = [r.tid, r.name, r.active, r.mg, r.join, r.rank, r.count, r.gapJoin];
+    for (let i = 0; i < max; i++) {
+      const l = r.launches[i];
+      a.push(l ? l.date : '', l && l.apply != null ? l.apply : '');
+      if (i > 0) a.push(l ? r.gaps[i - 1] : '');
+    }
+    lines.push(a.map(esc).join(','));
+  });
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `講師ローンチ実績_${d.today.replace(/\//g, '')}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function lsRows() {
+  const all = (LS.data && LS.data.rows) || [];
+  const q = LS.q.trim().toLowerCase();
+  return all.filter(r => (LS.scope === 'all' || r.active === '稼働中') && (!LS.mg || r.mg === LS.mg)
+    && (!q || (r.name || '').toLowerCase().includes(q) || r.tid.includes(q)));
+}
+async function renderLaunchStats(force) {
+  const page = document.getElementById('page-launchStats');
+  if (!page) return;
+  const head = `<div class="page-head"><div><div class="page-title">ローンチ実績</div>
+    <div class="page-sub">在籍中の講師が、入社からどのくらいの間隔でローンチしているかの事実データです。講師MGだけが見られます。担当外の講師も含みます。</div></div></div>`;
+  if (!CFG.webAppUrl || !CFG.token) { page.innerHTML = head + '<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">ログインしてください</div>'; return; }
+  if (!LS.data || force) {
+    page.innerHTML = head + '<div class="loading" style="padding:40px;text-align:center;color:var(--muted)">読み込み中…</div>';
+    try {
+      const params = new URLSearchParams({ token: CFG.token, action: 'launch_stats' });
+      const d = await gasGet(`${gasEndpoint()}?${params.toString()}`);
+      if (!d || !d.ok) throw new Error((d && (d.message || d.error)) || '読み込めませんでした');
+      LS.data = d;
+    } catch (e) { page.innerHTML = head + `<div class="card card-pad" style="text-align:center;color:var(--muted);padding:40px">読み込めませんでした: ${tmEsc(humanizeError(e))}</div>`; return; }
+    if (state.page !== 'launchStats') return;
+  }
+  const today = LS.data.today;
+  const all = LS.data.rows || [];
+  const mgs = [...new Set(all.map(r => r.mg).filter(m => m && m !== '担当なし'))].sort((a, b) => a.localeCompare(b, 'ja'));
+  const rows = lsRows();
+  const n = rows.length;
+  const reach = k => rows.filter(r => r.count >= k).length;
+  const rate = (a, b) => b ? `${Math.round(a / b * 1000) / 10}%` : '—';
+  const funnel = [
+    ['対象の講師', n, ''],
+    ['初回ローンチ実施', reach(1), `対象の ${rate(reach(1), n)}`],
+    ['2回目実施', reach(2), `初回からの継続 ${rate(reach(2), reach(1))}`],
+    ['3回目実施', reach(3), `2回目からの継続 ${rate(reach(3), reach(2))}`],
+    ['4回目以上', reach(4), `3回目からの継続 ${rate(reach(4), reach(3))}`],
+  ];
+  const cell = (v, base, strong) => `<td class="num" style="text-align:right;${strong ? 'font-weight:800' : ''}">${v} <span class="faint" style="font-size:11px">${base ? Math.round(v / base * 100) + '%' : ''}</span></td>`;
+  const distRows = [1, 2, 3].map(k => {
+    const b = lsBuckets(rows, k, today);
+    return `<tr><td style="white-space:nowrap;font-weight:700">${k === 1 ? '初回' : k + '回目'} → ${k + 1}回目</td>
+      <td class="num" style="text-align:right">${b.base}</td>
+      ${cell(b.m4, b.base, true)}${cell(b.m5, b.base)}${cell(b.m6, b.base)}${cell(b.m7, b.base)}
+      ${cell(b.waitIn, b.base)}${cell(b.waitOver, b.base)}</tr>`;
+  }).join('');
+  // 入社 → 初回
+  const jb = { pre: 0, m0: 0, m3: 0, m6: 0, m7: 0, none: 0, noJoin: 0 };
+  rows.forEach(r => {
+    if (!r.join) { jb.noJoin++; return; }
+    if (!r.count) { jb.none++; return; }
+    const g = r.gapJoin;
+    if (g < 0) jb.pre++; else if (g <= 2) jb.m0++; else if (g <= 4) jb.m3++; else if (g <= 6) jb.m6++; else jb.m7++;
+  });
+  // 直近12か月の実施数（今日を含む月から数えて12か月）
+  const from = lpShiftMonth(today.slice(0, 7), -11);
+  const last12 = rows.reduce((a, r) => a + r.launches.filter(l => l.date.slice(0, 7) >= from).length, 0);
+  const sorted = rows.slice().sort((a, b) => b.count - a.count || (a.join || '9').localeCompare(b.join || '9'));
+  const ap = l => l.apply != null ? l.apply + '件' : (l.state === '結果未入力' ? '結果未入力' : '件数なし');
+  const dt = (l) => l ? `${tmEsc(l.date)}<div class="faint" style="font-size:11px">${ap(l)}</div>` : '<span class="faint">—</span>';
+  const gp = v => (v === '' || v == null) ? '<span class="faint">—</span>' : v < 0 ? '<span class="faint">入社日より前</span>' : `${v}か月`;
+  const table = sorted.map(r => {
+    const L = r.launches;
+    return `<tr>
+      <td style="white-space:nowrap"><a href="javascript:void(0)" onclick="llOpenTeacher('${tmEsc(r.tid)}')" style="font-weight:700;color:var(--ink)">${tmEsc(r.name)}</a><div class="faint" style="font-size:11px">${tmEsc(r.tid)}${r.active !== '稼働中' ? '・' + tmEsc(r.active || '稼働状況未入力') : ''}</div></td>
+      <td>${tmEsc(r.mg && r.mg !== '担当なし' ? r.mg : '') || '<span class="faint">—</span>'}</td>
+      <td style="white-space:nowrap">${r.join ? tmEsc(r.join) : '<span class="faint">不明</span>'}</td>
+      <td style="text-align:center" title="${tmEsc(r.rankBasis)}">${tmEsc(r.rank) || '<span class="faint">—</span>'}</td>
+      <td class="num" style="text-align:right;font-weight:800">${r.count}</td>
+      <td class="num" style="text-align:right">${gp(r.gapJoin)}</td>
+      <td style="white-space:nowrap">${dt(L[0])}</td>
+      <td style="white-space:nowrap">${dt(L[1])}</td><td class="num" style="text-align:right">${gp(r.gaps[0])}</td>
+      <td style="white-space:nowrap">${dt(L[2])}</td><td class="num" style="text-align:right">${gp(r.gaps[1])}</td>
+      <td style="white-space:nowrap">${dt(L[3])}</td><td class="num" style="text-align:right">${gp(r.gaps[2])}</td>
+      <td style="font-size:11.5px;min-width:160px">${L.slice(4).map(l => `${tmEsc(l.date)}（${ap(l)}）`).join('<br>') || '<span class="faint">—</span>'}</td>
+    </tr>`;
+  }).join('');
+  page.innerHTML = head + `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      <select class="lp-input" onchange="lsSet('scope', this.value)" title="対象の講師">
+        <option value="active"${LS.scope==='active'?' selected':''}>対象: 稼働中の講師</option>
+        <option value="all"${LS.scope==='all'?' selected':''}>対象: 在籍中すべて（未稼働を含む）</option>
+      </select>
+      <select class="lp-input" onchange="lsSet('mg', this.value)" title="講師MGで絞り込む">
+        <option value="">講師MG: すべて</option>${mgs.map(m => `<option value="${tmEsc(m)}"${m===LS.mg?' selected':''}>${tmEsc(m)}</option>`).join('')}
+      </select>
+      <input class="lp-input" type="search" placeholder="講師名・ID" value="${tmEsc(LS.q)}" onchange="lsSet('q', this.value)" style="width:150px">
+      <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto" onclick="lsCsv()">CSVで保存</button>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="renderLaunchStats(true)">最新にする</button>
+    </div>
+    <div class="dm-stats" style="grid-template-columns:repeat(5,1fr);margin:0">
+      ${funnel.map(f => `<div class="dm-stat"><div class="v">${f[1]}</div><div class="l">${f[0]}</div>${f[2] ? `<div class="faint" style="font-size:11px;margin-top:2px">${f[2]}</div>` : ''}</div>`).join('')}
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px">
+      <div class="card-head" style="padding:12px 18px;border-bottom:1px solid var(--line);margin:0">
+        <div class="card-title" style="font-size:14px">次のローンチまでの間隔</div><span class="card-meta">直近12か月の実施 ${last12} 回</span>
+      </div>
+      <div style="overflow-x:auto"><table class="tbl" style="width:100%">
+        <thead><tr><th></th><th style="text-align:right">対象</th><th style="text-align:right">4か月以内</th><th style="text-align:right">5か月</th><th style="text-align:right">6か月</th><th style="text-align:right">7か月以上</th>
+          <th style="text-align:right" title="前回から4か月以内で、まだ次をしていない">未実施（4か月以内）</th><th style="text-align:right" title="前回から5か月以上たっても、次をしていない">未実施（5か月以上）</th></tr></thead>
+        <tbody>${distRows}</tbody></table></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px">
+      <div class="card-head" style="padding:12px 18px;border-bottom:1px solid var(--line);margin:0"><div class="card-title" style="font-size:14px">入社から初回ローンチまで</div></div>
+      <div style="overflow-x:auto"><table class="tbl" style="width:100%">
+        <thead><tr><th style="text-align:right" title="スレッド作成より前に初回ローンチしている（スレッド運用開始前からいる講師など）">入社日より前</th><th style="text-align:right">2か月以内</th><th style="text-align:right">3〜4か月</th><th style="text-align:right">5〜6か月</th><th style="text-align:right">7か月以上</th><th style="text-align:right">初回未実施</th><th style="text-align:right">入社日不明</th></tr></thead>
+        <tbody><tr>${[jb.pre, jb.m0, jb.m3, jb.m6, jb.m7, jb.none, jb.noJoin].map(v => `<td class="num" style="text-align:right;font-weight:700">${v}</td>`).join('')}</tr></tbody></table></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;margin-top:16px">
+      <div class="card-head" style="padding:12px 18px;border-bottom:1px solid var(--line);margin:0"><div class="card-title" style="font-size:14px">講師ごとの実績</div><span class="card-meta">${n} 名（回数の多い順）</span></div>
+      <div style="overflow-x:auto"><table class="tbl" style="width:100%">
+        <thead><tr><th>講師</th><th>講師MG</th><th>入社日</th><th style="text-align:center">ランク</th><th style="text-align:right">回数</th><th style="text-align:right">入社→初回</th>
+          <th>初回</th><th>2回目</th><th style="text-align:right">間隔</th><th>3回目</th><th style="text-align:right">間隔</th><th>4回目</th><th style="text-align:right">間隔</th><th>5回目以降</th></tr></thead>
+        <tbody>${table || '<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:30px">該当する講師がいません</td></tr>'}</tbody></table></div>
+    </div>
+    <div style="font-size:11.5px;color:var(--faint);text-align:right;line-height:1.7;margin-top:12px">
+      出典: 講師DB「ローンチ明細」と「講師ローンチ実績」（入社日）。在籍中＝基本情報の「退職」が付いていない講師。<br>
+      数えるのは日付が過ぎた「実施済み」「結果未入力」の回。予定・中止は数えません。結果未入力の回の前後45日に実施済みの回があるときは、予定日がずれた同じローンチとみなして数えません。<br>
+      入社日は講師MGとのスレッドが作成された日です。2024/10/29 はスレッド運用を始めた日の一斉作成なので、実際の入社はそれより前の可能性があります。<br>
+      間隔はローンチ月どうしの差です（日は見ません）。ランクは直近ローンチの申込数から判定します　S 400以上 ／ A 220〜399 ／ B 130〜219 ／ C 70〜129 ／ D 35〜69 ／ E 34以下
     </div>`;
 }
 
