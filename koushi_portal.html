@@ -8787,11 +8787,11 @@ async function renderLaunchStats(force) {
       <td style="white-space:nowrap">${r.join ? tmEsc(r.join) : '<span class="faint">不明</span>'}</td>
       <td style="text-align:center" title="${tmEsc(r.rankBasis)}">${tmEsc(r.rank) || '<span class="faint">—</span>'}</td>
       <td class="num" style="text-align:right;font-weight:800">${r.count}</td>
-      <td class="num" style="text-align:right">${gp(r.gapJoin)}</td>
+      <td class="num" style="text-align:right;white-space:nowrap">${gp(r.gapJoin)}</td>
       <td style="white-space:nowrap">${dt(L[0])}</td>
-      <td style="white-space:nowrap">${dt(L[1])}</td><td class="num" style="text-align:right">${gp(r.gaps[0])}</td>
-      <td style="white-space:nowrap">${dt(L[2])}</td><td class="num" style="text-align:right">${gp(r.gaps[1])}</td>
-      <td style="white-space:nowrap">${dt(L[3])}</td><td class="num" style="text-align:right">${gp(r.gaps[2])}</td>
+      <td style="white-space:nowrap">${dt(L[1])}</td><td class="num" style="text-align:right;white-space:nowrap">${gp(r.gaps[0])}</td>
+      <td style="white-space:nowrap">${dt(L[2])}</td><td class="num" style="text-align:right;white-space:nowrap">${gp(r.gaps[1])}</td>
+      <td style="white-space:nowrap">${dt(L[3])}</td><td class="num" style="text-align:right;white-space:nowrap">${gp(r.gaps[2])}</td>
       <td style="font-size:11.5px;min-width:160px">${L.slice(4).map(l => `${tmEsc(l.date)}（${ap(l)}）`).join('<br>') || '<span class="faint">—</span>'}</td>
     </tr>`;
   }).join('');
